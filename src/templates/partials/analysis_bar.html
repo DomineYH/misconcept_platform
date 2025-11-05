@@ -1,0 +1,66 @@
+<!-- Frequency bar chart visualization (T070) -->
+<div class="space-y-3">
+    {% for label, count in distribution.items() %}
+    <div class="flex items-center">
+        <div class="w-32 text-sm font-medium text-gray-700">
+            {{ label }}
+        </div>
+        <div class="flex-1 ml-4">
+            <div class="flex items-center">
+                <!-- Calculate percentage for bar width -->
+                {% set total = distribution.values()|sum %}
+                {% set percentage = (count / total * 100) if total > 0 else 0 %}
+
+                <!-- Bar -->
+                <div class="w-full bg-gray-200 rounded-full h-6 mr-3">
+                    <div
+                        class="h-6 rounded-full flex items-center
+                        justify-end pr-2 text-white text-sm font-medium
+                        {% if label == 'Pressing' %}
+                            bg-green-500
+                        {% elif label == 'Linking' %}
+                            bg-blue-500
+                        {% elif label == 'Directing' %}
+                            bg-yellow-500
+                        {% elif label == 'Recall' %}
+                            bg-red-500
+                        {% else %}
+                            bg-gray-500
+                        {% endif %}
+                        "
+                        style="width: {{ percentage }}%"
+                    >
+                        {% if percentage > 10 %}
+                        {{ count }}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Count label (shown outside if bar too small) -->
+                <div class="w-16 text-right text-sm font-semibold">
+                    {% if percentage <= 10 %}
+                    {{ count }}
+                    {% endif %}
+                    <span class="text-gray-500 ml-1">
+                        ({{ "%.0f"|format(percentage) }}%)
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Total count -->
+    <div class="pt-3 border-t mt-3">
+        <div class="flex items-center">
+            <div class="w-32 text-sm font-bold text-gray-900">
+                Total
+            </div>
+            <div class="flex-1 ml-4">
+                <div class="text-right font-bold text-gray-900">
+                    {{ distribution.values()|sum }} questions
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

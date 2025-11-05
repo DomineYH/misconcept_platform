@@ -1,0 +1,76 @@
+"""StudentBot service for role-playing student with misconception."""
+import os
+from pathlib import Path
+from openai import AsyncOpenAI
+
+from src.config import config
+
+
+class StudentBot:
+    """Chatbot simulating student with specific misconception."""
+
+    def __init__(self, scenario_prompt: str, scenario_title: str,
+                 student_profile: str = "Grade 5 student"):
+        """Initialize StudentBot with scenario context.
+
+        Args:
+            scenario_prompt: System prompt defining misconception
+            scenario_title: Scenario display name
+            student_profile: Student characteristics
+        """
+        self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        self.model = config.CHAT_MODEL
+        self.temperature = 0.7
+
+        # Load system prompt template
+        prompt_path = (
+            Path(__file__).parent.parent
+            / "prompts"
+            / "student_system.txt"
+        )
+        template = prompt_path.read_text()
+
+        # Format system prompt with scenario context
+        self.system_prompt = template.format(
+            scenario_title=scenario_title,
+            student_profile=student_profile,
+            prompt=scenario_prompt,
+        )
+
+    async def generate_response(
+        self, teacher_message: str, conversation_history: list[dict]
+    ) -> str:
+        """Generate student response to teacher question.
+
+        Args:
+            teacher_message: Latest teacher question
+            conversation_history: Previous messages [{"role": str, "content":
+                str}]
+
+        Returns:
+            Student response as string
+        """
+        # Build messages for API
+        messages = [{"role": "system", "content": self.system_prompt}]
+
+        # Add conversation history
+        for msg in conversation_history:
+            if msg["role"] == "teacher":
+                messages.append({"role": "user", "content": msg["content"]})
+            elif msg["role"] == "student":
+                messages.append(
+                    {"role": "assistant", "content": msg["content"]}
+                )
+
+        # Add current teacher message
+        messages.append({"role": "user", "content": teacher_message})
+
+        # Call OpenAI API
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=150,  # Keep student responses concise
+        )
+
+        return response.choices[0].message.content.strip()

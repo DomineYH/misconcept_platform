@@ -1,0 +1,130 @@
+openapi: 3.1.0
+info:
+  title: Misconception Dialogue Simulator - Authentication API
+  version: 1.0.0
+  description: |
+    Authentication endpoints for teacher login using minimal
+    credentials (student ID + nickname).
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  /login:
+    get:
+      summary: Display login form
+      description: Renders login HTML page with student ID and nickname
+        fields
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Login form HTML
+          content:
+            text/html:
+              schema:
+                type: string
+                example: "<html><form>...</form></html>"
+
+    post:
+      summary: Authenticate user and create session
+      description: |
+        Validates student ID + nickname combination, creates session
+        cookie, and redirects to scenario list
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - student_uid
+                - nickname
+              properties:
+                student_uid:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  pattern: '^[a-zA-Z0-9_]+$'
+                  description: Student unique identifier (alphanumeric +
+                    underscore)
+                  example: "student_001"
+                nickname:
+                  type: string
+                  minLength: 2
+                  maxLength: 30
+                  description: Display name (any UTF-8 characters)
+                  example: "김교사"
+      responses:
+        '303':
+          description: Authentication successful, redirect to scenarios
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "session_id=abc123; HttpOnly; SameSite=Lax;
+                  Max-Age=28800"
+            Location:
+              schema:
+                type: string
+                example: "/scenarios"
+        '400':
+          description: Invalid input (missing fields, invalid format)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: "student_uid must be 3-50 alphanumeric
+                  characters"
+        '401':
+          description: Authentication failed (invalid credentials)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: "Invalid student ID or nickname"
+
+  /logout:
+    post:
+      summary: End user session
+      description: Clears session cookie and redirects to login page
+      tags:
+        - Authentication
+      security:
+        - cookieAuth: []
+      responses:
+        '303':
+          description: Logout successful, redirect to login
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "session_id=; Max-Age=0"
+            Location:
+              schema:
+                type: string
+                example: "/login"
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+      description: Session cookie set after successful login
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Human-readable error message
+          example: "Authentication required"

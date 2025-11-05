@@ -1,0 +1,84 @@
+"""Contract tests for scenario endpoints (T017)."""
+import pytest
+from fastapi.testclient import TestClient
+
+
+class TestScenariosListEndpoint:
+    """Test GET /scenarios endpoint contract compliance."""
+
+    def test_scenarios_requires_authentication(
+        self, test_client: TestClient
+    ):
+        """Verify unauthenticated request returns 401."""
+        response = test_client.get("/scenarios")
+
+        assert response.status_code == 401
+        assert "detail" in response.json()
+
+    def test_scenarios_returns_active_scenarios_html(
+        self, test_client: TestClient
+    ):
+        """Verify authenticated request returns HTML with scenarios."""
+        # First login to get session
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        assert login_response.status_code == 303
+
+        # Get session cookie
+        cookies = login_response.cookies
+
+        # Request scenarios with session
+        response = test_client.get("/scenarios", cookies=cookies)
+
+        # Contract: 200 with HTML content
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
+class TestScenarioDetailEndpoint:
+    """Test GET /scenarios/{id} endpoint contract compliance."""
+
+    def test_scenario_detail_requires_authentication(
+        self, test_client: TestClient
+    ):
+        """Verify unauthenticated request returns 401."""
+        response = test_client.get("/scenarios/1")
+
+        assert response.status_code == 401
+
+    def test_scenario_detail_returns_dialogue_interface(
+        self, test_client: TestClient
+    ):
+        """Verify authenticated request returns dialogue interface."""
+        # Login first
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        # Request scenario detail
+        response = test_client.get("/scenarios/1", cookies=cookies)
+
+        # Contract: 200 with HTML dialogue interface
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_scenario_detail_nonexistent_returns_404(
+        self, test_client: TestClient
+    ):
+        """Verify nonexistent scenario returns 404."""
+        # Login first
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        # Request nonexistent scenario
+        response = test_client.get("/scenarios/99999", cookies=cookies)
+
+        assert response.status_code == 404
+        assert "detail" in response.json()

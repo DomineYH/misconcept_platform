@@ -1,0 +1,137 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ scenario.title }} - Dialogue{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+  <header class="chat-header">
+    <h1>{{ scenario.title }}</h1>
+    {% if scenario.student_profile %}
+    <p class="student-info">{{ scenario.student_profile }}</p>
+    {% endif %}
+    <div class="header-actions">
+      <button id="end-session-btn" class="btn-secondary">
+        End Session
+      </button>
+      <a href="/scenarios" class="btn-secondary">Back to Scenarios</a>
+    </div>
+  </header>
+
+  <div class="chat-wrapper">
+    <!-- Messages container -->
+    <div
+      id="messages-container"
+      class="messages-container"
+      hx-get="/sessions/{{ session_id }}/messages/updates"
+      hx-trigger="every 2s"
+      hx-swap="beforeend"
+    >
+      {% for message in messages %}
+        {% include 'partials/message.html' %}
+      {% endfor %}
+    </div>
+
+    <!-- Teacher input form -->
+    <form
+      id="teacher-form"
+      class="teacher-form"
+      hx-post="/sessions/{{ session_id }}/messages"
+      hx-target="#messages-container"
+      hx-swap="beforeend"
+      hx-indicator="#loading-indicator"
+    >
+      <div class="input-group">
+        <textarea
+          name="content"
+          id="teacher-input"
+          rows="3"
+          placeholder="Type your question or response..."
+          required
+          maxlength="5000"
+        ></textarea>
+        <button type="submit" class="btn-primary">
+          Send
+        </button>
+      </div>
+      <div id="loading-indicator" class="htmx-indicator">
+        Generating responses...
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Auto-create session on page load
+  document.addEventListener('DOMContentLoaded', async () => {
+    const scenarioId = {{ scenario.id }};
+
+    try {
+      const response = await fetch('/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenario_id: scenarioId })
+      });
+
+      const data = await response.json();
+
+      // Update form action with session ID
+      const form = document.getElementById('teacher-form');
+      form.setAttribute('hx-post', `/sessions/${data.id}/messages`);
+      htmx.process(form);
+
+      // Update polling target
+      const container = document.getElementById('messages-container');
+      container.setAttribute('hx-get', `/sessions/${data.id}/messages/updates`);
+      htmx.process(container);
+
+      // Store session ID for end session button
+      window.currentSessionId = data.id;
+
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      alert('Failed to start dialogue session');
+    }
+  });
+
+  // Handle end session (T071 - redirect to analysis page)
+  document.getElementById('end-session-btn').addEventListener('click', async () => {
+    if (!window.currentSessionId) {
+      alert('No active session');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to end this session and view analysis?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/sessions/${window.currentSessionId}/end`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        // Redirect to analysis page
+        window.location.href = `/sessions/${window.currentSessionId}/analysis_page`;
+      } else {
+        const error = await response.json();
+        alert(`Failed to end session: ${error.detail || 'Unknown error'}`);
+      }
+
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      alert('Failed to end session');
+    }
+  });
+
+  // Clear input after successful send
+  document.body.addEventListener('htmx:afterRequest', (event) => {
+    if (event.detail.successful) {
+      document.getElementById('teacher-input').value = '';
+
+      // Scroll to bottom
+      const container = document.getElementById('messages-container');
+      container.scrollTop = container.scrollHeight;
+    }
+  });
+</script>
+{% endblock %}

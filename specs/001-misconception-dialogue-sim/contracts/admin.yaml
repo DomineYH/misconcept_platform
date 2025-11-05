@@ -1,0 +1,162 @@
+openapi: 3.1.0
+info:
+  title: Misconception Dialogue Simulator - Admin API
+  version: 1.0.0
+  description: Admin endpoints for scenario and framework management
+
+servers:
+  - url: http://localhost:8000
+
+paths:
+  /admin:
+    get:
+      summary: Admin dashboard
+      tags: [Admin]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Dashboard HTML
+
+  /admin/scenarios:
+    get:
+      summary: List all scenarios (active and inactive)
+      tags: [Admin]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Scenario list HTML
+
+    post:
+      summary: Create new scenario
+      tags: [Admin]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioCreate'
+      responses:
+        '201':
+          description: Scenario created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+
+  /admin/scenarios/{id}:
+    put:
+      summary: Update scenario or toggle active status
+      tags: [Admin]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioUpdate'
+      responses:
+        '200':
+          description: Scenario updated
+
+  /admin/frameworks:
+    get:
+      summary: List analysis frameworks
+      tags: [Admin]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Framework list HTML
+
+    post:
+      summary: Register new analysis framework
+      tags: [Admin]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FrameworkCreate'
+      responses:
+        '201':
+          description: Framework created
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+
+  schemas:
+    Scenario:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        prompt:
+          type: string
+        student_profile:
+          type: string
+        is_active:
+          type: boolean
+        framework_id:
+          type: integer
+
+    ScenarioCreate:
+      type: object
+      required: [title, prompt, framework_id]
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        prompt:
+          type: string
+          minLength: 10
+          maxLength: 10000
+        student_profile:
+          type: string
+          maxLength: 1000
+        framework_id:
+          type: integer
+
+    ScenarioUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        prompt:
+          type: string
+        is_active:
+          type: boolean
+
+    FrameworkCreate:
+      type: object
+      required: [name, labels]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        labels:
+          type: array
+          items:
+            type: string
+          minItems: 2
+          maxItems: 20

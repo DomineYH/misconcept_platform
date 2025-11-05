@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+
+{% block title %}Login - Misconception Dialogue Simulator{% endblock %}
+
+{% block content %}
+<div class="login-container">
+  <div class="login-card">
+    <h1>Misconception Dialogue Simulator</h1>
+    <p class="subtitle">Teacher Training Platform</p>
+
+    <form method="POST" action="/login" class="login-form">
+      <div class="form-group">
+        <label for="student_uid">Student ID</label>
+        <input
+          type="text"
+          id="student_uid"
+          name="student_uid"
+          placeholder="student_001"
+          required
+          minlength="3"
+          maxlength="50"
+          pattern="[a-zA-Z0-9_]+"
+          title="Alphanumeric characters and underscores only"
+        />
+        <small>3-50 characters, alphanumeric and underscore</small>
+      </div>
+
+      <div class="form-group">
+        <label for="nickname">Nickname</label>
+        <input
+          type="text"
+          id="nickname"
+          name="nickname"
+          placeholder="김교사"
+          required
+          minlength="2"
+          maxlength="30"
+        />
+        <small>2-30 characters, any language</small>
+      </div>
+
+      <button type="submit" class="btn-primary">Login</button>
+    </form>
+
+    <div class="info-box">
+      <p>
+        <strong>Note:</strong> This is a training platform. Use your
+        student ID and a nickname to begin practice sessions.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+
+{% block title %}Scenarios - Misconception Dialogue Simulator{% endblock %}
+
+{% block content %}
+<div class="scenarios-container">
+  <header class="page-header">
+    <h1>Select a Scenario</h1>
+    <p>Welcome, <strong>{{ user.nickname }}</strong>!</p>
+    <form method="POST" action="/logout" style="display: inline">
+      <button type="submit" class="btn-secondary">Logout</button>
+    </form>
+  </header>
+
+  <div class="scenarios-grid">
+    {% if scenarios %}
+      {% for scenario in scenarios %}
+      <div class="scenario-card">
+        <h3>{{ scenario.title }}</h3>
+
+        {% if scenario.student_profile %}
+        <p class="student-profile">
+          <strong>Student:</strong> {{ scenario.student_profile }}
+        </p>
+        {% endif %}
+
+        <a
+          href="/scenarios/{{ scenario.id }}"
+          class="btn-primary"
+        >
+          Start Dialogue
+        </a>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <p>No active scenarios available.</p>
+        <p>Please contact an administrator to create scenarios.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

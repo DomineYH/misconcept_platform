@@ -1,0 +1,159 @@
+openapi: 3.1.0
+info:
+  title: Misconception Dialogue Simulator - Sessions API
+  version: 1.0.0
+  description: Dialogue session and message management endpoints
+
+servers:
+  - url: http://localhost:8000
+
+paths:
+  /sessions:
+    post:
+      summary: Start new dialogue session
+      tags: [Sessions]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scenario_id]
+              properties:
+                scenario_id:
+                  type: integer
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+
+  /sessions/{id}/messages:
+    post:
+      summary: Send teacher message
+      tags: [Sessions]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 5000
+      responses:
+        '200':
+          description: Message sent, returns new messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+
+  /sessions/{id}/end:
+    post:
+      summary: End session and generate report
+      tags: [Sessions]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Session ended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionSummary'
+
+  /sessions/{id}/export.csv:
+    get:
+      summary: Download session CSV
+      tags: [Sessions]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+
+  schemas:
+    Session:
+      type: object
+      properties:
+        id:
+          type: integer
+        scenario_id:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        role:
+          type: string
+          enum: [teacher, student, tutor]
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        label:
+          type: string
+          nullable: true
+        confidence:
+          type: number
+          nullable: true
+
+    SessionSummary:
+      type: object
+      properties:
+        distribution:
+          type: object
+          additionalProperties:
+            type: integer
+        feedback:
+          type: string

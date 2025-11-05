@@ -1,0 +1,17 @@
+<div class="message message-{{ message.role }}">
+  <div class="message-header">
+    <span class="role-label">
+      {% if message.role == 'teacher' %}
+        Teacher
+      {% elif message.role == 'student' %}
+        Student
+      {% elif message.role == 'tutor' %}
+        Tutor (Feedback)
+      {% endif %}
+    </span>
+    <span class="timestamp">{{ message.created_at }}</span>
+  </div>
+  <div class="message-content">
+    {{ message.content }}
+  </div>
+</div>

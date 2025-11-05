@@ -1,0 +1,82 @@
+openapi: 3.1.0
+info:
+  title: Misconception Dialogue Simulator - Scenarios API
+  version: 1.0.0
+  description: Endpoints for browsing and selecting dialogue scenarios
+
+servers:
+  - url: http://localhost:8000
+
+paths:
+  /:
+    get:
+      summary: Home page (redirect to scenarios)
+      tags: [Scenarios]
+      responses:
+        '303':
+          description: Redirect to /scenarios
+
+  /scenarios:
+    get:
+      summary: List active scenarios
+      description: Returns HTML page with active scenarios
+      tags: [Scenarios]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Scenario list HTML
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /scenarios/{id}:
+    get:
+      summary: Display scenario and start dialogue
+      description: Shows scenario details and dialogue interface
+      tags: [Scenarios]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Dialogue interface HTML
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+
+  responses:
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string

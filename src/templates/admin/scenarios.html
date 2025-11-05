@@ -1,0 +1,468 @@
+{% extends "layout.html" %}
+
+{% block title %}Manage Scenarios - Admin{% endblock %}
+
+{% block content %}
+<div class="container">
+  <header class="page-header">
+    <h1>📝 Manage Scenarios</h1>
+    <p class="subtitle">Create, edit, and manage dialogue scenarios</p>
+  </header>
+
+  <!-- Create New Scenario Form -->
+  <section class="create-section">
+    <h2>Create New Scenario</h2>
+    <form id="create-form" class="scenario-form">
+      <div class="form-group">
+        <label for="new-title">Title *</label>
+        <input
+          type="text"
+          id="new-title"
+          name="title"
+          required
+          minlength="3"
+          maxlength="200"
+          placeholder="Enter scenario title (3-200 chars)"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="new-framework">Framework *</label>
+        <select id="new-framework" name="framework_id" required>
+          <option value="">Select a framework</option>
+          {% for framework in frameworks %}
+          <option value="{{ framework.id }}">
+            {{ framework.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="new-prompt">Scenario Prompt *</label>
+        <textarea
+          id="new-prompt"
+          name="prompt"
+          rows="4"
+          required
+          minlength="10"
+          maxlength="10000"
+          placeholder="Describe the scenario context (10-10000 chars)"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="new-profile">Student Profile *</label>
+        <textarea
+          id="new-profile"
+          name="student_profile"
+          rows="3"
+          required
+          minlength="3"
+          maxlength="5000"
+          placeholder="Describe the student's characteristics (3-5000 chars)"
+        ></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        ➕ Create Scenario
+      </button>
+    </form>
+  </section>
+
+  <!-- Existing Scenarios List -->
+  <section class="scenarios-list">
+    <h2>Existing Scenarios ({{ scenarios|length }})</h2>
+
+    {% if scenarios %}
+    <div class="scenarios-table">
+      {% for scenario in scenarios %}
+      <div class="scenario-card" data-scenario-id="{{ scenario.id }}">
+        <div class="scenario-header">
+          <h3>{{ scenario.title }}</h3>
+          <div class="scenario-status">
+            <label class="toggle-switch">
+              <input
+                type="checkbox"
+                class="status-toggle"
+                data-id="{{ scenario.id }}"
+                {% if scenario.is_active == 1 %}checked{% endif %}
+              />
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">
+                {% if scenario.is_active == 1 %}Active{% else %}Inactive{%
+                endif %}
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="scenario-meta">
+          <span class="meta-item">
+            📋 ID: {{ scenario.id }}
+          </span>
+          <span class="meta-item">
+            🏷️ Framework: {{ scenario.framework.name }}
+          </span>
+        </div>
+
+        <div class="scenario-content">
+          <div class="content-section">
+            <strong>Prompt:</strong>
+            <p>{{ scenario.prompt[:200] }}{% if scenario.prompt|length > 200
+              %}...{% endif %}</p>
+          </div>
+          <div class="content-section">
+            <strong>Student Profile:</strong>
+            <p>{{ scenario.student_profile[:150] }}{% if
+              scenario.student_profile|length > 150 %}...{% endif %}</p>
+          </div>
+        </div>
+
+        <div class="scenario-actions">
+          <button
+            class="btn btn-small btn-secondary edit-btn"
+            data-id="{{ scenario.id }}"
+          >
+            ✏️ Edit
+          </button>
+        </div>
+
+        <!-- Edit Form (Hidden by default) -->
+        <form
+          class="edit-form"
+          id="edit-form-{{ scenario.id }}"
+          style="display: none"
+        >
+          <div class="form-group">
+            <label>Title</label>
+            <input
+              type="text"
+              name="title"
+              value="{{ scenario.title }}"
+              minlength="3"
+              maxlength="200"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Framework</label>
+            <select name="framework_id">
+              {% for framework in frameworks %}
+              <option
+                value="{{ framework.id }}"
+                {% if framework.id == scenario.framework_id %}selected{%
+                endif %}
+              >
+                {{ framework.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Prompt</label>
+            <textarea
+              name="prompt"
+              rows="4"
+              minlength="10"
+              maxlength="10000"
+            >{{ scenario.prompt }}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Student Profile</label>
+            <textarea
+              name="student_profile"
+              rows="3"
+              minlength="3"
+              maxlength="5000"
+            >{{ scenario.student_profile }}</textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+              💾 Save Changes
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary cancel-btn"
+              data-id="{{ scenario.id }}"
+            >
+              ❌ Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">No scenarios found. Create your first scenario above!</p>
+    {% endif %}
+  </section>
+</div>
+
+<style>
+  .create-section,
+  .scenarios-list {
+    margin: 2rem 0;
+  }
+
+  .scenario-form {
+    background: white;
+    padding: 1.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+  }
+
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #374151;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+
+  .scenario-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .scenario-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .scenario-header h3 {
+    margin: 0;
+    color: #1f2937;
+  }
+
+  .toggle-switch {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .toggle-switch input[type="checkbox"] {
+    display: none;
+  }
+
+  .toggle-slider {
+    position: relative;
+    width: 50px;
+    height: 24px;
+    background: #d1d5db;
+    border-radius: 12px;
+    transition: background 0.3s;
+  }
+
+  .toggle-slider::before {
+    content: "";
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.3s;
+  }
+
+  .toggle-switch input:checked + .toggle-slider {
+    background: #10b981;
+  }
+
+  .toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(26px);
+  }
+
+  .scenario-meta {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  .scenario-content {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 4px;
+  }
+
+  .content-section {
+    margin-bottom: 0.75rem;
+  }
+
+  .content-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .content-section strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: #374151;
+  }
+
+  .content-section p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
+
+  .scenario-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .edit-form {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+  }
+</style>
+
+<script>
+  // Create scenario
+  document.getElementById("create-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = {
+      title: formData.get("title"),
+      prompt: formData.get("prompt"),
+      student_profile: formData.get("student_profile"),
+      framework_id: parseInt(formData.get("framework_id")),
+    };
+
+    try {
+      const response = await fetch("/admin/scenarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        alert("Scenario created successfully!");
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.detail}`);
+      }
+    } catch (err) {
+      alert("Failed to create scenario");
+    }
+  });
+
+  // Toggle active status
+  document.querySelectorAll(".status-toggle").forEach((toggle) => {
+    toggle.addEventListener("change", async (e) => {
+      const id = e.target.dataset.id;
+      const isActive = e.target.checked ? 1 : 0;
+
+      try {
+        const response = await fetch(`/admin/scenarios/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_active: isActive }),
+        });
+
+        if (response.ok) {
+          const label = e.target.parentElement.querySelector(".toggle-label");
+          label.textContent = isActive ? "Active" : "Inactive";
+        } else {
+          const error = await response.json();
+          alert(`Error: ${error.detail}`);
+          e.target.checked = !e.target.checked; // Revert
+        }
+      } catch (err) {
+        alert("Failed to update status");
+        e.target.checked = !e.target.checked; // Revert
+      }
+    });
+  });
+
+  // Show edit form
+  document.querySelectorAll(".edit-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const id = e.target.dataset.id;
+      const form = document.getElementById(`edit-form-${id}`);
+      form.style.display = form.style.display === "none" ? "block" : "none";
+    });
+  });
+
+  // Cancel edit
+  document.querySelectorAll(".cancel-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const id = e.target.dataset.id;
+      const form = document.getElementById(`edit-form-${id}`);
+      form.style.display = "none";
+    });
+  });
+
+  // Submit edit
+  document.querySelectorAll(".edit-form").forEach((form) => {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = form.id.replace("edit-form-", "");
+      const formData = new FormData(e.target);
+      const data = {
+        title: formData.get("title"),
+        prompt: formData.get("prompt"),
+        student_profile: formData.get("student_profile"),
+        framework_id: parseInt(formData.get("framework_id")),
+      };
+
+      try {
+        const response = await fetch(`/admin/scenarios/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          alert("Scenario updated successfully!");
+          window.location.reload();
+        } else {
+          const error = await response.json();
+          alert(`Error: ${error.detail}`);
+        }
+      } catch (err) {
+        alert("Failed to update scenario");
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+
+{% block title %}Admin Dashboard - Misconception Dialogue Simulator{% endblock %}
+
+{% block content %}
+<div class="container">
+  <header class="page-header">
+    <h1>🛠️ Admin Dashboard</h1>
+    <p class="subtitle">System Overview and Statistics</p>
+  </header>
+
+  <!-- Statistics Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">📚</div>
+      <div class="stat-content">
+        <h3>Total Scenarios</h3>
+        <p class="stat-value">{{ total_scenarios }}</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-content">
+        <h3>Active Scenarios</h3>
+        <p class="stat-value">{{ active_scenarios }}</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">💬</div>
+      <div class="stat-content">
+        <h3>Total Sessions</h3>
+        <p class="stat-value">{{ total_sessions }}</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">⏱️</div>
+      <div class="stat-content">
+        <h3>Avg Duration</h3>
+        <p class="stat-value">{{ avg_duration }} min</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <section class="quick-actions">
+    <h2>Quick Actions</h2>
+    <div class="action-buttons">
+      <a href="/admin/scenarios" class="btn btn-primary">
+        📝 Manage Scenarios
+      </a>
+      <a href="/admin/frameworks" class="btn btn-secondary">
+        🏷️ Manage Frameworks
+      </a>
+      <a href="/admin/sessions" class="btn btn-secondary">
+        📊 View Session Logs
+      </a>
+    </div>
+  </section>
+</div>
+
+<style>
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+  }
+
+  .stat-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .stat-icon {
+    font-size: 2.5rem;
+  }
+
+  .stat-content h3 {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0 0 0.5rem 0;
+    font-weight: 500;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0;
+  }
+
+  .quick-actions {
+    margin-top: 3rem;
+  }
+
+  .quick-actions h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    color: #1f2937;
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .action-buttons .btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+  }
+</style>
+{% endblock %}
