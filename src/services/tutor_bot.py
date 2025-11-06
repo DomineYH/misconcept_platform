@@ -1,8 +1,17 @@
 """TutorBot service for pedagogical feedback and intervention."""
-from pathlib import Path
-from openai import AsyncOpenAI
+import logging
+from openai import AsyncOpenAI, APIError, APIConnectionError, RateLimitError
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from src.config import config
+from src.utils.cache import load_prompt_template
+
+logger = logging.getLogger(__name__)
 
 
 class TutorBot:
@@ -14,13 +23,8 @@ class TutorBot:
         self.model = config.ANALYSIS_MODEL  # Can use faster model
         self.temperature = 0.3  # More consistent feedback
 
-        # Load tutor system prompt
-        prompt_path = (
-            Path(__file__).parent.parent
-            / "prompts"
-            / "tutor_system.txt"
-        )
-        self.system_prompt = prompt_path.read_text()
+        # Load cached tutor system prompt (T111 optimization)
+        self.system_prompt = load_prompt_template("tutor_system.txt")
 
         # Track interventions for rate limiting
         self.intervention_count = 0
@@ -84,6 +88,13 @@ class TutorBot:
         # Intervene if low-leverage detected
         return any(low_leverage_indicators)
 
+    @retry(
+        retry=retry_if_exception_type(
+            (APIConnectionError, APIError, RateLimitError)
+        ),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
     async def generate_feedback(
         self,
         teacher_question: str,
@@ -99,6 +110,9 @@ class TutorBot:
 
         Returns:
             Feedback string if intervention triggered, None otherwise
+
+        Raises:
+            APIError: If OpenAI API fails after retries
         """
         # Extract recent teacher questions
         teacher_questions = [
@@ -112,28 +126,38 @@ class TutorBot:
         if not self.should_intervene(teacher_questions):
             return None
 
-        # Build analysis context
-        context = "Recent conversation:\n"
-        for ex in recent_exchanges[-4:]:
-            context += f"{ex['role'].upper()}: {ex['content']}\n"
-        context += f"TEACHER: {teacher_question}\n"
-        context += f"STUDENT: {student_response}\n"
+        try:
+            # Build analysis context
+            context = "Recent conversation:\n"
+            for ex in recent_exchanges[-4:]:
+                context += f"{ex['role'].upper()}: {ex['content']}\n"
+            context += f"TEACHER: {teacher_question}\n"
+            context += f"STUDENT: {student_response}\n"
 
-        messages = [
-            {"role": "system", "content": self.system_prompt},
-            {
-                "role": "user",
-                "content": f"{context}\nProvide brief, constructive feedback for the teacher.",
-            },
-        ]
+            messages = [
+                {"role": "system", "content": self.system_prompt},
+                {
+                    "role": "user",
+                    "content": f"{context}\nProvide brief, constructive feedback for the teacher.",
+                },
+            ]
 
-        # Call OpenAI API
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=100,
-        )
+            # Call OpenAI API
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=100,
+            )
 
-        self.intervention_count += 1
-        return response.choices[0].message.content.strip()
+            self.intervention_count += 1
+            return response.choices[0].message.content.strip()
+
+        except (APIConnectionError, RateLimitError, APIError) as e:
+            logger.error(
+                f"TutorBot API error: {type(e).__name__}: {str(e)}"
+            )
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in TutorBot: {str(e)}")
+            raise APIError(f"Tutor feedback generation failed: {str(e)}")

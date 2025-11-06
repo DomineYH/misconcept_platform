@@ -1,0 +1,88 @@
+"""Health check and metrics endpoints for monitoring."""
+
+import time
+from fastapi import APIRouter, Depends
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.api.dependencies import get_db_session
+
+router = APIRouter(tags=["Health"])
+
+# Track application start time for uptime calculation
+START_TIME = time.time()
+
+
+@router.get("/health")
+async def health_check(db: AsyncSession = Depends(get_db_session)) -> dict:
+    """
+    Health check endpoint for monitoring.
+
+    Returns:
+        dict: Status of application and database connectivity
+    """
+    try:
+        # Check database connectivity
+        await db.execute(text("SELECT 1"))
+        db_status = "healthy"
+    except Exception as e:
+        db_status = f"unhealthy: {str(e)}"
+
+    return {
+        "status": "healthy" if db_status == "healthy" else "degraded",
+        "database": db_status,
+        "uptime_seconds": round(time.time() - START_TIME, 2),
+    }
+
+
+@router.get("/metrics")
+async def get_metrics(db: AsyncSession = Depends(get_db_session)) -> dict:
+    """
+    Metrics endpoint for observability.
+
+    Returns:
+        dict: Application metrics including counts and performance data
+    """
+    try:
+        # Get total counts from database
+        from src.models import User, Session, Message
+
+        user_count_result = await db.execute(
+            text("SELECT COUNT(*) FROM users")
+        )
+        user_count = user_count_result.scalar()
+
+        session_count_result = await db.execute(
+            text("SELECT COUNT(*) FROM sessions")
+        )
+        session_count = session_count_result.scalar()
+
+        message_count_result = await db.execute(
+            text("SELECT COUNT(*) FROM messages")
+        )
+        message_count = message_count_result.scalar()
+
+        # Get active sessions (not ended)
+        active_session_result = await db.execute(
+            text("SELECT COUNT(*) FROM sessions WHERE ended_at IS NULL")
+        )
+        active_sessions = active_session_result.scalar()
+
+        return {
+            "uptime_seconds": round(time.time() - START_TIME, 2),
+            "database": {
+                "users": user_count,
+                "sessions": {
+                    "total": session_count,
+                    "active": active_sessions,
+                    "completed": session_count - active_sessions,
+                },
+                "messages": message_count,
+            },
+        }
+
+    except Exception as e:
+        return {
+            "error": f"Failed to retrieve metrics: {str(e)}",
+            "uptime_seconds": round(time.time() - START_TIME, 2),
+        }

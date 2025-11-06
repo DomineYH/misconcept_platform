@@ -44,6 +44,52 @@
     </div>
   </div>
 
+  <!-- Statistics Charts (T099) -->
+  <section class="statistics-section">
+    <h2>System Statistics</h2>
+    <div class="charts-grid">
+      <!-- Teachers & Sessions Chart -->
+      <div class="chart-card">
+        <h3>Teachers & Sessions</h3>
+        <div id="teachers-chart" class="chart-container">
+          <div class="stat-display">
+            <div class="stat-item">
+              <span class="stat-label">Total Teachers</span>
+              <span id="total-teachers" class="stat-number">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Total Sessions</span>
+              <span id="total-sessions-stat" class="stat-number">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Active Sessions</span>
+              <span id="active-sessions" class="stat-number">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Average Metrics Chart -->
+      <div class="chart-card">
+        <h3>Average Metrics</h3>
+        <div id="averages-chart" class="chart-container">
+          <div class="stat-display">
+            <div class="stat-item">
+              <span class="stat-label">Avg Duration</span>
+              <span id="avg-duration" class="stat-number">-</span>
+              <span class="stat-unit">minutes</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Avg Questions</span>
+              <span id="avg-questions" class="stat-number">-</span>
+              <span class="stat-unit">per session</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Quick Actions -->
   <section class="quick-actions">
     <h2>Quick Actions</h2>
@@ -60,6 +106,32 @@
     </div>
   </section>
 </div>
+
+<script>
+// Load statistics from /admin/stats endpoint
+async function loadStatistics() {
+  try {
+    const response = await fetch('/admin/stats');
+    if (!response.ok) {
+      throw new Error('Failed to load statistics');
+    }
+
+    const data = await response.json();
+
+    // Update chart data
+    document.getElementById('total-teachers').textContent = data.total_teachers;
+    document.getElementById('total-sessions-stat').textContent = data.total_sessions;
+    document.getElementById('active-sessions').textContent = data.active_sessions;
+    document.getElementById('avg-duration').textContent = data.avg_session_duration_minutes;
+    document.getElementById('avg-questions').textContent = data.avg_questions_per_session;
+  } catch (error) {
+    console.error('Error loading statistics:', error);
+  }
+}
+
+// Load statistics on page load
+loadStatistics();
+</script>
 
 <style>
   .stats-grid {
@@ -117,6 +189,78 @@
   .action-buttons .btn {
     padding: 0.75rem 1.5rem;
     font-size: 1rem;
+  }
+
+  .statistics-section {
+    margin: 3rem 0;
+  }
+
+  .statistics-section h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+    color: #1f2937;
+  }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .chart-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .chart-card h3 {
+    font-size: 1rem;
+    margin: 0 0 1rem 0;
+    color: #374151;
+    font-weight: 600;
+  }
+
+  .chart-container {
+    min-height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stat-display {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border-radius: 6px;
+  }
+
+  .stat-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+  }
+
+  .stat-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1f2937;
+  }
+
+  .stat-unit {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-left: 0.25rem;
   }
 </style>
 {% endblock %}

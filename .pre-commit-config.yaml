@@ -1,0 +1,57 @@
+# Pre-commit hooks configuration
+# Install: pip install pre-commit
+# Setup: pre-commit install
+# Run: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        name: black
+        description: "Black: The uncompromising Python code formatter"
+        language_version: python3.11
+        args: ["--line-length=80"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.15
+    hooks:
+      - id: ruff
+        name: ruff
+        description: "Ruff: An extremely fast Python linter"
+        args: ["--fix"]
+      - id: ruff-format
+        name: ruff-format
+        description: "Ruff: Format Python code"
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: trailing-whitespace
+        description: "Trim trailing whitespace"
+      - id: end-of-file-fixer
+        name: end-of-file-fixer
+        description: "Ensure files end with a newline"
+      - id: check-yaml
+        name: check-yaml
+        description: "Check YAML file syntax"
+      - id: check-added-large-files
+        name: check-added-large-files
+        description: "Prevent large files from being committed"
+        args: ["--maxkb=1000"]
+      - id: check-merge-conflict
+        name: check-merge-conflict
+        description: "Check for merge conflict strings"
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        description: "Run pytest tests"
+        entry: pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [commit]

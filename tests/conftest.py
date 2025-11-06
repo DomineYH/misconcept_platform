@@ -1,7 +1,15 @@
 """Pytest configuration and shared fixtures."""
 import asyncio
+import os
 import pytest
 from typing import AsyncGenerator
+
+# Set testing mode BEFORE any imports
+os.environ["TESTING"] = "true"
+
+# Import and configure BEFORE importing main
+from src.config import config
+config.TESTING = True
 
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -28,17 +36,31 @@ def event_loop():
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Create test database session with schema."""
     engine = create_async_engine(
-        TEST_DATABASE_URL, echo=False, future=True
+        TEST_DATABASE_URL,
+        echo=False,
+        future=True,
+        poolclass=None,  # Disable connection pooling for tests
     )
     async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
     )
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     async with async_session() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -51,9 +73,14 @@ def test_client(db_session: AsyncSession) -> TestClient:
     """Create FastAPI test client with test database."""
 
     async def override_get_db():
-        yield db_session
+        try:
+            yield db_session
+        finally:
+            pass
 
     app.dependency_overrides[get_db_session] = override_get_db
-    client = TestClient(app)
-    yield client
+
+    with TestClient(app) as client:
+        yield client
+
     app.dependency_overrides.clear()

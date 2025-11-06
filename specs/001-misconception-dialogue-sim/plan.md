@@ -20,8 +20,8 @@ reports with frequency statistics, and exports to CSV for research.
 ## Implementation Status
 
 **Last Updated**: 2025-11-05
-**Progress**: 63/112 tasks (56.3%)
-**Current Phase**: Phase 4 Complete ✅, Phase 5 Ready to Start
+**Progress**: 83/112 tasks (74.1%)
+**Current Phase**: Phase 6 Complete ✅, Phase 7 Ready to Start
 
 ### Completed Phases
 
@@ -49,16 +49,32 @@ reports with frequency statistics, and exports to CSV for research.
 - Templates: analysis.html, partials/analysis_bar.html
 - Tests: Unit tests for Analyzer (10) and CSVExporter (12)
 
+✅ **Phase 5: User Story 3 - Admin Manages Scenarios** (12/12 tasks - 100%)
+- Tests: Contract (11) + Integration (2)
+- Routes: GET /admin, GET/POST/PUT /admin/scenarios
+- Templates: admin/dashboard.html, admin/scenarios.html
+- Role-based access control, active/inactive management
+- T080 protection for scenarios with active sessions
+
+✅ **Phase 6: User Story 4 - Framework Configuration** (8/8 tasks - 100%)
+- Tests: Contract (10) + Integration (2)
+- Routes: GET/POST /admin/frameworks with label validation
+- Template: admin/frameworks.html with dynamic label inputs
+- Framework switching capability, Pydantic V2 migration
+- T080 protection for framework changes
+
 ### Current Phase
 
-🔜 **Phase 5: User Story 3 - Admin Manages Scenarios** (0/16 tasks)
-- Ready to implement: Admin dashboard, scenario CRUD operations
-- Dependencies met: All foundation and core models complete
-- Independent: User Stories 4, 5 can start in parallel
+🔜 **Phase 7: User Story 5 - Admin Reviews Session Logs** (0/8 tasks)
+- Ready to implement: Session list with filtering, aggregated statistics
+- Dependencies met: All admin routes and models complete
+- Independent: Phase 8 polish tasks can start in parallel
 
 **Detailed Progress**: See [progress.md](./progress.md)
 **Phase 3 Details**: See [phase3-complete.md](./phase3-complete.md)
 **Phase 4 Details**: See [phase4-complete.md](./phase4-complete.md)
+**Phase 5 Details**: See [phase5-complete.md](./phase5-complete.md)
+**Phase 6 Details**: See [phase6-complete.md](./phase6-complete.md)
 
 ## Technical Context
 

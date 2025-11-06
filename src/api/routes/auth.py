@@ -10,6 +10,8 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +20,7 @@ from src.models import User
 
 router = APIRouter(tags=["Authentication"])
 templates = Jinja2Templates(directory="src/templates")
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -27,6 +30,7 @@ async def get_login(request: Request):
 
 
 @router.post("/login")
+@limiter.limit("5/minute")
 async def post_login(
     request: Request,
     student_uid: str = Form(..., min_length=3, max_length=50),

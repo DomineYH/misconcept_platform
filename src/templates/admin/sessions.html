@@ -1,0 +1,267 @@
+{% extends "layout.html" %}
+
+{% block title %}Session Logs - Admin{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1>Session Logs</h1>
+
+  <!-- Filter Controls -->
+  <div class="filter-panel">
+    <h2>Filters</h2>
+    <form id="filter-form" method="get">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="date_from">From Date:</label>
+          <input type="datetime-local" id="date_from" name="date_from">
+        </div>
+
+        <div class="form-group">
+          <label for="date_to">To Date:</label>
+          <input type="datetime-local" id="date_to" name="date_to">
+        </div>
+
+        <div class="form-group">
+          <label for="teacher_id">Teacher:</label>
+          <select id="teacher_id" name="teacher_id">
+            <option value="">All Teachers</option>
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Apply Filters</button>
+        <button type="button" id="clear-filters" class="btn btn-secondary">
+          Clear Filters
+        </button>
+        <a href="/admin/sessions/export" id="export-btn" class="btn btn-success">
+          Export CSV
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Session List -->
+  <div class="session-list">
+    <h2>Sessions (Total: <span id="total-count">0</span>)</h2>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Scenario</th>
+          <th>Teacher</th>
+          <th>Started At</th>
+          <th>Ended At</th>
+          <th>Duration</th>
+          <th>Messages</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="sessions-tbody">
+        <tr>
+          <td colspan="9" class="loading">Loading sessions...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// Load sessions with filters
+async function loadSessions() {
+  const form = document.getElementById('filter-form');
+  const formData = new FormData(form);
+  const params = new URLSearchParams();
+
+  // Build query params
+  if (formData.get('date_from')) {
+    params.append('date_from', new Date(formData.get('date_from')).toISOString());
+  }
+  if (formData.get('date_to')) {
+    params.append('date_to', new Date(formData.get('date_to')).toISOString());
+  }
+  if (formData.get('teacher_id')) {
+    params.append('teacher_id', formData.get('teacher_id'));
+  }
+
+  try {
+    const response = await fetch(`/admin/sessions?${params}`);
+    if (!response.ok) {
+      if (response.status === 403) {
+        window.location.href = '/login';
+        return;
+      }
+      throw new Error('Failed to load sessions');
+    }
+
+    const data = await response.json();
+    displaySessions(data.sessions);
+    document.getElementById('total-count').textContent = data.total;
+
+    // Update export link with filters
+    const exportBtn = document.getElementById('export-btn');
+    exportBtn.href = `/admin/sessions/export?${params}`;
+  } catch (error) {
+    console.error('Error loading sessions:', error);
+    document.getElementById('sessions-tbody').innerHTML =
+      '<tr><td colspan="9" class="error">Failed to load sessions</td></tr>';
+  }
+}
+
+function displaySessions(sessions) {
+  const tbody = document.getElementById('sessions-tbody');
+
+  if (sessions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No sessions found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sessions.map(session => {
+    const startedAt = new Date(session.started_at).toLocaleString();
+    const endedAt = session.ended_at
+      ? new Date(session.ended_at).toLocaleString()
+      : '<span class="status-active">Active</span>';
+
+    let duration = 'N/A';
+    if (session.ended_at) {
+      const start = new Date(session.started_at);
+      const end = new Date(session.ended_at);
+      const minutes = Math.round((end - start) / 60000);
+      duration = `${minutes} min`;
+    }
+
+    const status = session.ended_at
+      ? '<span class="status-ended">Ended</span>'
+      : '<span class="status-active">Active</span>';
+
+    return `
+      <tr>
+        <td>${session.id}</td>
+        <td>${escapeHtml(session.scenario_title)}</td>
+        <td>${escapeHtml(session.teacher_nickname)}</td>
+        <td>${startedAt}</td>
+        <td>${endedAt}</td>
+        <td>${duration}</td>
+        <td>${session.message_count}</td>
+        <td>${status}</td>
+        <td>
+          <a href="/sessions/${session.id}/analysis" class="btn btn-sm">
+            View Analysis
+          </a>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Event listeners
+document.getElementById('filter-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  loadSessions();
+});
+
+document.getElementById('clear-filters').addEventListener('click', () => {
+  document.getElementById('filter-form').reset();
+  loadSessions();
+});
+
+// Load sessions on page load
+loadSessions();
+</script>
+
+<style>
+.filter-panel {
+  background: #f5f5f5;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  flex: 1;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.data-table th {
+  background: #2c3e50;
+  color: white;
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 500;
+}
+
+.data-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.data-table tr:hover {
+  background: #f8f9fa;
+}
+
+.status-active {
+  color: #28a745;
+  font-weight: 500;
+}
+
+.status-ended {
+  color: #6c757d;
+}
+
+.loading,
+.error,
+.no-data {
+  text-align: center;
+  padding: 2rem;
+  color: #6c757d;
+}
+
+.error {
+  color: #dc3545;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+</style>
+{% endblock %}

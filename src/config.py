@@ -31,6 +31,17 @@ class Config:
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
 
+    # Environment (T112: Security hardening)
+    ENV: str = os.getenv("ENV", "development")  # development or production
+
+    # Testing
+    TESTING: bool = os.getenv("TESTING", "false").lower() == "true"
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production mode."""
+        return self.ENV == "production"
+
     @classmethod
     def validate(cls) -> None:
         """Validate required configuration."""

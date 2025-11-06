@@ -10,6 +10,8 @@ from fastapi import (
 from fastapi.responses import Response, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +31,7 @@ from src.services.export import CSVExporter
 
 router = APIRouter(tags=["Sessions"])
 templates = Jinja2Templates(directory="src/templates")
+limiter = Limiter(key_func=get_remote_address)
 
 
 class CreateSessionRequest(BaseModel):
@@ -83,7 +86,9 @@ async def create_session(
 
 
 @router.post("/sessions/{session_id}/messages")
+@limiter.limit("30/minute")
 async def send_message(
+    request: Request,
     session_id: int,
     data: SendMessageRequest,
     user: User = Depends(get_current_user),
@@ -129,7 +134,9 @@ async def send_message(
 
 
 @router.post("/sessions/{session_id}/end")
+@limiter.limit("10/minute")
 async def end_session(
+    request: Request,
     session_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
@@ -172,30 +179,26 @@ async def end_session(
     )
     framework = framework_result.scalar_one()
 
-    # Load all teacher messages from session
-    messages_result = await db.execute(
+    # Load all messages once (T111: fix N+1 query issue)
+    all_messages_result = await db.execute(
         select(Message)
         .where(Message.session_id == session_id)
-        .where(Message.role == "teacher")
         .order_by(Message.created_at)
     )
-    teacher_messages = messages_result.scalars().all()
+    all_messages = all_messages_result.scalars().all()
+
+    # Filter teacher messages
+    teacher_messages = [m for m in all_messages if m.role == "teacher"]
 
     # Analyze each teacher message
     analyzer = Analyzer()
     distribution = {label: 0 for label in framework.labels}
 
-    for msg in teacher_messages:
+    for idx, msg in enumerate(teacher_messages):
         try:
-            # Build context from previous messages
-            context_result = await db.execute(
-                select(Message)
-                .where(Message.session_id == session_id)
-                .where(Message.created_at < msg.created_at)
-                .order_by(Message.created_at.desc())
-                .limit(3)
-            )
-            context_messages = context_result.scalars().all()
+            # Build context from previous messages (no DB query)
+            msg_idx = all_messages.index(msg)
+            context_messages = all_messages[max(0, msg_idx - 3) : msg_idx]
             context = "\n".join(
                 [f"{m.role}: {m.content}" for m in context_messages]
             )

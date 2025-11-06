@@ -6,13 +6,19 @@ prompts with structured JSON output.
 """
 import json
 import logging
-from pathlib import Path
 from typing import Dict, Optional
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIError, APIConnectionError, RateLimitError
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from src.config import config
 from src.models.analysis_framework import AnalysisFramework
+from src.utils.cache import load_prompt_template
 
 
 logger = logging.getLogger(__name__)
@@ -33,16 +39,16 @@ class Analyzer:
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.model = config.ANALYSIS_MODEL or "gpt-3.5-turbo"
         self.temperature = 0.2
-        self.prompt_template = self._load_prompt_template()
+        # Load cached prompt template (T111 optimization)
+        self.prompt_template = load_prompt_template("analysis_prompt.txt")
 
-    def _load_prompt_template(self) -> str:
-        """Load analysis prompt template from file."""
-        prompt_path = (
-            Path(__file__).parent.parent / "prompts" / "analysis_prompt.txt"
-        )
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            return f.read()
-
+    @retry(
+        retry=retry_if_exception_type(
+            (APIConnectionError, APIError, RateLimitError)
+        ),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
     async def classify_question(
         self,
         question: str,
@@ -62,7 +68,7 @@ class Analyzer:
 
         Raises:
             ValueError: If response format is invalid
-            Exception: If OpenAI API call fails
+            APIError: If OpenAI API call fails after retries
         """
         # Format prompt with framework and question
         prompt = self.prompt_template.format(
@@ -113,6 +119,9 @@ class Analyzer:
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
             raise ValueError(f"Invalid JSON in LLM response: {e}")
+        except (APIConnectionError, RateLimitError, APIError) as e:
+            logger.error(f"Analyzer API error: {type(e).__name__}: {str(e)}")
+            raise
         except Exception as e:
             logger.error(f"Classification failed: {e}")
             raise

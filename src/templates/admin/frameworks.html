@@ -1,0 +1,339 @@
+{% extends "layout.html" %}
+
+{% block title %}Manage Frameworks - Admin{% endblock %}
+
+{% block content %}
+<div class="container">
+  <header class="page-header">
+    <h1>🔬 Manage Analysis Frameworks</h1>
+    <p class="subtitle">
+      Configure question classification frameworks
+    </p>
+  </header>
+
+  <!-- Create New Framework Form -->
+  <section class="create-section">
+    <h2>Create New Framework</h2>
+    <form id="create-form" class="framework-form">
+      <div class="form-group">
+        <label for="new-name">Framework Name *</label>
+        <input
+          type="text"
+          id="new-name"
+          name="name"
+          required
+          minlength="3"
+          maxlength="200"
+          placeholder="e.g., High/Low Leverage Questions"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="new-description">Description *</label>
+        <textarea
+          id="new-description"
+          name="description"
+          rows="3"
+          required
+          minlength="10"
+          maxlength="1000"
+          placeholder="Describe the framework and its purpose (10-1000 chars)"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Category Labels * (2-20 labels, 2-50 chars each)</label>
+        <div id="labels-container" class="labels-container">
+          <div class="label-input-row">
+            <input
+              type="text"
+              class="label-input"
+              placeholder="Label 1"
+              minlength="2"
+              maxlength="50"
+              required
+            />
+            <button
+              type="button"
+              class="btn-remove-label"
+              disabled
+            >
+              ❌
+            </button>
+          </div>
+          <div class="label-input-row">
+            <input
+              type="text"
+              class="label-input"
+              placeholder="Label 2"
+              minlength="2"
+              maxlength="50"
+              required
+            />
+            <button type="button" class="btn-remove-label">❌</button>
+          </div>
+        </div>
+        <button
+          type="button"
+          id="btn-add-label"
+          class="btn btn-secondary"
+        >
+          ➕ Add Label
+        </button>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        ✨ Create Framework
+      </button>
+    </form>
+  </section>
+
+  <!-- Existing Frameworks List -->
+  <section class="frameworks-list">
+    <h2>Existing Frameworks ({{ frameworks|length }})</h2>
+
+    {% if frameworks %}
+    <div class="frameworks-table">
+      {% for framework in frameworks %}
+      <div
+        class="framework-card"
+        data-framework-id="{{ framework.id }}"
+      >
+        <div class="framework-header">
+          <h3>{{ framework.name }}</h3>
+          <span class="framework-id">ID: {{ framework.id }}</span>
+        </div>
+
+        <div class="framework-description">
+          <p>{{ framework.description }}</p>
+        </div>
+
+        <div class="framework-labels">
+          <strong>Categories:</strong>
+          <div class="labels-display">
+            {% for label in framework.labels %}
+            <span class="label-badge">{{ label }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">
+      No frameworks found. Create your first framework above.
+    </p>
+    {% endif %}
+  </section>
+</div>
+
+<style>
+  /* Framework-specific styles */
+  .framework-form {
+    background: #f9f9f9;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+  }
+
+  .labels-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .label-input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .label-input {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  .btn-remove-label {
+    padding: 0.25rem 0.5rem;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .btn-remove-label:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: #6c757d;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .framework-card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .framework-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .framework-header h3 {
+    margin: 0;
+  }
+
+  .framework-id {
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  .framework-description {
+    margin-bottom: 1rem;
+    color: #555;
+  }
+
+  .framework-labels {
+    margin-top: 1rem;
+  }
+
+  .labels-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .label-badge {
+    background: #007bff;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: #999;
+    padding: 2rem;
+  }
+</style>
+
+<script>
+  // Dynamic label input management
+  const labelsContainer = document.getElementById("labels-container");
+  const addLabelBtn = document.getElementById("btn-add-label");
+  let labelCount = 2;
+
+  addLabelBtn.addEventListener("click", () => {
+    if (labelCount >= 20) {
+      alert("Maximum 20 labels allowed");
+      return;
+    }
+
+    labelCount++;
+    const row = document.createElement("div");
+    row.className = "label-input-row";
+    row.innerHTML = `
+      <input
+        type="text"
+        class="label-input"
+        placeholder="Label ${labelCount}"
+        minlength="2"
+        maxlength="50"
+        required
+      />
+      <button type="button" class="btn-remove-label">❌</button>
+    `;
+    labelsContainer.appendChild(row);
+    updateRemoveButtons();
+  });
+
+  labelsContainer.addEventListener("click", (e) => {
+    if (e.target.classList.contains("btn-remove-label")) {
+      const row = e.target.closest(".label-input-row");
+      row.remove();
+      labelCount--;
+      updateRemoveButtons();
+    }
+  });
+
+  function updateRemoveButtons() {
+    const rows = labelsContainer.querySelectorAll(".label-input-row");
+    rows.forEach((row, index) => {
+      const btn = row.querySelector(".btn-remove-label");
+      btn.disabled = rows.length <= 2;
+    });
+  }
+
+  // Form submission
+  const createForm = document.getElementById("create-form");
+  createForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById("new-name").value.trim();
+    const description = document
+      .getElementById("new-description")
+      .value.trim();
+    const labelInputs = labelsContainer.querySelectorAll(".label-input");
+    const labels = Array.from(labelInputs)
+      .map((input) => input.value.trim())
+      .filter((label) => label.length > 0);
+
+    // Validation
+    if (labels.length < 2) {
+      alert("At least 2 labels required");
+      return;
+    }
+
+    if (labels.length > 20) {
+      alert("Maximum 20 labels allowed");
+      return;
+    }
+
+    for (const label of labels) {
+      if (label.length < 2) {
+        alert(`Label "${label}" is too short (min 2 chars)`);
+        return;
+      }
+      if (label.length > 50) {
+        alert(`Label "${label}" is too long (max 50 chars)`);
+        return;
+      }
+    }
+
+    try {
+      const response = await fetch("/admin/frameworks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description, labels }),
+      });
+
+      if (response.ok) {
+        alert("✅ Framework created successfully!");
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(`❌ Error: ${error.detail || "Failed to create framework"}`);
+      }
+    } catch (err) {
+      alert(`❌ Network error: ${err.message}`);
+    }
+  });
+</script>
+{% endblock %}

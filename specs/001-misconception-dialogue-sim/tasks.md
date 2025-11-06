@@ -194,22 +194,22 @@
 
 ### Tests for User Story 4 (TDD Workflow - Write FIRST, Ensure FAIL)
 
-- [ ] T084 [P] [US4] Contract test for GET /admin/frameworks in tests/contract/test_admin_endpoints.py - verify framework list display
-- [ ] T085 [P] [US4] Contract test for POST /admin/frameworks in tests/contract/test_admin_endpoints.py - verify new framework registration with labels validation
-- [ ] T086 [P] [US4] Integration test for framework switching in tests/integration/test_framework_switching.py - create framework → apply to scenario → verify classifications use new labels
+- [x] T084 [P] [US4] Contract test for GET /admin/frameworks in tests/contract/test_admin_endpoints.py - verify framework list display ✅
+- [x] T085 [P] [US4] Contract test for POST /admin/frameworks in tests/contract/test_admin_endpoints.py - verify new framework registration with labels validation ✅
+- [x] T086 [P] [US4] Integration test for framework switching in tests/integration/test_framework_switching.py - create framework → apply to scenario → verify classifications use new labels ✅
 
 ### API Routes for User Story 4
 
-- [ ] T087 [US4] Implement GET /admin/frameworks route in src/api/routes/admin.py listing all AnalysisFramework records with name, description, labels
-- [ ] T088 [US4] Implement POST /admin/frameworks route in src/api/routes/admin.py creating new AnalysisFramework with labels_json validation (2-20 labels, each 2-50 chars)
-- [ ] T089 [US4] Add framework selection to scenario edit form in PUT /admin/scenarios/{id} allowing framework_id change
+- [x] T087 [US4] Implement GET /admin/frameworks route in src/api/routes/admin.py listing all AnalysisFramework records with name, description, labels ✅
+- [x] T088 [US4] Implement POST /admin/frameworks route in src/api/routes/admin.py creating new AnalysisFramework with labels_json validation (2-20 labels, each 2-50 chars) ✅
+- [x] T089 [US4] Add framework selection to scenario edit form in PUT /admin/scenarios/{id} allowing framework_id change ✅
 
 ### Templates for User Story 4
 
-- [ ] T090 [P] [US4] Create src/templates/admin/frameworks.html listing frameworks with category definitions, create new framework form with dynamic label input fields
-- [ ] T091 [US4] Add framework dropdown to scenario edit form in admin/scenarios.html showing available frameworks
+- [x] T090 [P] [US4] Create src/templates/admin/frameworks.html listing frameworks with category definitions, create new framework form with dynamic label input fields ✅
+- [x] T091 [US4] Add framework dropdown to scenario edit form in admin/scenarios.html showing available frameworks ✅
 
-**Checkpoint**: User Story 4 complete - admins can register custom analysis frameworks, apply them to scenarios, new sessions use updated classification categories
+**Checkpoint**: ✅ User Story 4 complete - admins can register custom analysis frameworks, apply them to scenarios, new sessions use updated classification categories
 
 ---
 
@@ -221,20 +221,20 @@
 
 ### Tests for User Story 5 (TDD Workflow - Write FIRST, Ensure FAIL)
 
-- [ ] T092 [P] [US5] Contract test for GET /admin/sessions in tests/contract/test_admin_endpoints.py - verify session list with filtering parameters
-- [ ] T093 [P] [US5] Contract test for GET /admin/sessions/export in tests/contract/test_admin_endpoints.py - verify bulk CSV export for multiple sessions
-- [ ] T094 [P] [US5] Integration test for session filtering in tests/integration/test_session_filtering.py - create sessions with various dates/users → apply filters → verify correct subset returned
+-  [X] T092 [P] [US5] Contract test for GET /admin/sessions in tests/contract/test_admin_endpoints.py - verify session list with filtering parameters
+-  [X] T093 [P] [US5] Contract test for GET /admin/sessions/export in tests/contract/test_admin_endpoints.py - verify bulk CSV export for multiple sessions
+-  [X] T094 [P] [US5] Integration test for session filtering in tests/integration/test_session_filtering.py - create sessions with various dates/users → apply filters → verify correct subset returned
 
 ### API Routes for User Story 5
 
-- [ ] T095 [US5] Implement GET /admin/sessions route in src/api/routes/admin.py with query parameters for date_from, date_to, teacher_id filters, returning paginated session list
-- [ ] T096 [US5] Implement GET /admin/sessions/export route in src/api/routes/admin.py generating bulk CSV export for filtered sessions with anonymized identifiers
-- [ ] T097 [US5] Add aggregated statistics endpoint GET /admin/stats route returning total sessions, average question counts, leverage ratio distributions
+-  [X] T095 [US5] Implement GET /admin/sessions route in src/api/routes/admin.py with query parameters for date_from, date_to, teacher_id filters, returning paginated session list
+-  [X] T096 [US5] Implement GET /admin/sessions/export route in src/api/routes/admin.py generating bulk CSV export for filtered sessions with anonymized identifiers
+-  [X] T097 [US5] Add aggregated statistics endpoint GET /admin/stats route returning total sessions, average question counts, leverage ratio distributions
 
 ### Templates for User Story 5
 
-- [ ] T098 [P] [US5] Create src/templates/admin/sessions.html with filter controls (date range picker, user dropdown), session list table showing scenario, teacher, start/end times, question count
-- [ ] T099 [US5] Add statistics dashboard to admin/dashboard.html showing charts for session trends, average durations, leverage ratio distribution
+-  [X] T098 [P] [US5] Create src/templates/admin/sessions.html with filter controls (date range picker, user dropdown), session list table showing scenario, teacher, start/end times, question count
+-  [X] T099 [US5] Add statistics dashboard to admin/dashboard.html showing charts for session trends, average durations, leverage ratio distribution
 
 **Checkpoint**: User Story 5 complete - admins have full visibility into session logs, can filter/search by criteria, export data for research analysis
 
@@ -244,19 +244,19 @@
 
 **Purpose**: Improvements that affect multiple user stories and production readiness
 
-- [ ] T100 [P] Add comprehensive error handling across all routes with user-friendly error messages and logging to src/api/routes/*.py
-- [ ] T101 [P] Implement rate limiting for LLM API calls with exponential backoff in src/services/student_bot.py and src/services/tutor_bot.py
-- [ ] T102 [P] Enable SQLite WAL mode in src/db/connection.py for improved concurrent read performance
-- [ ] T103 [P] Add structured logging with JSON format for production in src/main.py using Python logging module
-- [ ] T104 [P] Configure CORS and security headers in src/main.py for production deployment
-- [ ] T105 [P] Create production deployment guide in docs/deployment.md with uvicorn --workers 4 configuration, nginx reverse proxy setup
-- [ ] T106 [P] Add monitoring endpoints GET /health and GET /metrics in src/api/routes/health.py for production observability
-- [ ] T107 Code review and refactoring pass: verify all files under 300 lines, all lines under 80 characters per constitution
-- [ ] T108 [P] Update README.md with project overview, installation instructions, development workflow
-- [ ] T109 Run through quickstart.md validation: setup → first dialogue session → analysis report → CSV export
-- [ ] T110 [P] Add pre-commit hooks for Black formatting and ruff linting in .pre-commit-config.yaml
-- [ ] T111 [P] Performance optimization: add caching for prompt templates with @lru_cache, optimize database queries for N+1 issues
-- [ ] T112 [P] Security hardening: verify HTTPS enforcement for production, audit session cookie settings, review for SQL injection risks
+-  [X] T100 [P] Add comprehensive error handling across all routes with user-friendly error messages and logging to src/api/routes/*.py
+-  [X] T101 [P] Implement rate limiting for LLM API calls with exponential backoff in src/services/student_bot.py and src/services/tutor_bot.py
+-  [X] T102 [P] Enable SQLite WAL mode in src/db/connection.py for improved concurrent read performance
+-  [X] T103 [P] Add structured logging with JSON format for production in src/main.py using Python logging module
+-  [X] T104 [P] Configure CORS and security headers in src/main.py for production deployment
+-  [X] T105 [P] Create production deployment guide in docs/deployment.md with uvicorn --workers 4 configuration, nginx reverse proxy setup
+-  [X] T106 [P] Add monitoring endpoints GET /health and GET /metrics in src/api/routes/health.py for production observability
+-  [X] T107 Code review and refactoring pass: verify all files under 300 lines, all lines under 80 characters per constitution
+-  [X] T108 [P] Update README.md with project overview, installation instructions, development workflow
+-  [X] T109 Run through quickstart.md validation: setup → first dialogue session → analysis report → CSV export
+-  [X] T110 [P] Add pre-commit hooks for Black formatting and ruff linting in .pre-commit-config.yaml
+-  [X] T111 [P] Performance optimization: add caching for prompt templates with @lru_cache, optimize database queries for N+1 issues
+-  [X] T112 [P] Security hardening: verify HTTPS enforcement for production, audit session cookie settings, review for SQL injection risks
 
 ---
 
