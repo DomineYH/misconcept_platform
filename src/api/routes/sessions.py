@@ -1,13 +1,13 @@
 """Session and message management routes."""
-from datetime import datetime
+from datetime import datetime, timezone
+
 from fastapi import (
     APIRouter,
     Depends,
-    Request,
     HTTPException,
-    status,
+    Request,
 )
-from fastapi.responses import Response, HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from slowapi import Limiter
@@ -15,23 +15,24 @@ from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_db_session, get_current_user
+from src.api.dependencies import get_current_user, get_db_session
+from src.config import config
 from src.models import (
-    User,
-    Session,
-    Message,
-    Scenario,
-    QuestionAnalysis,
-    SessionSummary,
     AnalysisFramework,
+    Message,
+    QuestionAnalysis,
+    Scenario,
+    Session,
+    SessionSummary,
+    User,
 )
-from src.services.session_mgr import SessionManager
 from src.services.analyzer import Analyzer
 from src.services.export import CSVExporter
+from src.services.session_mgr import SessionManager
 
 router = APIRouter(tags=["Sessions"])
 templates = Jinja2Templates(directory="src/templates")
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
 
 
 class CreateSessionRequest(BaseModel):
@@ -163,7 +164,7 @@ async def end_session(
         )
 
     # Update Session.ended_at timestamp
-    session.ended_at = datetime.utcnow()
+    session.ended_at = datetime.now(timezone.utc)
     await db.commit()
 
     # Load scenario and framework for analysis

@@ -64,6 +64,112 @@
         ></textarea>
       </div>
 
+      <!-- Phase 2: Bot Configuration Override Section -->
+      <div class="form-section">
+        <h3>🤖 Bot Configuration (Optional Override)</h3>
+        <p class="section-description">
+          Override global chatbot settings for this specific scenario.
+          Leave fields empty to use global defaults.
+        </p>
+
+        <div class="form-group">
+          <label>
+            <input
+              type="checkbox"
+              id="new-override-bot-config"
+              name="override_bot_config"
+            >
+            Use custom bot settings for this scenario
+          </label>
+        </div>
+
+        <!-- Bot override fields (hidden by default) -->
+        <div id="new-bot-override-fields" class="bot-override-fields"
+             style="display: none;">
+
+          <!-- StudentBot Model Selection -->
+          <div class="form-group">
+            <label for="new-chat-model">StudentBot Model</label>
+            <select id="new-chat-model" name="chat_model"
+                    class="form-control">
+              <option value="">🌍 Use Global Setting</option>
+              <option value="gpt-4o">GPT-4o (Best Quality)</option>
+              <option value="gpt-4o-mini">
+                GPT-4o Mini (Fast & Economical)
+              </option>
+              <option value="gpt-4-turbo">GPT-4 Turbo</option>
+              <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Fastest)</option>
+            </select>
+            <span class="help-text">
+              Choose a different model for this scenario's student bot
+            </span>
+          </div>
+
+          <!-- Temperature Slider -->
+          <div class="form-group">
+            <label for="new-chat-temperature">
+              Temperature:
+              <span id="new-chat-temp-display">Global Default</span>
+            </label>
+            <input
+              type="range"
+              id="new-chat-temperature"
+              name="chat_temperature"
+              min="0"
+              max="2"
+              step="0.1"
+              class="form-range"
+            >
+            <button
+              type="button"
+              id="new-reset-temperature"
+              class="btn-reset-field"
+            >
+              ↺ Reset to Global
+            </button>
+            <span class="help-text">
+              Higher = more creative, Lower = more consistent
+            </span>
+          </div>
+
+          <!-- TutorBot Enabled Checkbox -->
+          <div class="form-group">
+            <label>
+              <input
+                type="checkbox"
+                id="new-tutor-enabled"
+                name="tutor_enabled"
+                checked
+              >
+              Enable TutorBot feedback for this scenario
+            </label>
+            <span class="help-text">
+              Uncheck to disable pedagogical feedback entirely
+            </span>
+          </div>
+
+          <!-- TutorBot Intervention Threshold -->
+          <div class="form-group" id="new-tutor-threshold-group">
+            <label for="new-tutor-threshold">
+              TutorBot Intervention Threshold
+            </label>
+            <input
+              type="number"
+              id="new-tutor-threshold"
+              name="tutor_intervention_threshold"
+              min="1"
+              max="10"
+              class="form-control"
+              placeholder="Global Default (3)"
+            >
+            <span class="help-text">
+              Interventions per 10 teacher questions (1-10)
+            </span>
+          </div>
+
+        </div>
+      </div>
+
       <button type="submit" class="btn btn-primary">
         ➕ Create Scenario
       </button>
@@ -178,6 +284,153 @@
               minlength="3"
               maxlength="5000"
             >{{ scenario.student_profile }}</textarea>
+          </div>
+
+          <!-- Phase 2: Bot Configuration Override Section -->
+          <div class="form-section">
+            <h3>🤖 Bot Configuration (Optional Override)</h3>
+            <p class="section-description">
+              Override global chatbot settings for this specific scenario.
+              Leave fields empty to use global defaults.
+            </p>
+
+            <div class="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  id="edit-override-bot-config-{{ scenario.id }}"
+                  class="edit-override-bot-config"
+                  name="override_bot_config"
+                  {% if scenario.chat_model or
+                     scenario.chat_temperature is not none or
+                     scenario.tutor_intervention_threshold is not none or
+                     scenario.tutor_enabled == 0 %}checked{% endif %}
+                >
+                Use custom bot settings for this scenario
+              </label>
+            </div>
+
+            <!-- Bot override fields -->
+            <div id="edit-bot-override-fields-{{ scenario.id }}"
+                 class="bot-override-fields"
+                 style="display: {% if scenario.chat_model or
+                        scenario.chat_temperature is not none or
+                        scenario.tutor_intervention_threshold is not none or
+                        scenario.tutor_enabled == 0 %}block{% else %}none{%
+                        endif %};">
+
+              <!-- StudentBot Model Selection -->
+              <div class="form-group">
+                <label for="edit-chat-model-{{ scenario.id }}">
+                  StudentBot Model
+                </label>
+                <select id="edit-chat-model-{{ scenario.id }}"
+                        name="chat_model"
+                        class="form-control">
+                  <option value="">🌍 Use Global Setting</option>
+                  <option value="gpt-4o"
+                          {% if scenario.chat_model == 'gpt-4o' %}selected{%
+                          endif %}>
+                    GPT-4o (Best Quality)
+                  </option>
+                  <option value="gpt-4o-mini"
+                          {% if scenario.chat_model == 'gpt-4o-mini' %}
+                          selected{% endif %}>
+                    GPT-4o Mini (Fast & Economical)
+                  </option>
+                  <option value="gpt-4-turbo"
+                          {% if scenario.chat_model == 'gpt-4-turbo' %}
+                          selected{% endif %}>
+                    GPT-4 Turbo
+                  </option>
+                  <option value="gpt-3.5-turbo"
+                          {% if scenario.chat_model == 'gpt-3.5-turbo' %}
+                          selected{% endif %}>
+                    GPT-3.5 Turbo (Fastest)
+                  </option>
+                </select>
+                <span class="help-text">
+                  Choose a different model for this scenario's student bot
+                </span>
+              </div>
+
+              <!-- Temperature Slider -->
+              <div class="form-group">
+                <label for="edit-chat-temperature-{{ scenario.id }}">
+                  Temperature:
+                  <span id="edit-chat-temp-display-{{ scenario.id }}">
+                    {% if scenario.chat_temperature is not none %}
+                    {{ "%.1f"|format(scenario.chat_temperature) }}
+                    {% else %}Global Default{% endif %}
+                  </span>
+                </label>
+                <input
+                  type="range"
+                  id="edit-chat-temperature-{{ scenario.id }}"
+                  name="chat_temperature"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  class="form-range edit-chat-temperature"
+                  {% if scenario.chat_temperature is not none %}
+                  value="{{ scenario.chat_temperature }}"
+                  {% endif %}
+                >
+                <button
+                  type="button"
+                  id="edit-reset-temperature-{{ scenario.id }}"
+                  class="btn-reset-field edit-reset-temperature"
+                >
+                  ↺ Reset to Global
+                </button>
+                <span class="help-text">
+                  Higher = more creative, Lower = more consistent
+                </span>
+              </div>
+
+              <!-- TutorBot Enabled Checkbox -->
+              <div class="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    id="edit-tutor-enabled-{{ scenario.id }}"
+                    class="edit-tutor-enabled"
+                    name="tutor_enabled"
+                    {% if scenario.tutor_enabled != 0 %}checked{% endif %}
+                  >
+                  Enable TutorBot feedback for this scenario
+                </label>
+                <span class="help-text">
+                  Uncheck to disable pedagogical feedback entirely
+                </span>
+              </div>
+
+              <!-- TutorBot Intervention Threshold -->
+              <div class="form-group"
+                   id="edit-tutor-threshold-group-{{ scenario.id }}"
+                   style="display: {% if scenario.tutor_enabled != 0 %}block{%
+                          else %}none{% endif %};">
+                <label for="edit-tutor-threshold-{{ scenario.id }}">
+                  TutorBot Intervention Threshold
+                </label>
+                <input
+                  type="number"
+                  id="edit-tutor-threshold-{{ scenario.id }}"
+                  name="tutor_intervention_threshold"
+                  min="1"
+                  max="10"
+                  class="form-control"
+                  placeholder="Global Default (3)"
+                  {% if scenario.tutor_intervention_threshold is not none %}
+                  value="{{ scenario.tutor_intervention_threshold }}"
+                  {% endif %}
+                >
+                <span class="help-text">
+                  Interventions per 10 teacher questions (1-10)
+                </span>
+              </div>
+
+            </div>
           </div>
 
           <div class="form-actions">
@@ -353,18 +606,171 @@
     padding: 2rem;
     color: #6b7280;
   }
+
+  /* Bot Configuration Section */
+  .form-section {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .form-section h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    color: #1f2937;
+    font-size: 1.125rem;
+  }
+
+  .section-description {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .bot-override-fields {
+    margin-top: 1rem;
+    padding-left: 1.5rem;
+    border-left: 3px solid #3b82f6;
+  }
+
+  .form-range {
+    width: 100%;
+    accent-color: #3b82f6;
+  }
+
+  .btn-reset-field {
+    background: #e5e7eb;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    margin-left: 0.5rem;
+  }
+
+  .btn-reset-field:hover {
+    background: #d1d5db;
+  }
+
+  .help-text {
+    display: block;
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+  }
+
+  #new-tutor-threshold-group,
+  [id^="edit-tutor-threshold-group-"] {
+    padding-left: 1.5rem;
+    border-left: 2px solid #10b981;
+    margin-top: 0.5rem;
+  }
 </style>
 
 <script>
+  // Toggle bot override fields visibility (Create form)
+  document.getElementById('new-override-bot-config').addEventListener('change', (e) => {
+    const fieldsDiv = document.getElementById('new-bot-override-fields');
+    fieldsDiv.style.display = e.target.checked ? 'block' : 'none';
+
+    // Clear fields when unchecking
+    if (!e.target.checked) {
+      document.getElementById('new-chat-model').value = '';
+      document.getElementById('new-chat-temperature').value = '';
+      document.getElementById('new-chat-temp-display').textContent = 'Global Default';
+      document.getElementById('new-tutor-enabled').checked = true;
+      document.getElementById('new-tutor-threshold').value = '';
+      document.getElementById('new-tutor-threshold-group').style.display = 'block';
+    }
+  });
+
+  // Temperature slider real-time update (Create form)
+  document.getElementById('new-chat-temperature').addEventListener('input', (e) => {
+    const value = parseFloat(e.target.value);
+    document.getElementById('new-chat-temp-display').textContent = value.toFixed(1);
+  });
+
+  // Reset temperature to global (Create form)
+  document.getElementById('new-reset-temperature').addEventListener('click', () => {
+    document.getElementById('new-chat-temperature').value = '';
+    document.getElementById('new-chat-temp-display').textContent = 'Global Default';
+  });
+
+  // Toggle tutor threshold field based on tutor_enabled (Create form)
+  document.getElementById('new-tutor-enabled').addEventListener('change', (e) => {
+    const thresholdGroup = document.getElementById('new-tutor-threshold-group');
+    thresholdGroup.style.display = e.target.checked ? 'block' : 'none';
+  });
+
+  // Toggle bot override fields visibility (Edit forms)
+  document.addEventListener('change', (e) => {
+    if (e.target.classList.contains('edit-override-bot-config')) {
+      const scenarioId = e.target.id.replace('edit-override-bot-config-', '');
+      const fieldsDiv = document.getElementById(`edit-bot-override-fields-${scenarioId}`);
+      fieldsDiv.style.display = e.target.checked ? 'block' : 'none';
+
+      // Clear fields when unchecking
+      if (!e.target.checked) {
+        document.getElementById(`edit-chat-model-${scenarioId}`).value = '';
+        const tempInput = document.getElementById(`edit-chat-temperature-${scenarioId}`);
+        tempInput.value = '';
+        document.getElementById(`edit-chat-temp-display-${scenarioId}`).textContent = 'Global Default';
+        document.getElementById(`edit-tutor-enabled-${scenarioId}`).checked = true;
+        document.getElementById(`edit-tutor-threshold-${scenarioId}`).value = '';
+        document.getElementById(`edit-tutor-threshold-group-${scenarioId}`).style.display = 'block';
+      }
+    }
+  });
+
+  // Temperature slider real-time update (Edit forms)
+  document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('edit-chat-temperature')) {
+      const scenarioId = e.target.id.replace('edit-chat-temperature-', '');
+      const value = parseFloat(e.target.value);
+      document.getElementById(`edit-chat-temp-display-${scenarioId}`).textContent = value.toFixed(1);
+    }
+  });
+
+  // Reset temperature to global (Edit forms)
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('edit-reset-temperature')) {
+      const scenarioId = e.target.id.replace('edit-reset-temperature-', '');
+      const tempInput = document.getElementById(`edit-chat-temperature-${scenarioId}`);
+      tempInput.value = '';
+      document.getElementById(`edit-chat-temp-display-${scenarioId}`).textContent = 'Global Default';
+    }
+  });
+
+  // Toggle tutor threshold field based on tutor_enabled (Edit forms)
+  document.addEventListener('change', (e) => {
+    if (e.target.classList.contains('edit-tutor-enabled')) {
+      const scenarioId = e.target.id.replace('edit-tutor-enabled-', '');
+      const thresholdGroup = document.getElementById(`edit-tutor-threshold-group-${scenarioId}`);
+      thresholdGroup.style.display = e.target.checked ? 'block' : 'none';
+    }
+  });
+
   // Create scenario
   document.getElementById("create-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+
+    // Convert empty strings to null for optional fields
     const data = {
       title: formData.get("title"),
       prompt: formData.get("prompt"),
       student_profile: formData.get("student_profile"),
       framework_id: parseInt(formData.get("framework_id")),
+
+      // Bot configuration (empty = null)
+      chat_model: formData.get("chat_model") || null,
+      chat_temperature: formData.get("chat_temperature") ?
+                        parseFloat(formData.get("chat_temperature")) : null,
+      tutor_enabled: formData.get("tutor_enabled") === "on",
+      tutor_intervention_threshold: formData.get("tutor_intervention_threshold") ?
+                                      parseInt(formData.get("tutor_intervention_threshold")) : null,
     };
 
     try {
@@ -438,11 +844,21 @@
       e.preventDefault();
       const id = form.id.replace("edit-form-", "");
       const formData = new FormData(e.target);
+
+      // Convert empty strings to null for optional fields
       const data = {
         title: formData.get("title"),
         prompt: formData.get("prompt"),
         student_profile: formData.get("student_profile"),
         framework_id: parseInt(formData.get("framework_id")),
+
+        // Bot configuration (empty = null)
+        chat_model: formData.get("chat_model") || null,
+        chat_temperature: formData.get("chat_temperature") ?
+                          parseFloat(formData.get("chat_temperature")) : null,
+        tutor_enabled: formData.get("tutor_enabled") === "on",
+        tutor_intervention_threshold: formData.get("tutor_intervention_threshold") ?
+                                        parseInt(formData.get("tutor_intervention_threshold")) : null,
       };
 
       try {

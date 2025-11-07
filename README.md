@@ -29,6 +29,10 @@ A three-party dialogue simulator for teacher training where teachers practice pe
   - Session filtering and search
   - Bulk CSV export
   - Aggregated statistics dashboard
+- ✅ **Phase 3 (Advanced)**: Dynamic Configuration & Analytics (Complete)
+  - API usage tracking with cost analysis
+  - Prompt template management with versioning
+  - Dynamic prompt loading with caching
 - 🚧 **Phase 8**: Production Polish (62% complete)
   - ✅ Error handling with exponential backoff
   - ✅ Rate limiting (slowapi)
@@ -127,6 +131,16 @@ Visit http://localhost:8000
    - View detailed session transcripts
    - Bulk CSV export for research
    - Statistics dashboard
+5. **API Usage Analytics** (Phase 3):
+   - Real-time API usage tracking with token counts
+   - Cost analysis by model, scenario, and bot type
+   - Date range filtering and CSV export
+   - Accurate cost calculation for gpt-4o, gpt-4o-mini, etc.
+6. **Prompt Template Management** (Phase 3):
+   - Create and manage system prompts via web UI
+   - Version control with automatic versioning
+   - Dynamic prompt loading with 5-minute TTL caching
+   - Fallback mechanism: Cache → DB → File System → Hardcoded
 
 ## 🏗️ Technology Stack
 
@@ -161,13 +175,17 @@ misconcept_platform/
 │   │   ├── message.py
 │   │   ├── analysis_framework.py
 │   │   ├── question_analysis.py
-│   │   └── session_summary.py
+│   │   ├── session_summary.py
+│   │   ├── chatbot_config.py      # Phase 3: Bot configuration
+│   │   └── prompt_template.py     # Phase 3: Prompt versioning
 │   ├── services/            # Business logic
 │   │   ├── student_bot.py   # AI student with misconception
 │   │   ├── tutor_bot.py     # AI tutor with interventions
 │   │   ├── analyzer.py      # Question classification
 │   │   ├── session_mgr.py   # Dialogue orchestration
-│   │   └── export.py        # CSV export with anonymization
+│   │   ├── export.py        # CSV export with anonymization
+│   │   ├── config_cache.py  # Phase 3: Bot config caching
+│   │   └── prompt_manager.py # Phase 3: Dynamic prompt loading
 │   ├── api/
 │   │   ├── routes/          # FastAPI endpoints
 │   │   │   ├── auth.py      # Login/logout
@@ -177,6 +195,7 @@ misconcept_platform/
 │   │   │   ├── admin_scenarios.py    # Scenario CRUD
 │   │   │   ├── admin_frameworks.py   # Framework CRUD
 │   │   │   ├── admin_sessions.py     # Session logs
+│   │   │   ├── admin_chatbot_config.py # Phase 3: Config UI
 │   │   │   └── health.py    # Health/metrics
 │   │   ├── dependencies.py  # Dependency injection
 │   │   └── schemas.py       # Pydantic models
@@ -204,6 +223,9 @@ misconcept_platform/
 │   └── js/
 ├── docs/                    # Documentation
 │   ├── deployment.md        # Production deployment guide
+│   ├── security.md          # Security hardening guide
+│   ├── admin_chatbot_config_guide.md  # Admin chatbot config UI guide
+│   ├── developer_chatbot_config_guide.md  # Developer config guide
 │   └── spec.md              # Feature specification
 ├── specs/                   # Implementation specs
 │   └── 001-misconception-dialogue-sim/
@@ -279,6 +301,13 @@ pytest --cov=src --cov-report=html
 - `GET /admin/sessions` - Session logs
 - `GET /admin/sessions/export` - Bulk CSV export
 - `GET /admin/stats` - Statistics
+- `GET /admin/chatbot-config` - Bot configuration UI (Phase 3)
+- `PUT /admin/chatbot-config` - Update bot settings (Phase 3)
+- `GET /admin/chatbot-config/costs` - Cost metrics (Phase 3)
+- `GET /admin/api-usage-page` - API usage analytics (Phase 3)
+- `GET /admin/prompts-page` - Prompt template management (Phase 3)
+- `POST /admin/prompts` - Create prompt template (Phase 3)
+- `PUT /admin/prompts/{id}/activate` - Activate prompt (Phase 3)
 
 ## 🚀 Production Deployment
 

@@ -1,6 +1,8 @@
 """Session model for dialogue instances (T025)."""
+
 from datetime import datetime
-from sqlalchemy import Integer, DateTime, ForeignKey, Index
+
+from sqlalchemy import DateTime, ForeignKey, Index, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.connection import Base
@@ -26,9 +28,7 @@ class Session(Base):
     started_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
-    ended_at: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True
-    )
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Relationships
     scenario: Mapped["Scenario"] = relationship(
@@ -45,6 +45,11 @@ class Session(Base):
     )
     summary: Mapped["SessionSummary"] = relationship(  # noqa: F821
         "SessionSummary", back_populates="session", uselist=False
+    )
+    api_usage_logs: Mapped[list["ApiUsageLog"]] = relationship(
+        "ApiUsageLog",
+        back_populates="session",
+        cascade="all, delete-orphan",
     )
 
     # Indexes

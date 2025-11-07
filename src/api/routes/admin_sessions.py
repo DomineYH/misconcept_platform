@@ -1,7 +1,7 @@
 """Admin session logs and statistics routes (T095-T097)."""
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import (
@@ -13,14 +13,14 @@ from fastapi import (
 )
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import func, select, and_
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import get_current_user, get_db_session
-from src.models.user import User
-from src.models.session import Session
 from src.models.message import Message
+from src.models.session import Session
+from src.models.user import User
 
 router = APIRouter(tags=["Admin Sessions"])
 
@@ -256,7 +256,7 @@ async def export_sessions_csv(
         )
 
     # Generate filename with timestamp
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"session_export_{timestamp}.csv"
 
     # Return CSV response

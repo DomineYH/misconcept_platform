@@ -15,10 +15,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
-from src.models.user import User
+from src.models.analysis_framework import AnalysisFramework
 from src.models.scenario import Scenario
 from src.models.session import Session
-from src.models.analysis_framework import AnalysisFramework
+from src.models.user import User
 
 router = APIRouter(tags=["Admin Scenarios"])
 templates = Jinja2Templates(directory="src/templates")
@@ -32,6 +32,30 @@ class ScenarioCreate(BaseModel):
     prompt: str = Field(..., min_length=10, max_length=10000)
     student_profile: str = Field(..., min_length=3, max_length=5000)
     framework_id: int
+    is_active: bool = Field(default=True)
+
+    # Phase 2: Bot configuration overrides (all optional)
+    chat_model: Optional[str] = Field(
+        None,
+        pattern=r"^gpt-(3\.5|4|4o|4o-mini)(-turbo)?$",
+        description="Override StudentBot model (NULL = use global)",
+    )
+    chat_temperature: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=2.0,
+        description="Override temperature 0.0-2.0 (NULL = use global)",
+    )
+    tutor_enabled: bool = Field(
+        default=True, description="Enable/disable TutorBot for scenario"
+    )
+    tutor_intervention_threshold: Optional[int] = Field(
+        None,
+        ge=1,
+        le=10,
+        description="Override interventions per 10 questions (NULL = use "
+        "global)",
+    )
 
     @field_validator("title")
     @classmethod
@@ -61,6 +85,14 @@ class ScenarioUpdate(BaseModel):
     framework_id: Optional[int] = None
     is_active: Optional[int] = Field(None, ge=0, le=1)
 
+    # Phase 2: Bot configuration overrides (all optional)
+    chat_model: Optional[str] = Field(
+        None, pattern=r"^gpt-(3\.5|4|4o|4o-mini)(-turbo)?$"
+    )
+    chat_temperature: Optional[float] = Field(None, ge=0.0, le=2.0)
+    tutor_enabled: Optional[bool] = None
+    tutor_intervention_threshold: Optional[int] = Field(None, ge=1, le=10)
+
 
 class ScenarioResponse(BaseModel):
     """Schema for scenario response."""
@@ -73,6 +105,12 @@ class ScenarioResponse(BaseModel):
     student_profile: str
     framework_id: int
     is_active: int
+
+    # Phase 2: Bot configuration overrides
+    chat_model: Optional[str] = None
+    chat_temperature: Optional[float] = None
+    tutor_enabled: bool = True
+    tutor_intervention_threshold: Optional[int] = None
 
 
 @router.get("/admin/scenarios", response_class=HTMLResponse)
@@ -141,13 +179,20 @@ async def create_scenario(
             detail="Framework not found",
         )
 
-    # Create scenario
+    # Create scenario with bot configuration overrides
     scenario = Scenario(
         title=scenario_data.title,
         prompt=scenario_data.prompt,
         student_profile=scenario_data.student_profile,
         framework_id=scenario_data.framework_id,
-        is_active=1,  # Active by default
+        is_active=1 if scenario_data.is_active else 0,
+        # Phase 2: Bot configuration overrides
+        chat_model=scenario_data.chat_model,
+        chat_temperature=scenario_data.chat_temperature,
+        tutor_enabled=1 if scenario_data.tutor_enabled else 0,
+        tutor_intervention_threshold=(
+            scenario_data.tutor_intervention_threshold
+        ),
     )
 
     db.add(scenario)
@@ -222,6 +267,18 @@ async def update_scenario(
         scenario.framework_id = scenario_data.framework_id
     if scenario_data.is_active is not None:
         scenario.is_active = scenario_data.is_active
+
+    # Phase 2: Update bot configuration overrides
+    if scenario_data.chat_model is not None:
+        scenario.chat_model = scenario_data.chat_model
+    if scenario_data.chat_temperature is not None:
+        scenario.chat_temperature = scenario_data.chat_temperature
+    if scenario_data.tutor_enabled is not None:
+        scenario.tutor_enabled = 1 if scenario_data.tutor_enabled else 0
+    if scenario_data.tutor_intervention_threshold is not None:
+        scenario.tutor_intervention_threshold = (
+            scenario_data.tutor_intervention_threshold
+        )
 
     await db.commit()
     await db.refresh(scenario)

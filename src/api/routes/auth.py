@@ -17,10 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db_session
 from src.models import User
+from src.config import config
 
 router = APIRouter(tags=["Authentication"])
 templates = Jinja2Templates(directory="src/templates")
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
 
 
 @router.get("/login", response_class=HTMLResponse)

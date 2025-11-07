@@ -1,15 +1,19 @@
 """TutorBot service for pedagogical feedback and intervention."""
+
 import logging
-from openai import AsyncOpenAI, APIError, APIConnectionError, RateLimitError
+from typing import Optional
+
+from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
+from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from src.config import config
-from src.utils.cache import load_prompt_template
+from src.services.prompt_manager import PromptManager
 
 logger = logging.getLogger(__name__)
 
@@ -17,22 +21,35 @@ logger = logging.getLogger(__name__)
 class TutorBot:
     """Chatbot providing real-time pedagogical feedback."""
 
-    def __init__(self):
-        """Initialize TutorBot with system prompt."""
-        self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
-        self.model = config.ANALYSIS_MODEL  # Can use faster model
-        self.temperature = 0.3  # More consistent feedback
+    def __init__(
+        self,
+        db_session: AsyncSession,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        intervention_threshold: Optional[int] = None,
+    ):
+        """Initialize TutorBot with optional config parameters.
 
-        # Load cached tutor system prompt (T111 optimization)
-        self.system_prompt = load_prompt_template("tutor_system.txt")
+        Args:
+            db_session: Database session for dynamic prompt loading
+            model: Override default model (from config or DB)
+            temperature: Override default temperature (0.0-2.0)
+            max_tokens: Override default max tokens (50-300)
+            intervention_threshold: Interventions per 10 questions (1-10)
+        """
+        self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        self.db_session = db_session
+        self.model = model or config.ANALYSIS_MODEL
+        self.temperature = temperature if temperature is not None else 0.3
+        self.max_tokens = max_tokens or 100
+        self.intervention_threshold = intervention_threshold or 3
 
         # Track interventions for rate limiting
         self.intervention_count = 0
         self.question_count = 0
 
-    def should_intervene(
-        self, recent_teacher_questions: list[str]
-    ) -> bool:
+    def should_intervene(self, recent_teacher_questions: list[str]) -> bool:
         """Determine if tutor should provide feedback.
 
         Args:
@@ -43,12 +60,12 @@ class TutorBot:
         """
         self.question_count += 1
 
-        # Rate limiting: Max 3 interventions per 10 questions
+        # Rate limiting: Max N interventions per 10 questions
         if self.question_count > 10:
             self.intervention_count = 0
             self.question_count = 0
 
-        if self.intervention_count >= 3:
+        if self.intervention_count >= self.intervention_threshold:
             return False
 
         # Heuristic checks for intervention triggers
@@ -100,7 +117,7 @@ class TutorBot:
         teacher_question: str,
         student_response: str,
         recent_exchanges: list[dict],
-    ) -> str | None:
+    ) -> tuple[str | None, Optional[dict]]:
         """Generate pedagogical feedback for teacher.
 
         Args:
@@ -109,7 +126,9 @@ class TutorBot:
             recent_exchanges: Recent conversation context
 
         Returns:
-            Feedback string if intervention triggered, None otherwise
+            Tuple of (feedback_string or None, usage_dict or None)
+            usage_dict contains: prompt_tokens, completion_tokens,
+            total_tokens
 
         Raises:
             APIError: If OpenAI API fails after retries
@@ -124,9 +143,14 @@ class TutorBot:
 
         # Check if intervention needed
         if not self.should_intervene(teacher_questions):
-            return None
+            return None, None
 
         try:
+            # Load dynamic prompt template (5-min cache, <10ms)
+            system_prompt = await PromptManager.get_active_prompt(
+                self.db_session, "tutor"
+            )
+
             # Build analysis context
             context = "Recent conversation:\n"
             for ex in recent_exchanges[-4:]:
@@ -135,10 +159,13 @@ class TutorBot:
             context += f"STUDENT: {student_response}\n"
 
             messages = [
-                {"role": "system", "content": self.system_prompt},
+                {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
-                    "content": f"{context}\nProvide brief, constructive feedback for the teacher.",
+                    "content": (
+                        f"{context}\n"
+                        "Provide brief, constructive feedback for the teacher."
+                    ),
                 },
             ]
 
@@ -147,16 +174,26 @@ class TutorBot:
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
-                max_tokens=100,
+                max_tokens=self.max_tokens,
             )
+
+            # Extract content
+            content = response.choices[0].message.content.strip()
+
+            # Extract usage information if available
+            usage_dict = None
+            if hasattr(response, "usage") and response.usage is not None:
+                usage_dict = {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                }
 
             self.intervention_count += 1
-            return response.choices[0].message.content.strip()
+            return content, usage_dict
 
         except (APIConnectionError, RateLimitError, APIError) as e:
-            logger.error(
-                f"TutorBot API error: {type(e).__name__}: {str(e)}"
-            )
+            logger.error(f"TutorBot API error: {type(e).__name__}: {str(e)}")
             raise
         except Exception as e:
             logger.error(f"Unexpected error in TutorBot: {str(e)}")

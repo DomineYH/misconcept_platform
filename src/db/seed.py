@@ -2,7 +2,9 @@
 
 import asyncio
 import json
-from sqlalchemy import select, text
+from pathlib import Path
+
+from sqlalchemy import text
 
 from src.db.connection import AsyncSessionLocal
 from src.db.init_schema import init_schema
@@ -25,12 +27,9 @@ async def seed_database():
             return
 
         # Seed default analysis framework
-        framework_labels = json.dumps([
-            "Pressing",
-            "Linking",
-            "Directing",
-            "Recall"
-        ])
+        framework_labels = json.dumps(
+            ["Pressing", "Linking", "Directing", "Recall"]
+        )
 
         await session.execute(
             text(
@@ -69,18 +68,13 @@ async def seed_database():
 
         # Get framework_id and admin user_id for sample scenario
         framework_result = await session.execute(
-            text(
-                "SELECT id FROM analysis_framework "
-                "WHERE name = :name"
-            ),
+            text("SELECT id FROM analysis_framework " "WHERE name = :name"),
             {"name": "High/Low Leverage"},
         )
         framework_id = framework_result.scalar()
 
         admin_result = await session.execute(
-            text(
-                "SELECT id FROM user WHERE student_uid = :uid"
-            ),
+            text("SELECT id FROM user WHERE student_uid = :uid"),
             {"uid": "admin"},
         )
         admin_id = admin_result.scalar()
@@ -118,9 +112,167 @@ async def seed_database():
             },
         )
 
+        # Seed default chatbot configuration (Phase 1 - P0)
+        chatbot_configs = [
+            {
+                "key": "student_bot.model",
+                "value": "gpt-5-mini",
+                "type": "string",
+                "desc": "StudentBot LLM model",
+            },
+            {
+                "key": "student_bot.temperature",
+                "value": "0.7",
+                "type": "float",
+                "desc": "StudentBot response creativity",
+            },
+            {
+                "key": "student_bot.max_tokens",
+                "value": "150",
+                "type": "int",
+                "desc": "StudentBot response length limit",
+            },
+            {
+                "key": "tutor_bot.model",
+                "value": "gpt-5",
+                "type": "string",
+                "desc": "TutorBot LLM model",
+            },
+            {
+                "key": "tutor_bot.temperature",
+                "value": "0.3",
+                "type": "float",
+                "desc": "TutorBot response consistency",
+            },
+            {
+                "key": "tutor_bot.max_tokens",
+                "value": "100",
+                "type": "int",
+                "desc": "TutorBot response length limit",
+            },
+            {
+                "key": "tutor_bot.intervention_threshold",
+                "value": "3",
+                "type": "int",
+                "desc": "Interventions per 10 questions",
+            },
+        ]
+
+        for config in chatbot_configs:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO chatbot_config
+                    (config_key, config_value, config_type, description)
+                    VALUES (:key, :value, :type, :desc)
+                    """
+                ),
+                config,
+            )
+
         await session.commit()
         print("Database seeded with default data successfully")
 
 
+async def seed_prompts():
+    """
+    기존 프롬프트 파일을 DB로 마이그레이션 (Task 3.2.1).
+
+    src/prompts/student_system.txt와 tutor_system.txt를
+    prompt_template 테이블로 마이그레이션합니다.
+    """
+    async with AsyncSessionLocal() as session:
+        # Check if prompts already exist
+        result = await session.execute(
+            text("SELECT COUNT(*) FROM prompt_template")
+        )
+        count = result.scalar()
+
+        if count > 0:
+            print("Prompt templates already seeded, skipping")
+            return
+
+        # Get admin user ID for updated_by
+        admin_result = await session.execute(
+            text("SELECT id FROM user WHERE role = 'admin' LIMIT 1")
+        )
+        admin_id = admin_result.scalar()
+
+        # Load StudentBot prompt from file
+        prompts_dir = Path(__file__).parent.parent / "prompts"
+        student_prompt_path = prompts_dir / "student_system.txt"
+
+        if not student_prompt_path.exists():
+            print(f"Warning: {student_prompt_path} not found")
+            student_prompt_text = (
+                "You are a student with a misconception. "
+                "(Default fallback prompt)"
+            )
+        else:
+            student_prompt_text = student_prompt_path.read_text(
+                encoding="utf-8"
+            )
+
+        # Insert StudentBot template
+        await session.execute(
+            text(
+                """
+                INSERT INTO prompt_template
+                (bot_type, template_name, template_text,
+                 version, is_active, updated_by)
+                VALUES (:bot_type, :name, :text,
+                        :version, :active, :updated_by)
+                """
+            ),
+            {
+                "bot_type": "student",
+                "name": "Default",
+                "text": student_prompt_text,
+                "version": 1,
+                "active": 1,  # Set as active
+                "updated_by": admin_id,
+            },
+        )
+
+        # Load TutorBot prompt from file
+        tutor_prompt_path = prompts_dir / "tutor_system.txt"
+
+        if not tutor_prompt_path.exists():
+            print(f"Warning: {tutor_prompt_path} not found")
+            tutor_prompt_text = (
+                "You are a pedagogy tutor providing feedback. "
+                "(Default fallback prompt)"
+            )
+        else:
+            tutor_prompt_text = tutor_prompt_path.read_text(encoding="utf-8")
+
+        # Insert TutorBot template
+        await session.execute(
+            text(
+                """
+                INSERT INTO prompt_template
+                (bot_type, template_name, template_text,
+                 version, is_active, updated_by)
+                VALUES (:bot_type, :name, :text,
+                        :version, :active, :updated_by)
+                """
+            ),
+            {
+                "bot_type": "tutor",
+                "name": "Default",
+                "text": tutor_prompt_text,
+                "version": 1,
+                "active": 1,  # Set as active
+                "updated_by": admin_id,
+            },
+        )
+
+        await session.commit()
+        print("Prompt templates seeded successfully")
+        print(f"  - StudentBot: {len(student_prompt_text)} characters")
+        print(f"  - TutorBot: {len(tutor_prompt_text)} characters")
+
+
 if __name__ == "__main__":
     asyncio.run(seed_database())
+    asyncio.run(seed_prompts())

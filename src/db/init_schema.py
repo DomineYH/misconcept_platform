@@ -1,10 +1,10 @@
 """Database schema initialization script."""
 
 import asyncio
+
 from sqlalchemy import text
 
-from src.db.connection import engine, Base
-
+from src.db.connection import engine
 
 # SQL schema from data-model.md
 SCHEMA_SQL = """
@@ -103,6 +103,75 @@ CREATE TABLE IF NOT EXISTS session_summary (
   feedback TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Chatbot Configuration table (Phase 1 - P0)
+CREATE TABLE IF NOT EXISTS chatbot_config (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  config_key TEXT NOT NULL UNIQUE,
+  config_value TEXT NOT NULL,
+  config_type TEXT NOT NULL CHECK(config_type IN
+    ('string','float','int','bool')),
+  description TEXT,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER REFERENCES user(id)
+);
+
+-- Chatbot Configuration Audit Log (Phase 1 - P0 Security)
+CREATE TABLE IF NOT EXISTS chatbot_config_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  config_key TEXT NOT NULL,
+  old_value TEXT,
+  new_value TEXT NOT NULL,
+  changed_by INTEGER NOT NULL REFERENCES user(id),
+  changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  ip_address TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_config_audit_changed_at
+  ON chatbot_config_audit(changed_at);
+CREATE INDEX IF NOT EXISTS idx_config_audit_key
+  ON chatbot_config_audit(config_key);
+
+-- API Usage Log table (Task 3.1.1)
+CREATE TABLE IF NOT EXISTS api_usage_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES session(id),
+  bot_type TEXT NOT NULL CHECK(bot_type IN ('student','tutor')),
+  model TEXT NOT NULL,
+  prompt_tokens INTEGER NOT NULL,
+  completion_tokens INTEGER NOT NULL,
+  total_tokens INTEGER NOT NULL,
+  estimated_cost_usd REAL NOT NULL,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_usage_session
+  ON api_usage_log(session_id);
+CREATE INDEX IF NOT EXISTS idx_api_usage_timestamp
+  ON api_usage_log(timestamp);
+CREATE INDEX IF NOT EXISTS idx_api_usage_bot_type
+  ON api_usage_log(bot_type);
+
+-- Prompt Template table (Task 3.2.1)
+CREATE TABLE IF NOT EXISTS prompt_template (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  bot_type TEXT NOT NULL CHECK(bot_type IN ('student', 'tutor')),
+  template_name TEXT NOT NULL,
+  template_text TEXT NOT NULL
+    CHECK(LENGTH(template_text) >= 10 AND LENGTH(template_text) <= 10000),
+  version INTEGER NOT NULL DEFAULT 1,
+  is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN (0, 1)),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER REFERENCES user(id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_prompt_bot_type
+  ON prompt_template(bot_type);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_prompt_active
+  ON prompt_template(bot_type) WHERE is_active = 1;
+CREATE INDEX IF NOT EXISTS ix_prompt_created_at
+  ON prompt_template(created_at);
 """
 
 
@@ -111,9 +180,7 @@ async def init_schema():
     async with engine.begin() as conn:
         # Split SQL by semicolon and execute each statement
         statements = [
-            stmt.strip()
-            for stmt in SCHEMA_SQL.split(";")
-            if stmt.strip()
+            stmt.strip() for stmt in SCHEMA_SQL.split(";") if stmt.strip()
         ]
         for stmt in statements:
             await conn.execute(text(stmt))

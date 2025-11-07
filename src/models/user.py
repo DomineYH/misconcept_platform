@@ -1,10 +1,11 @@
 """User model for teachers, students, and admins (T022)."""
 from datetime import datetime
+
 from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
     Integer,
     String,
-    DateTime,
-    CheckConstraint,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -40,6 +41,12 @@ class User(Base):
     )
     scenarios: Mapped[list["Scenario"]] = relationship(
         "Scenario", back_populates="creator"
+    )
+    config_updates: Mapped[list["ChatbotConfig"]] = relationship(
+        "ChatbotConfig", back_populates="updater"
+    )
+    prompt_updates: Mapped[list["PromptTemplate"]] = relationship(
+        "PromptTemplate", back_populates="updater"
     )
 
     # Constraints

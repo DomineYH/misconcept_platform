@@ -1,5 +1,6 @@
 """Scenario model for dialogue situations (T024)."""
 from datetime import datetime
+from typing import Optional
 from sqlalchemy import (
     Integer,
     String,
@@ -7,6 +8,8 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     CheckConstraint,
+    Float,
+    Boolean,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,7 +17,11 @@ from src.db.connection import Base
 
 
 class Scenario(Base):
-    """Dialogue scenario with misconception and problem context."""
+    """Dialogue scenario with misconception and problem context.
+
+    Phase 2 Extension: Supports per-scenario chatbot configuration override.
+    NULL values in chat_* and tutor_* fields mean "use global config".
+    """
 
     __tablename__ = "scenario"
 
@@ -34,6 +41,32 @@ class Scenario(Base):
     is_active: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1
     )  # Boolean as int
+
+    # Phase 2: Scenario-specific chatbot configuration override
+    chat_model: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Override StudentBot model for this scenario (NULL = use global)",
+    )
+
+    chat_temperature: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Override temperature 0.0-2.0 (NULL = use global)",
+    )
+
+    tutor_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment="Enable/disable TutorBot for this scenario",
+    )
+
+    tutor_intervention_threshold: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Override tutor interventions per 10 questions (NULL = use global)",
+    )
 
     # Foreign keys
     framework_id: Mapped[int] = mapped_column(
@@ -65,4 +98,5 @@ class Scenario(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Scenario(id={self.id}, title={self.title[:30]})>"
+        config = f"model={self.chat_model or 'global'}, tutor={'on' if self.tutor_enabled else 'off'}"
+        return f"<Scenario(id={self.id}, title={self.title[:30]}, {config})>"

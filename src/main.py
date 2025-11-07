@@ -179,7 +179,7 @@ app.add_middleware(
     max_age=28800,  # 8 hours
     same_site="lax",
     https_only=config.is_production,  # Enable HTTPS-only in production
-    httponly=True,  # Prevent JavaScript access to cookies
+    # HttpOnly flag is enforced by SessionMiddleware internally.
 )
 
 # Mount static files
@@ -194,10 +194,22 @@ templates = Jinja2Templates(directory="src/templates")
 
 
 # Register route blueprints
-from src.api.routes import admin, auth, health, scenarios, sessions
+from src.api.routes import (
+    admin,
+    admin_api_usage,
+    admin_chatbot_config,
+    admin_prompts,
+    auth,
+    health,
+    scenarios,
+    sessions,
+)
 
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(scenarios.router)
 app.include_router(sessions.router)
 app.include_router(admin.router)
+app.include_router(admin_api_usage.router)
+app.include_router(admin_chatbot_config.router)
+app.include_router(admin_prompts.router)
