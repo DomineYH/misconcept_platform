@@ -286,7 +286,9 @@ pytest --cov=src --cov-report=html
 - `GET /scenarios/{id}` - Start dialogue session
 - `POST /sessions` - Create new session
 - `POST /sessions/{id}/messages` - Send message
-- `GET /sessions/{id}/messages/updates` - Poll for new messages
+- `GET /sessions/{id}/messages/updates` - Poll for new messages (HTMX)
+  - Query param: `since` (optional, last message ID)
+  - Returns: 200 OK with HTML partial (new messages) or 204 No Content
 - `POST /sessions/{id}/end` - End session
 - `GET /sessions/{id}/analysis` - View analysis
 - `GET /sessions/{id}/export.csv` - Download CSV

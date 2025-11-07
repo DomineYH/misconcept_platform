@@ -7,6 +7,27 @@
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+---
+
+## 버그 수정 (2025-11-07)
+
+**문제**: 시나리오 선택 후 채팅이 시작되지 않는 현상
+
+**근본 원인**:
+1. 누락된 HTMX 폴링 엔드포인트 (`GET /sessions/{id}/messages/updates`)
+2. 정의되지 않은 템플릿 변수 (`session_id` 미전달)
+3. 세션 생성 흐름 불일치 (클라이언트 vs 서버)
+
+**수정 내용**:
+- [x] FIX-001: `/sessions/{id}/messages/updates` 엔드포인트 구현
+- [x] FIX-002: 시나리오 접근 시 세션 자동 생성
+- [x] FIX-003: chat.html JavaScript 단순화
+- [x] FIX-004: HTMX 폴링 `since` 파라미터 추가
+- [x] TEST-001: 단위 테스트 11개 작성 (`tests/unit/test_message_updates.py`)
+- [x] TEST-002: 통합 테스트 9개 작성 (`tests/integration/test_chat_start_flow.py`)
+
+---
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
@@ -92,7 +113,7 @@
 -  [X] T042 [US1] Implement GET /scenarios/{id} route in src/api/routes/scenarios.py rendering chat.html template with scenario details and empty message list
 -  [X] T043 [US1] Implement POST /sessions route in src/api/routes/sessions.py creating Session record, returning session ID
 -  [X] T044 [US1] Implement POST /sessions/{id}/messages route in src/api/routes/sessions.py accepting teacher message, invoking StudentBot and TutorBot services, returning HTML fragments via HTMX
--  [X] T045 [US1] Implement HTMX polling endpoint GET /sessions/{id}/messages/updates in src/api/routes/sessions.py returning new messages since last poll (every 2s)
+-  [X] T045 [US1] Implement HTMX polling endpoint GET /sessions/{id}/messages/updates in src/api/routes/sessions.py returning new messages since last poll (every 2s) - ✅ 완료 (2025-11-07)
 
 ### Templates for User Story 1
 

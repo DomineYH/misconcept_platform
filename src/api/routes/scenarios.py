@@ -1,4 +1,6 @@
 """Scenario browsing and selection routes."""
+import logging
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -9,10 +11,13 @@ from fastapi import (
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db_session, get_current_user
-from src.models import User, Scenario
+from src.models import User, Scenario, Session
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Scenarios"])
 templates = Jinja2Templates(directory="src/templates")
@@ -70,12 +75,32 @@ async def get_scenario_detail(
             status_code=404, detail="Scenario not found"
         )
 
+    # Auto-create session for this scenario
+    session = Session(scenario_id=scenario.id, teacher_id=user.id)
+    db.add(session)
+
+    try:
+        await db.commit()
+        await db.refresh(session)
+        logger.info(
+            f"Auto-created session {session.id} for user {user.id} "
+            f"on scenario {scenario.id}"
+        )
+    except SQLAlchemyError as e:
+        logger.error(f"Failed to create session: {e}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="대화 세션을 시작할 수 없습니다. 잠시 후 다시 시도해주세요.",
+        )
+
     return templates.TemplateResponse(
         "chat.html",
         {
             "request": request,
             "user": user,
             "scenario": scenario,
+            "session_id": session.id,
             "messages": [],
         },
     )

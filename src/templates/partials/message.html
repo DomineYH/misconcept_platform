@@ -1,12 +1,12 @@
-<div class="message message-{{ message.role }}">
+<div class="message message-{{ message.role }}" data-message-id="{{ message.id }}">
   <div class="message-header">
     <span class="role-label">
       {% if message.role == 'teacher' %}
-        Teacher
+        교사
       {% elif message.role == 'student' %}
-        Student
+        학생
       {% elif message.role == 'tutor' %}
-        Tutor (Feedback)
+        튜터 (피드백)
       {% endif %}
     </span>
     <span class="timestamp">{{ message.created_at }}</span>

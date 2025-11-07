@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}{{ scenario.title }} - Dialogue{% endblock %}
+{% block title %}{{ scenario.title }} - 대화{% endblock %}
 
 {% block content %}
 <div class="chat-container">
@@ -11,13 +11,16 @@
     {% endif %}
     <div class="header-actions">
       <button id="end-session-btn" class="btn-secondary">
-        End Session
+        세션 종료
       </button>
-      <a href="/scenarios" class="btn-secondary">Back to Scenarios</a>
+      <a href="/scenarios" class="btn-secondary">시나리오로 돌아가기</a>
     </div>
   </header>
 
   <div class="chat-wrapper">
+    <!-- Hidden input for tracking last message ID -->
+    <input type="hidden" name="since" value="0" id="last-message-id">
+
     <!-- Messages container -->
     <div
       id="messages-container"
@@ -25,6 +28,7 @@
       hx-get="/sessions/{{ session_id }}/messages/updates"
       hx-trigger="every 2s"
       hx-swap="beforeend"
+      hx-include="#last-message-id"
     >
       {% for message in messages %}
         {% include 'partials/message.html' %}
@@ -45,68 +49,40 @@
           name="content"
           id="teacher-input"
           rows="3"
-          placeholder="Type your question or response..."
+          placeholder="질문이나 응답을 입력하세요..."
           required
           maxlength="5000"
         ></textarea>
         <button type="submit" class="btn-primary">
-          Send
+          전송
         </button>
       </div>
       <div id="loading-indicator" class="htmx-indicator">
-        Generating responses...
+        응답 생성 중...
       </div>
     </form>
   </div>
 </div>
 
 <script>
-  // Auto-create session on page load
-  document.addEventListener('DOMContentLoaded', async () => {
-    const scenarioId = {{ scenario.id }};
-
-    try {
-      const response = await fetch('/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scenario_id: scenarioId })
-      });
-
-      const data = await response.json();
-
-      // Update form action with session ID
-      const form = document.getElementById('teacher-form');
-      form.setAttribute('hx-post', `/sessions/${data.id}/messages`);
-      htmx.process(form);
-
-      // Update polling target
-      const container = document.getElementById('messages-container');
-      container.setAttribute('hx-get', `/sessions/${data.id}/messages/updates`);
-      htmx.process(container);
-
-      // Store session ID for end session button
-      window.currentSessionId = data.id;
-
-    } catch (error) {
-      console.error('Failed to create session:', error);
-      alert('Failed to start dialogue session');
-    }
-  });
+  // Server provides session_id via template variable
+  window.currentSessionId = {{ session_id }};
 
   // Handle end session (T071 - redirect to analysis page)
   document.getElementById('end-session-btn').addEventListener('click', async () => {
     if (!window.currentSessionId) {
-      alert('No active session');
+      alert('활성 세션이 없습니다');
       return;
     }
 
-    if (!confirm('Are you sure you want to end this session and view analysis?')) {
+    if (!confirm('이 세션을 종료하고 분석을 보시겠습니까?')) {
       return;
     }
 
     try {
       const response = await fetch(`/sessions/${window.currentSessionId}/end`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       });
 
       if (response.ok) {
@@ -114,12 +90,36 @@
         window.location.href = `/sessions/${window.currentSessionId}/analysis_page`;
       } else {
         const error = await response.json();
-        alert(`Failed to end session: ${error.detail || 'Unknown error'}`);
+        alert(`세션 종료 실패: ${error.detail || '알 수 없는 오류'}`);
       }
 
     } catch (error) {
       console.error('Failed to end session:', error);
-      alert('Failed to end session');
+      alert('세션 종료에 실패했습니다');
+    }
+  });
+
+  // Update last message ID after new messages are added
+  htmx.on('htmx:afterSwap', (event) => {
+    // Only process swaps for messages-container
+    if (event.detail.target.id === 'messages-container') {
+      // Find all message elements with data-message-id
+      const messages = document.querySelectorAll('[data-message-id]');
+
+      if (messages.length > 0) {
+        // Extract last message ID
+        const lastMessage = messages[messages.length - 1];
+        const lastId = lastMessage.dataset.messageId;
+
+        // Update hidden input
+        document.getElementById('last-message-id').value = lastId;
+
+        console.log(`Updated last_message_id to: ${lastId}`);
+      }
+
+      // Scroll to bottom
+      const container = document.getElementById('messages-container');
+      container.scrollTop = container.scrollHeight;
     }
   });
 
@@ -127,10 +127,24 @@
   document.body.addEventListener('htmx:afterRequest', (event) => {
     if (event.detail.successful) {
       document.getElementById('teacher-input').value = '';
+    }
+  });
 
-      // Scroll to bottom
-      const container = document.getElementById('messages-container');
-      container.scrollTop = container.scrollHeight;
+  // HTMX error handler
+  document.body.addEventListener('htmx:responseError', (event) => {
+    console.error('HTMX error:', event.detail);
+    // Ignore polling errors (may be temporary)
+    if (!event.detail.pathInfo.requestPath.includes('/messages/updates')) {
+      alert('요청 처리 중 오류가 발생했습니다');
+    }
+  });
+
+  // HTMX timeout handler (optional but recommended)
+  document.body.addEventListener('htmx:timeout', (event) => {
+    console.warn('HTMX timeout:', event.detail);
+    // Only alert for non-polling requests
+    if (!event.detail.pathInfo.requestPath.includes('/messages/updates')) {
+      alert('요청 시간이 초과되었습니다. 다시 시도해주세요.');
     }
   });
 </script>

@@ -1,10 +1,12 @@
 """Session and message management routes."""
+
 from datetime import datetime, timezone
 
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Query,
     Request,
 )
 from fastapi.responses import HTMLResponse, Response
@@ -72,9 +74,7 @@ async def create_session(
 ) -> SessionResponse:
     """Start new dialogue session."""
     # Create session
-    session = Session(
-        scenario_id=data.scenario_id, teacher_id=user.id
-    )
+    session = Session(scenario_id=data.scenario_id, teacher_id=user.id)
     db.add(session)
     await db.commit()
     await db.refresh(session)
@@ -97,24 +97,18 @@ async def send_message(
 ) -> dict:
     """Send teacher message and get bot responses."""
     # Validate session belongs to user
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
+    result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(
-            status_code=404, detail="Session not found"
-        )
+        raise HTTPException(status_code=404, detail="Session not found")
 
     if session.teacher_id != user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     # Validate content
     if not data.content or len(data.content) < 1:
-        raise HTTPException(
-            status_code=400, detail="Content cannot be empty"
-        )
+        raise HTTPException(status_code=400, detail="Content cannot be empty")
 
     # Process message through SessionManager
     manager = SessionManager(db, session_id)
@@ -134,6 +128,63 @@ async def send_message(
     return {"messages": [msg.dict() for msg in messages_data]}
 
 
+@router.get("/sessions/{session_id}/messages/updates")
+async def get_message_updates(
+    request: Request,
+    session_id: int,
+    since: int | None = Query(None, description="Last message ID"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    """Get new messages since last message ID for HTMX polling."""
+    # Validate session exists and belongs to user
+    result = await db.execute(select(Session).where(Session.id == session_id))
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.teacher_id != user.id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Build query for new messages
+    query = (
+        select(Message)
+        .where(Message.session_id == session_id)
+        .order_by(Message.created_at)
+        .limit(50)
+    )
+
+    # Filter by 'since' parameter if provided
+    if since is not None:
+        query = query.where(Message.id > since)
+
+    # Execute query
+    messages_result = await db.execute(query)
+    messages = messages_result.scalars().all()
+
+    # Return 204 if no new messages
+    if not messages:
+        return Response(status_code=204)
+
+    # Render each message using partial template
+    rendered_messages = []
+    for message in messages:
+        html = templates.get_template("partials/message.html").render(
+            message=message, request=request
+        )
+        rendered_messages.append(html)
+
+    # Combine all rendered messages
+    combined_html = "".join(rendered_messages)
+
+    return Response(
+        content=combined_html,
+        media_type="text/html",
+        status_code=200,
+    )
+
+
 @router.post("/sessions/{session_id}/end")
 @limiter.limit("10/minute")
 async def end_session(
@@ -144,24 +195,18 @@ async def end_session(
 ) -> dict:
     """End session, analyze questions, and generate summary (T066)."""
     # Validate session
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
+    result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(
-            status_code=404, detail="Session not found"
-        )
+        raise HTTPException(status_code=404, detail="Session not found")
 
     if session.teacher_id != user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     # Check if already ended
     if session.ended_at:
-        raise HTTPException(
-            status_code=400, detail="Session already ended"
-        )
+        raise HTTPException(status_code=400, detail="Session already ended")
 
     # Update Session.ended_at timestamp
     session.ended_at = datetime.now(timezone.utc)
@@ -255,15 +300,11 @@ async def get_analysis(
 ) -> dict:
     """Get session analysis report (T067)."""
     # Validate session
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
+    result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(
-            status_code=404, detail="Session not found"
-        )
+        raise HTTPException(status_code=404, detail="Session not found")
 
     if session.teacher_id != user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -277,16 +318,12 @@ async def get_analysis(
 
     # Load session summary
     summary_result = await db.execute(
-        select(SessionSummary).where(
-            SessionSummary.session_id == session_id
-        )
+        select(SessionSummary).where(SessionSummary.session_id == session_id)
     )
     summary = summary_result.scalar_one_or_none()
 
     if not summary:
-        raise HTTPException(
-            status_code=404, detail="Analysis not found"
-        )
+        raise HTTPException(status_code=404, detail="Analysis not found")
 
     # Load teacher messages with analyses
     messages_result = await db.execute(
@@ -304,14 +341,14 @@ async def get_analysis(
     # Format question list
     questions = []
     for msg, analysis in message_analyses:
-        questions.append({
-            "content": msg.content,
-            "label": analysis.label if analysis else "Unclassified",
-            "confidence": (
-                analysis.confidence if analysis else None
-            ),
-            "created_at": msg.created_at.isoformat(),
-        })
+        questions.append(
+            {
+                "content": msg.content,
+                "label": analysis.label if analysis else "Unclassified",
+                "confidence": (analysis.confidence if analysis else None),
+                "created_at": msg.created_at.isoformat(),
+            }
+        )
 
     return {
         "distribution": summary.distribution,
@@ -321,9 +358,7 @@ async def get_analysis(
     }
 
 
-@router.get(
-    "/sessions/{session_id}/analysis_page", response_class=HTMLResponse
-)
+@router.get("/sessions/{session_id}/analysis_page", response_class=HTMLResponse)
 async def get_analysis_page(
     request: Request,
     session_id: int,
@@ -356,15 +391,11 @@ async def export_session(
 ) -> Response:
     """Export session with analysis to CSV (T068)."""
     # Validate session
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
+    result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(
-            status_code=404, detail="Session not found"
-        )
+        raise HTTPException(status_code=404, detail="Session not found")
 
     if session.teacher_id != user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -381,8 +412,7 @@ async def export_session(
         media_type="text/csv",
         headers={
             "Content-Disposition": (
-                f"attachment; "
-                f"filename=session_{session_id}_analysis.csv"
+                f"attachment; " f"filename=session_{session_id}_analysis.csv"
             )
         },
     )
