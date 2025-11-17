@@ -1,43 +1,43 @@
 {% extends "layout.html" %}
 
-{% block title %}Prompt Templates - Admin{% endblock %}
+{% block title %}프롬프트 템플릿 - 관리자{% endblock %}
 
 {% block content %}
 <div class="container">
   <header class="page-header">
-    <h1>📝 Prompt Template Management</h1>
+    <h1>📝 프롬프트 템플릿 관리</h1>
     <p class="subtitle">
-      Manage StudentBot and TutorBot system prompts
+      학생봇 및 튜터봇 시스템 프롬프트 관리
     </p>
   </header>
 
   <!-- Bot Type Filter -->
   <div class="filter-buttons">
     <button class="btn active" onclick="filter('all', this)">
-      All ({{ prompts|length }})
+      전체 ({{ prompts|length }})
     </button>
     <button class="btn" onclick="filter('student', this)">
-      StudentBot
+      학생봇
     </button>
-    <button class="btn" onclick="filter('tutor', this)">TutorBot</button>
+    <button class="btn" onclick="filter('tutor', this)">튜터봇</button>
   </div>
 
   <!-- Create Button & Form -->
   <button class="btn btn-primary" id="new-btn" onclick="toggleNew()">
-    ➕ Create New Template
+    ➕ 새 템플릿 생성
   </button>
 
   <form id="new-form" class="scenario-form" style="display: none">
     <div class="form-group">
-      <label>Bot Type *</label>
+      <label>봇 유형 *</label>
       <select id="bot-type" required>
-        <option value="student">StudentBot</option>
-        <option value="tutor">TutorBot</option>
+        <option value="student">학생봇</option>
+        <option value="tutor">튜터봇</option>
       </select>
     </div>
 
     <div class="form-group">
-      <label>Template Name *</label>
+      <label>템플릿 이름 *</label>
       <input
         type="text"
         id="name"
@@ -48,7 +48,7 @@
     </div>
 
     <div class="form-group">
-      <label>Prompt Text *</label>
+      <label>프롬프트 텍스트 *</label>
       <textarea
         id="text"
         rows="10"
@@ -62,25 +62,25 @@
     <div class="form-group">
       <label>
         <input type="checkbox" id="active" />
-        Set as Active
+        활성으로 설정
       </label>
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary">💾 Save</button>
+      <button type="submit" class="btn btn-primary">💾 저장</button>
       <button
         type="button"
         class="btn btn-secondary"
         onclick="toggleNew()"
       >
-        ❌ Cancel
+        ❌ 취소
       </button>
     </div>
   </form>
 
   <!-- Prompts List -->
   <section class="scenarios-list">
-    <h2>Templates ({{ prompts|length }})</h2>
+    <h2>템플릿 ({{ prompts|length }})</h2>
 
     {% if prompts %}
     {% for p in prompts %}
@@ -105,7 +105,7 @@
           class="badge"
           style="{% if p.is_active %}background: #d1fae5; color: #065f46{% else %}background: #e5e7eb; color: #6b7280{% endif %}"
         >
-          {% if p.is_active %}✅ Active{% else %}Inactive{% endif %}
+          {% if p.is_active %}✅ 활성{% else %}비활성{% endif %}
         </span>
       </div>
 
@@ -121,14 +121,14 @@
           class="btn btn-small btn-secondary"
           onclick="toggleView({{ p.id }})"
         >
-          👁️ View
+          👁️ 보기
         </button>
         {% if not p.is_active %}
         <button
           class="btn btn-small btn-primary"
           onclick="activate({{ p.id }})"
         >
-          ✅ Activate
+          ✅ 활성화
         </button>
         {% endif %}
       </div>
@@ -142,7 +142,7 @@
     </div>
     {% endfor %}
     {% else %}
-    <p class="empty-state">No templates. Create one above!</p>
+    <p class="empty-state">템플릿이 없습니다. 위에서 생성하세요!</p>
     {% endif %}
   </section>
 </div>
@@ -179,10 +179,10 @@
     const btn = document.getElementById("new-btn");
     if (form.style.display === "none") {
       form.style.display = "block";
-      btn.textContent = "❌ Cancel";
+      btn.textContent = "❌ 취소";
     } else {
       form.style.display = "none";
-      btn.textContent = "➕ Create New Template";
+      btn.textContent = "➕ 새 템플릿 생성";
       form.reset();
     }
   }
@@ -221,19 +221,19 @@
       });
 
       if (res.ok) {
-        alert("✅ Template created!");
+        alert("✅ 템플릿이 생성되었습니다!");
         location.reload();
       } else {
         const err = await res.json();
         alert(`❌ ${err.detail}`);
       }
     } catch {
-      alert("❌ Failed to create");
+      alert("❌ 생성 실패");
     }
   };
 
   async function activate(id) {
-    if (!confirm("Activate this template?")) return;
+    if (!confirm("이 템플릿을 활성화하시겠습니까?")) return;
 
     try {
       const res = await fetch(`/admin/prompts/${id}/activate`, {
@@ -241,14 +241,14 @@
       });
 
       if (res.ok) {
-        alert("✅ Activated!");
+        alert("✅ 활성화되었습니다!");
         location.reload();
       } else {
         const err = await res.json();
         alert(`❌ ${err.detail}`);
       }
     } catch {
-      alert("❌ Failed to activate");
+      alert("❌ 활성화 실패");
     }
   }
 </script>

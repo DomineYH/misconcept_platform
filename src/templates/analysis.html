@@ -1,28 +1,28 @@
 {% extends "layout.html" %}
 
-{% block title %}Session Analysis{% endblock %}
+{% block title %}세션 분석{% endblock %}
 
 {% block content %}
 <div class="container mx-auto px-4 py-8 max-w-4xl">
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h1 class="text-2xl font-bold mb-4">Session Analysis Report</h1>
+        <h1 class="text-2xl font-bold mb-4">세션 분석 리포트</h1>
 
         <div class="mb-4">
             <p class="text-gray-600">
-                Session ended: {{ session_ended_at }}
+                세션 종료 시간: {{ session_ended_at }}
             </p>
         </div>
 
         <!-- Feedback Section -->
         <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-            <h2 class="font-semibold text-lg mb-2">Analysis Feedback</h2>
+            <h2 class="font-semibold text-lg mb-2">분석 피드백</h2>
             <p class="text-gray-700">{{ feedback }}</p>
         </div>
 
         <!-- Distribution Chart -->
         <div class="mb-8">
             <h2 class="text-xl font-semibold mb-4">
-                Question Type Distribution
+                질문 유형 분포
             </h2>
             {% include "partials/analysis_bar.html" %}
         </div>
@@ -30,7 +30,7 @@
         <!-- Question List -->
         <div>
             <h2 class="text-xl font-semibold mb-4">
-                Your Questions ({{ questions|length }})
+                질문 목록 ({{ questions|length }}개)
             </h2>
 
             <div class="space-y-3">
@@ -64,7 +64,7 @@
                         <span>{{ question.created_at }}</span>
                         {% if question.confidence %}
                         <span class="ml-4">
-                            Confidence: {{ "%.0f"|format(question.confidence * 100) }}%
+                            신뢰도: {{ "%.0f"|format(question.confidence * 100) }}%
                         </span>
                         {% endif %}
                     </div>
@@ -81,14 +81,14 @@
                 hover:bg-green-700 transition"
                 download
             >
-                Download CSV
+                CSV 다운로드
             </a>
             <a
                 href="/scenarios"
                 class="bg-gray-600 text-white px-6 py-2 rounded
                 hover:bg-gray-700 transition"
             >
-                Back to Scenarios
+                시나리오로 돌아가기
             </a>
         </div>
     </div>

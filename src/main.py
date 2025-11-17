@@ -197,7 +197,6 @@ templates = Jinja2Templates(directory="src/templates")
 from src.api.routes import (
     admin,
     admin_api_usage,
-    admin_chatbot_config,
     admin_prompts,
     auth,
     health,
@@ -211,5 +210,4 @@ app.include_router(scenarios.router)
 app.include_router(sessions.router)
 app.include_router(admin.router)
 app.include_router(admin_api_usage.router)
-app.include_router(admin_chatbot_config.router)
 app.include_router(admin_prompts.router)

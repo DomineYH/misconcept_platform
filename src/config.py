@@ -17,6 +17,24 @@ class Config:
         "ANALYSIS_MODEL", "gpt-3.5-turbo"
     )
 
+    # ===== Chatbot Parameter Configuration =====
+    # StudentBot settings
+    STUDENT_TEMPERATURE: float = float(
+        os.getenv("STUDENT_TEMPERATURE", "0.7")
+    )
+    STUDENT_MAX_TOKENS: int = int(
+        os.getenv("STUDENT_MAX_TOKENS", "150")
+    )
+
+    # TutorBot settings
+    TUTOR_TEMPERATURE: float = float(
+        os.getenv("TUTOR_TEMPERATURE", "0.3")
+    )
+    TUTOR_MAX_TOKENS: int = int(os.getenv("TUTOR_MAX_TOKENS", "100"))
+    TUTOR_INTERVENTION_THRESHOLD: int = int(
+        os.getenv("TUTOR_INTERVENTION_THRESHOLD", "3")
+    )
+
     # Session Security
     SESSION_SECRET: str = os.getenv(
         "SESSION_SECRET", "change-this-insecure-default"
@@ -54,6 +72,35 @@ class Config:
         if cls.SESSION_SECRET == "change-this-insecure-default":
             raise ValueError(
                 "SESSION_SECRET must be changed in .env file"
+            )
+
+        # Validate StudentBot parameters
+        if not (0.0 <= cls.STUDENT_TEMPERATURE <= 2.0):
+            raise ValueError(
+                f"STUDENT_TEMPERATURE must be between 0.0 and 2.0, "
+                f"got {cls.STUDENT_TEMPERATURE}"
+            )
+        if cls.STUDENT_MAX_TOKENS <= 0:
+            raise ValueError(
+                f"STUDENT_MAX_TOKENS must be positive, "
+                f"got {cls.STUDENT_MAX_TOKENS}"
+            )
+
+        # Validate TutorBot parameters
+        if not (0.0 <= cls.TUTOR_TEMPERATURE <= 2.0):
+            raise ValueError(
+                f"TUTOR_TEMPERATURE must be between 0.0 and 2.0, "
+                f"got {cls.TUTOR_TEMPERATURE}"
+            )
+        if cls.TUTOR_MAX_TOKENS <= 0:
+            raise ValueError(
+                f"TUTOR_MAX_TOKENS must be positive, "
+                f"got {cls.TUTOR_MAX_TOKENS}"
+            )
+        if not (1 <= cls.TUTOR_INTERVENTION_THRESHOLD <= 10):
+            raise ValueError(
+                f"TUTOR_INTERVENTION_THRESHOLD must be between 1 and "
+                f"10, got {cls.TUTOR_INTERVENTION_THRESHOLD}"
             )
 
 
