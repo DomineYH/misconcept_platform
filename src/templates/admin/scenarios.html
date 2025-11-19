@@ -93,15 +93,19 @@
             <select id="new-chat-model" name="chat_model"
                     class="form-control">
               <option value="">🌍 전역 설정 사용</option>
-              <option value="gpt-4o">GPT-4o (최고 품질)</option>
-              <option value="gpt-4o-mini">
-                GPT-4o Mini (빠르고 경제적)
+              <option value="gpt-5">GPT-5 (권장, Aug 2025)</option>
+              <option value="gpt-5.1">
+                GPT-5.1 Thinking (적응형 추론)
               </option>
-              <option value="gpt-4-turbo">GPT-4 Turbo</option>
-              <option value="gpt-3.5-turbo">GPT-3.5 Turbo (가장 빠름)</option>
+              <option value="gpt-5.1-chat-latest">
+                GPT-5.1 Instant (빠름, 대화형)
+              </option>
+              <option value="gpt-4-turbo">
+                GPT-4 Turbo (GPT-5 불가 시 대체)
+              </option>
             </select>
             <span class="help-text">
-              이 시나리오의 학생봇에 다른 모델 선택
+              Responses API 지원 모델만 사용 가능 (GPT-3.5 미지원)
             </span>
           </div>
 
@@ -210,6 +214,12 @@
           <span class="meta-item">
             🏷️ 프레임워크: {{ scenario.framework.name }}
           </span>
+          <span class="meta-item {% if session_counts[scenario.id] > 0 %}has-sessions{% endif %}">
+            💬 세션: {{ session_counts[scenario.id] }}개
+            {% if session_counts[scenario.id] > 0 %}
+            <span class="session-warning">(강제 삭제 가능)</span>
+            {% endif %}
+          </span>
         </div>
 
         <div class="scenario-content">
@@ -231,6 +241,14 @@
             data-id="{{ scenario.id }}"
           >
             ✏️ 수정
+          </button>
+          <button
+            class="btn btn-small btn-danger delete-btn"
+            data-id="{{ scenario.id }}"
+            data-title="{{ scenario.title }}"
+            data-session-count="{{ session_counts[scenario.id] }}"
+          >
+            🗑️ 삭제
           </button>
         </div>
 
@@ -328,29 +346,29 @@
                         name="chat_model"
                         class="form-control">
                   <option value="">🌍 전역 설정 사용</option>
-                  <option value="gpt-4o"
-                          {% if scenario.chat_model == 'gpt-4o' %}selected{%
+                  <option value="gpt-5"
+                          {% if scenario.chat_model == 'gpt-5' %}selected{%
                           endif %}>
-                    GPT-4o (최고 품질)
+                    GPT-5 (권장, Aug 2025)
                   </option>
-                  <option value="gpt-4o-mini"
-                          {% if scenario.chat_model == 'gpt-4o-mini' %}
+                  <option value="gpt-5.1"
+                          {% if scenario.chat_model == 'gpt-5.1' %}
                           selected{% endif %}>
-                    GPT-4o Mini (빠르고 경제적)
+                    GPT-5.1 Thinking (적응형 추론)
+                  </option>
+                  <option value="gpt-5.1-chat-latest"
+                          {% if scenario.chat_model == 'gpt-5.1-chat-latest'
+                          %}selected{% endif %}>
+                    GPT-5.1 Instant (빠름, 대화형)
                   </option>
                   <option value="gpt-4-turbo"
                           {% if scenario.chat_model == 'gpt-4-turbo' %}
                           selected{% endif %}>
-                    GPT-4 Turbo
-                  </option>
-                  <option value="gpt-3.5-turbo"
-                          {% if scenario.chat_model == 'gpt-3.5-turbo' %}
-                          selected{% endif %}>
-                    GPT-3.5 Turbo (가장 빠름)
+                    GPT-4 Turbo (GPT-5 불가 시 대체)
                   </option>
                 </select>
                 <span class="help-text">
-                  이 시나리오의 학생봇에 다른 모델 선택
+                  Responses API 지원 모델만 사용 가능 (GPT-3.5 미지원)
                 </span>
               </div>
 
@@ -587,6 +605,15 @@
   .scenario-actions {
     display: flex;
     gap: 0.5rem;
+  }
+
+  .btn-danger {
+    background: #dc2626;
+    color: white;
+  }
+
+  .btn-danger:hover {
+    background: #b91c1c;
   }
 
   .edit-form {
@@ -877,6 +904,63 @@
         }
       } catch (err) {
         alert("시나리오 업데이트에 실패했습니다");
+      }
+    });
+  });
+
+  // Delete scenario (Force Delete)
+  document.querySelectorAll(".delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const id = e.target.dataset.id;
+      const title = e.target.dataset.title;
+      const sessionCount = parseInt(e.target.dataset.sessionCount || "0");
+
+      // Build confirmation message
+      let confirmMessage;
+      if (sessionCount > 0) {
+        confirmMessage =
+          `⚠️ 강제 삭제 확인\n\n` +
+          `"${title}" 시나리오를 삭제하시겠습니까?\n\n` +
+          `이 시나리오에는 ${sessionCount}개의 세션이 있습니다.\n` +
+          `삭제하면 모든 관련 세션도 함께 영구적으로 삭제됩니다.\n\n` +
+          `정말로 ${sessionCount}개의 세션을 강제 종료하고 삭제하시겠습니까?`;
+      } else {
+        confirmMessage =
+          `"${title}" 시나리오를 삭제하시겠습니까?\n\n` +
+          `이 시나리오는 세션이 없어 안전하게 삭제할 수 있습니다.`;
+      }
+
+      // Confirm deletion
+      const confirmed = window.confirm(confirmMessage);
+      if (!confirmed) return;
+
+      // Disable button during request
+      btn.disabled = true;
+      btn.textContent = "삭제 중...";
+
+      try {
+        const response = await fetch(`/admin/scenarios/${id}`, {
+          method: "DELETE",
+        });
+
+        if (response.ok) {
+          const successMessage = sessionCount > 0
+            ? `시나리오와 ${sessionCount}개의 세션이 성공적으로 삭제되었습니다!`
+            : "시나리오가 성공적으로 삭제되었습니다!";
+          alert(successMessage);
+          window.location.reload();
+        } else {
+          const error = await response.json();
+          alert(`오류: ${error.detail}`);
+          // Restore button state
+          btn.disabled = false;
+          btn.textContent = "🗑️ 삭제";
+        }
+      } catch (err) {
+        alert("시나리오 삭제에 실패했습니다");
+        // Restore button state
+        btn.disabled = false;
+        btn.textContent = "🗑️ 삭제";
       }
     });
   });
