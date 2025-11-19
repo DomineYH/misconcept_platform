@@ -1,0 +1,29 @@
+=== 환경 설정 스냅샷 ===
+생성 시각: $(date)
+
+[모델 설정]
+CHAT_MODEL=gpt-5
+ANALYSIS_MODEL=gpt-5
+
+[OpenAI SDK]
+Version: 2.3.0
+
+[GPT-5 접근 권한 검증]
+✅ gpt-5: 접근 가능
+✅ gpt-5.1-chat-latest: 접근 가능
+✅ gpt-4-turbo: 접근 가능
+
+[코드 API 사용 현황]
+✅ src/services/student_bot.py: responses.create + max_output_tokens
+✅ src/services/misconception_analyzer.py: responses.create + max_output_tokens
+✅ src/services/tutor_bot.py: responses.create + max_output_tokens
+
+[근본 원인 분석]
+- 코드: ✅ 정상 (Responses API 올바르게 사용 중)
+- GPT-5 접근: ✅ 정상 (모든 모델 접근 가능)
+- 문서: ❌ 불일치 (실제 코드 상태와 불일치)
+- 테스트: ❌ 불일치 (Responses API가 아닌 Chat Completions API mock 사용)
+
+[결론]
+실제 오류는 코드나 접근 권한 문제가 아닌, 문서와 테스트의 불일치 문제로 확인됨.
+Phase 2 (문서 일관성 수정)로 진행 필요.
