@@ -1,13 +1,13 @@
 {% extends "layout.html" %}
 
-{% block title %}API Usage Analytics - Admin{% endblock %}
+{% block title %}API 사용량 분석 - 관리자{% endblock %}
 
 {% block content %}
 <div class="container">
   <header class="page-header">
-    <h1>💰 API Usage Analytics</h1>
+    <h1>💰 API 사용량 분석</h1>
     <p class="subtitle">
-      Track OpenAI API costs and token usage across sessions
+      세션별 OpenAI API 비용 및 토큰 사용량 추적
     </p>
   </header>
 
@@ -17,7 +17,7 @@
       <div class="stat-card">
         <div class="stat-icon">📊</div>
         <div class="stat-content">
-          <h3>Total Requests</h3>
+          <h3>전체 요청</h3>
           <p class="stat-value" id="total-requests">-</p>
         </div>
       </div>
@@ -25,7 +25,7 @@
       <div class="stat-card">
         <div class="stat-icon">🔢</div>
         <div class="stat-content">
-          <h3>Total Tokens</h3>
+          <h3>전체 토큰</h3>
           <p class="stat-value" id="total-tokens">-</p>
         </div>
       </div>
@@ -33,7 +33,7 @@
       <div class="stat-card">
         <div class="stat-icon">💵</div>
         <div class="stat-content">
-          <h3>Total Cost</h3>
+          <h3>전체 비용</h3>
           <p class="stat-value" id="total-cost">$-</p>
         </div>
       </div>
@@ -41,7 +41,7 @@
       <div class="stat-card">
         <div class="stat-icon">📈</div>
         <div class="stat-content">
-          <h3>Avg Cost/Request</h3>
+          <h3>평균 비용/요청</h3>
           <p class="stat-value" id="avg-cost">$-</p>
         </div>
       </div>
@@ -50,11 +50,11 @@
 
   <!-- Filters -->
   <section class="filters-section">
-    <h2>Filters</h2>
+    <h2>필터</h2>
     <form id="filter-form" class="filter-form">
       <div class="filter-row">
         <div class="form-group">
-          <label for="start-date">Start Date</label>
+          <label for="start-date">시작 날짜</label>
           <input
             type="date"
             id="start-date"
@@ -63,7 +63,7 @@
         </div>
 
         <div class="form-group">
-          <label for="end-date">End Date</label>
+          <label for="end-date">종료 날짜</label>
           <input
             type="date"
             id="end-date"
@@ -72,9 +72,9 @@
         </div>
 
         <div class="form-group">
-          <label for="scenario-filter">Scenario</label>
+          <label for="scenario-filter">시나리오</label>
           <select id="scenario-filter" name="scenario_id">
-            <option value="">All Scenarios</option>
+            <option value="">모든 시나리오</option>
             {% for scenario in scenarios %}
             <option value="{{ scenario.id }}">
               {{ scenario.title }}
@@ -84,18 +84,18 @@
         </div>
 
         <div class="form-group">
-          <label for="bot-type-filter">Bot Type</label>
+          <label for="bot-type-filter">봇 유형</label>
           <select id="bot-type-filter" name="bot_type">
-            <option value="">All Bots</option>
-            <option value="student">Student Bot</option>
-            <option value="tutor">Tutor Bot</option>
+            <option value="">모든 봇</option>
+            <option value="student">학생봇</option>
+            <option value="tutor">튜터봇</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label for="model-filter">Model</label>
+          <label for="model-filter">모델</label>
           <select id="model-filter" name="model">
-            <option value="">All Models</option>
+            <option value="">모든 모델</option>
             <option value="gpt-4o">GPT-4o</option>
             <option value="gpt-4o-mini">GPT-4o Mini</option>
             <option value="gpt-4-turbo">GPT-4 Turbo</option>
@@ -106,10 +106,10 @@
 
       <div class="filter-actions">
         <button type="submit" class="btn btn-primary">
-          🔍 Apply Filters
+          🔍 필터 적용
         </button>
         <button type="button" id="reset-btn" class="btn btn-secondary">
-          ↺ Reset
+          ↺ 초기화
         </button>
       </div>
     </form>
@@ -118,14 +118,14 @@
   <!-- Usage Logs Table -->
   <section class="logs-section">
     <div class="section-header">
-      <h2>Usage Logs</h2>
+      <h2>사용 로그</h2>
       <button id="export-btn" class="btn btn-small btn-secondary">
-        📥 Export CSV
+        📥 CSV 내보내기
       </button>
     </div>
 
     <div id="table-container" class="table-container">
-      <p class="loading-message">Loading usage data...</p>
+      <p class="loading-message">사용량 데이터 로딩 중...</p>
     </div>
 
     <!-- Pagination -->
@@ -135,11 +135,11 @@
         class="btn btn-small btn-secondary"
         disabled
       >
-        ← Previous
+        ← 이전
       </button>
       <span id="page-info" class="page-info">-</span>
       <button id="next-btn" class="btn btn-small btn-secondary">
-        Next →
+        다음 →
       </button>
     </div>
   </section>
@@ -446,7 +446,7 @@
 
       const response = await fetch(`/admin/api-usage?${params}`);
       if (!response.ok) {
-        throw new Error('Failed to load usage data');
+        throw new Error('사용량 데이터 로드 실패');
       }
 
       const data = await response.json();
@@ -464,9 +464,9 @@
       currentOffset = offset;
 
     } catch (error) {
-      console.error('Error loading usage data:', error);
+      console.error('사용량 데이터 로드 오류:', error);
       document.getElementById('table-container').innerHTML =
-        '<p class="empty-message">❌ Failed to load usage data</p>';
+        '<p class="empty-message">❌ 사용량 데이터 로드 실패</p>';
     }
   }
 
@@ -492,7 +492,7 @@
 
     if (logs.length === 0) {
       container.innerHTML =
-        '<p class="empty-message">📭 No usage logs found</p>';
+        '<p class="empty-message">📭 사용 로그를 찾을 수 없습니다</p>';
       return;
     }
 
@@ -501,14 +501,14 @@
         <thead>
           <tr>
             <th>ID</th>
-            <th>Timestamp</th>
-            <th>Scenario</th>
-            <th>Bot Type</th>
-            <th>Model</th>
-            <th>Prompt</th>
-            <th>Completion</th>
-            <th>Total</th>
-            <th>Cost (USD)</th>
+            <th>타임스탬프</th>
+            <th>시나리오</th>
+            <th>봇 유형</th>
+            <th>모델</th>
+            <th>프롬프트</th>
+            <th>완료</th>
+            <th>전체</th>
+            <th>비용 (USD)</th>
           </tr>
         </thead>
         <tbody>
@@ -516,8 +516,8 @@
 
     logs.forEach(log => {
       const botBadge = log.bot_type === 'student'
-        ? '<span class="badge badge-student">Student</span>'
-        : '<span class="badge badge-tutor">Tutor</span>';
+        ? '<span class="badge badge-student">학생</span>'
+        : '<span class="badge badge-tutor">튜터</span>';
 
       const timestamp = new Date(log.timestamp).toLocaleString();
 
@@ -558,7 +558,7 @@
     const totalPages = Math.ceil(totalCount / limit);
 
     pageInfo.textContent =
-      `Page ${currentPage} of ${totalPages} (${totalCount} total)`;
+      `페이지 ${currentPage} / ${totalPages} (전체 ${totalCount})`;
 
     prevBtn.disabled = offset === 0;
     nextBtn.disabled = offset + limit >= totalCount;
@@ -608,7 +608,7 @@
       const response = await fetch(`/admin/api-usage?${params}&limit=10000`);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch data');
+        throw new Error('데이터 가져오기 실패');
       }
 
       const data = await response.json();
@@ -626,8 +626,8 @@
       URL.revokeObjectURL(url);
 
     } catch (error) {
-      console.error('Export failed:', error);
-      alert('❌ Failed to export CSV');
+      console.error('내보내기 실패:', error);
+      alert('❌ CSV 내보내기 실패');
     }
   });
 
@@ -635,15 +635,15 @@
   function generateCSV(logs) {
     const headers = [
       'ID',
-      'Timestamp',
-      'Session ID',
-      'Scenario',
-      'Bot Type',
-      'Model',
-      'Prompt Tokens',
-      'Completion Tokens',
-      'Total Tokens',
-      'Cost (USD)',
+      '타임스탬프',
+      '세션 ID',
+      '시나리오',
+      '봇 유형',
+      '모델',
+      '프롬프트 토큰',
+      '완료 토큰',
+      '전체 토큰',
+      '비용 (USD)',
     ];
 
     let csv = headers.join(',') + '\n';

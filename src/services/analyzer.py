@@ -54,6 +54,9 @@ class Analyzer:
         question: str,
         framework: AnalysisFramework,
         context: Optional[str] = None,
+        scenario_title: Optional[str] = None,
+        misconception_prompt: Optional[str] = None,
+        student_profile: Optional[str] = None,
     ) -> Dict[str, any]:
         """
         Classify a teacher question using the analysis framework.
@@ -62,6 +65,9 @@ class Analyzer:
             question: Teacher's question text
             framework: Analysis framework with labels
             context: Optional conversation context (previous messages)
+            scenario_title: Optional scenario title for context
+            misconception_prompt: Optional misconception being addressed
+            student_profile: Optional student profile/persona
 
         Returns:
             Dict with keys: label, confidence, reasoning
@@ -70,23 +76,32 @@ class Analyzer:
             ValueError: If response format is invalid
             APIError: If OpenAI API call fails after retries
         """
-        # Format prompt with framework and question
+        # Format prompt with framework, scenario context, and question
         prompt = self.prompt_template.format(
             framework_name=framework.name,
             framework_description=framework.description or "",
             framework_labels=", ".join(framework.labels),
+            scenario_title=scenario_title or "Not specified",
+            misconception_prompt=misconception_prompt or "Not specified",
+            student_profile=student_profile or "Not specified",
             question=question,
             context=context or "No prior context",
         )
 
         try:
             # Call OpenAI API
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                response_format={"type": "json_object"},
-            )
+            # GPT-5 models only support temperature=1.0 (default)
+            params = {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+            }
+
+            # Only add temperature for non-GPT-5 models
+            if not self.model.startswith("gpt-5"):
+                params["temperature"] = self.temperature
+
+            response = await self.client.chat.completions.create(**params)
 
             # Parse JSON response
             content = response.choices[0].message.content
@@ -131,6 +146,9 @@ class Analyzer:
         questions: list[str],
         framework: AnalysisFramework,
         context: Optional[str] = None,
+        scenario_title: Optional[str] = None,
+        misconception_prompt: Optional[str] = None,
+        student_profile: Optional[str] = None,
     ) -> list[Dict[str, any]]:
         """
         Classify multiple questions sequentially.
@@ -139,6 +157,9 @@ class Analyzer:
             questions: List of teacher questions
             framework: Analysis framework
             context: Optional shared context
+            scenario_title: Optional scenario title for context
+            misconception_prompt: Optional misconception being addressed
+            student_profile: Optional student profile/persona
 
         Returns:
             List of classification results
@@ -147,7 +168,12 @@ class Analyzer:
         for question in questions:
             try:
                 result = await self.classify_question(
-                    question, framework, context
+                    question=question,
+                    framework=framework,
+                    context=context,
+                    scenario_title=scenario_title,
+                    misconception_prompt=misconception_prompt,
+                    student_profile=student_profile,
                 )
                 results.append(result)
             except Exception as e:

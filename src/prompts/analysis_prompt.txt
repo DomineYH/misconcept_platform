@@ -4,6 +4,15 @@ in a dialogue with a student exhibiting misconceptions.
 Your task: Classify each teacher question using the provided
 analysis framework.
 
+## Scenario Context
+
+**Scenario**: {scenario_title}
+**Target Misconception**: {misconception_prompt}
+**Student Profile**: {student_profile}
+
+Consider how the teacher's question addresses this specific misconception
+and student context when classifying.
+
 ## Classification Framework
 
 {framework_name}: {framework_description}

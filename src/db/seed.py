@@ -134,7 +134,7 @@ async def seed_database():
             },
             {
                 "key": "tutor_bot.model",
-                "value": "gpt-5",
+                "value": "gpt-5-mini",
                 "type": "string",
                 "desc": "TutorBot LLM model",
             },

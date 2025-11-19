@@ -1,16 +1,16 @@
 {% extends "layout.html" %}
 
-{% block title %}Login - Misconception Dialogue Simulator{% endblock %}
+{% block title %}로그인 - 오개념 교정 대화 시뮬레이터{% endblock %}
 
 {% block content %}
 <div class="login-container">
   <div class="login-card">
-    <h1>Misconception Dialogue Simulator</h1>
-    <p class="subtitle">Teacher Training Platform</p>
+    <h1>오개념 교정 대화 시뮬레이터</h1>
+    <p class="subtitle">교사 연수 플랫폼</p>
 
     <form method="POST" action="/login" class="login-form">
       <div class="form-group">
-        <label for="student_uid">Student ID</label>
+        <label for="student_uid">학생 ID</label>
         <input
           type="text"
           id="student_uid"
@@ -20,13 +20,13 @@
           minlength="3"
           maxlength="50"
           pattern="[a-zA-Z0-9_]+"
-          title="Alphanumeric characters and underscores only"
+          title="영문, 숫자, 언더스코어만 사용 가능"
         />
-        <small>3-50 characters, alphanumeric and underscore</small>
+        <small>3-50자, 영문/숫자/언더스코어만 사용</small>
       </div>
 
       <div class="form-group">
-        <label for="nickname">Nickname</label>
+        <label for="nickname">닉네임</label>
         <input
           type="text"
           id="nickname"
@@ -36,16 +36,16 @@
           minlength="2"
           maxlength="30"
         />
-        <small>2-30 characters, any language</small>
+        <small>2-30자, 모든 언어 사용 가능</small>
       </div>
 
-      <button type="submit" class="btn-primary">Login</button>
+      <button type="submit" class="btn-primary">로그인</button>
     </form>
 
     <div class="info-box">
       <p>
-        <strong>Note:</strong> This is a training platform. Use your
-        student ID and a nickname to begin practice sessions.
+        <strong>참고:</strong> 이 플랫폼은 연수용입니다. 학생 ID와 닉네임을
+        사용하여 연습 세션을 시작하세요.
       </p>
     </div>
   </div>

@@ -46,6 +46,15 @@ repos:
 
   - repo: local
     hooks:
+      - id: schema-integrity-check
+        name: schema-integrity-check
+        description: "Schema Integrity Check - Verify database schema"
+        entry: bash -c 'PYTHONPATH=. pytest tests/contract/test_schema_integrity.py -v'
+        language: system
+        pass_filenames: false
+        files: ^(src/models/.*\.py|src/db/init_schema\.py)$
+        stages: [pre-commit]
+
       - id: pytest
         name: pytest
         description: "Run pytest tests"
@@ -54,4 +63,4 @@ repos:
         types: [python]
         pass_filenames: false
         always_run: true
-        stages: [commit]
+        stages: [pre-commit]

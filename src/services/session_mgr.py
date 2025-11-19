@@ -1,5 +1,6 @@
 """SessionManager service for orchestrating dialogue flow."""
 
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Literal, Optional
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import config
 from src.models import ApiUsageLog, Message, Scenario, Session, calculate_cost
-from src.services.config_cache import bot_config_cache
+from src.services.misconception_analyzer import MisconceptionAnalyzer
 from src.services.student_bot import StudentBot
 from src.services.tutor_bot import TutorBot
 
@@ -30,6 +31,8 @@ class SessionManager:
         self.session_id = session_id
         self.student_bot = None
         self.tutor_bot = None  # Initialized conditionally in initialize()
+        self.misconception_analyzer = None  # Initialized in initialize()
+        self.scenario = None  # Store scenario for analyzer
 
     async def initialize(self) -> None:
         """Load session and initialize StudentBot with scenario."""
@@ -43,9 +46,10 @@ class SessionManager:
             select(Scenario).where(Scenario.id == session.scenario_id)
         )
         scenario = result.scalar_one()
+        self.scenario = scenario  # Store for misconception analysis
 
-        # Load bot configuration from database (Phase 1: global config)
-        bot_config = await self._load_bot_config(scenario)
+        # Load bot configuration from .env and scenario overrides
+        bot_config = self._load_bot_config(scenario)
 
         # Initialize StudentBot with scenario context and configuration
         self.student_bot = StudentBot(
@@ -62,6 +66,9 @@ class SessionManager:
         if bot_config["tutor_enabled"]:
             self.tutor_bot = TutorBot(
                 db_session=self.db,
+                scenario_title=scenario.title,
+                prompt=scenario.prompt,
+                student_profile=scenario.student_profile or "Grade 5 student",
                 model=bot_config["tutor_model"],
                 temperature=bot_config["tutor_temperature"],
                 max_tokens=bot_config["tutor_max_tokens"],
@@ -71,6 +78,13 @@ class SessionManager:
             )
         else:
             self.tutor_bot = None  # TutorBot disabled for this scenario
+
+        # Initialize MisconceptionAnalyzer for tracking student responses
+        self.misconception_analyzer = MisconceptionAnalyzer(
+            db_session=self.db,
+            model=config.ANALYSIS_MODEL,  # Use analysis model
+            temperature=0.3,  # Low temperature for consistent analysis
+        )
 
     async def process_teacher_message(
         self, teacher_content: str
@@ -88,7 +102,10 @@ class SessionManager:
 
         new_messages = []
 
-        # 1. Save teacher message
+        # 1. Load conversation history (before saving teacher message)
+        history = await self._get_conversation_history()
+
+        # 2. Save teacher message
         teacher_msg = Message(
             session_id=self.session_id,
             role="teacher",
@@ -98,18 +115,35 @@ class SessionManager:
         await self.db.flush()  # Get ID without commit
         new_messages.append(teacher_msg)
 
-        # 2. Load conversation history
-        history = await self._get_conversation_history()
-
         # 3. Generate student response
         (
             student_content,
             student_usage,
         ) = await self.student_bot.generate_response(teacher_content, history)
+
+        # 3.1. Analyze misconception adherence in student response
+        misconception_data = None
+        try:
+            misconception_analysis = (
+                await self.misconception_analyzer.analyze_student_response(
+                    student_message=student_content,
+                    scenario_prompt=self.scenario.prompt,
+                    student_profile=self.scenario.student_profile
+                    or "Grade 5 student",
+                    scenario_title=self.scenario.title,
+                )
+            )
+            misconception_data = json.dumps(misconception_analysis)
+        except Exception as e:
+            logger.warning(f"Misconception analysis failed: {e}")
+            # Continue without analysis data
+
+        # 3.2. Save student message with metadata
         student_msg = Message(
             session_id=self.session_id,
             role="student",
             content=student_content,
+            analysis_metadata=misconception_data,  # Store analysis result
         )
         self.db.add(student_msg)
         await self.db.flush()
@@ -157,14 +191,16 @@ class SessionManager:
 
         return new_messages
 
-    async def _load_bot_config(self, scenario: Scenario) -> dict:
-        """Load bot config: Scenario > Global > Env > Default.
+    def _load_bot_config(self, scenario: Scenario) -> dict:
+        """Load bot config from .env and scenario overrides.
 
         Configuration priority:
-        1. Scenario-specific overrides (highest priority)
-        2. Global chatbot_config table
-        3. Environment variables (fallback)
-        4. Hardcoded defaults
+        1. Scenario-specific overrides (if set)
+        2. Environment variables (.env)
+        3. Hardcoded defaults
+
+        Note: Database-based global config removed.
+              All defaults now managed via .env.
 
         Args:
             scenario: Scenario model with optional bot config overrides
@@ -172,40 +208,28 @@ class SessionManager:
         Returns:
             Dictionary with complete bot configuration parameters
         """
-        # Load global config from database using cache (<10ms)
-        db_config = await bot_config_cache.get_global_config(self.db)
-
-        # Apply scenario-specific overrides with proper priority
         return {
             # StudentBot configuration
             "student_model": (
-                scenario.chat_model  # Priority 1: Scenario override
-                or db_config.get("student_bot.model")  # Priority 2: Global DB
-                or config.CHAT_MODEL  # Priority 3: Env variable
+                scenario.chat_model  # Scenario override
+                or config.CHAT_MODEL  # .env fallback
+                or "gpt-4-turbo"  # Default
             ),
             "student_temperature": (
-                scenario.chat_temperature  # Scenario override (can be 0.0)
+                scenario.chat_temperature
                 if scenario.chat_temperature is not None
-                else float(db_config.get("student_bot.temperature", "0.7"))
+                else getattr(config, "STUDENT_TEMPERATURE", 0.7)
             ),
-            "student_max_tokens": int(
-                db_config.get("student_bot.max_tokens", "150")
-            ),
+            "student_max_tokens": getattr(config, "STUDENT_MAX_TOKENS", 150),
             # TutorBot configuration
-            "tutor_enabled": scenario.tutor_enabled,  # NOT NULL
-            "tutor_model": db_config.get(
-                "tutor_bot.model", config.ANALYSIS_MODEL
-            ),
-            "tutor_temperature": float(
-                db_config.get("tutor_bot.temperature", "0.3")
-            ),
-            "tutor_max_tokens": int(
-                db_config.get("tutor_bot.max_tokens", "100")
-            ),
+            "tutor_enabled": scenario.tutor_enabled,
+            "tutor_model": config.ANALYSIS_MODEL or "gpt-3.5-turbo",
+            "tutor_temperature": getattr(config, "TUTOR_TEMPERATURE", 0.3),
+            "tutor_max_tokens": getattr(config, "TUTOR_MAX_TOKENS", 100),
             "tutor_intervention_threshold": (
-                scenario.tutor_intervention_threshold  # Scenario override
+                scenario.tutor_intervention_threshold
                 if scenario.tutor_intervention_threshold is not None
-                else int(db_config.get("tutor_bot.intervention_threshold", "3"))
+                else getattr(config, "TUTOR_INTERVENTION_THRESHOLD", 3)
             ),
         }
 

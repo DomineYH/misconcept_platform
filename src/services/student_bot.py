@@ -107,12 +107,18 @@ class StudentBot:
             messages.append({"role": "user", "content": teacher_message})
 
             # Call OpenAI API
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-            )
+            # GPT-5 models only support temperature=1.0 (default)
+            params = {
+                "model": self.model,
+                "messages": messages,
+                "max_completion_tokens": self.max_tokens,
+            }
+
+            # Only add temperature for non-GPT-5 models
+            if not self.model.startswith("gpt-5"):
+                params["temperature"] = self.temperature
+
+            response = await self.client.chat.completions.create(**params)
 
             # Extract content
             content = response.choices[0].message.content.strip()

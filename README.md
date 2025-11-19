@@ -142,6 +142,28 @@ Visit http://localhost:8000
    - Dynamic prompt loading with 5-minute TTL caching
    - Fallback mechanism: Cache → DB → File System → Hardcoded
 
+## ⚙️ Chatbot Configuration
+
+All chatbot parameters are managed via environment variables (.env file). Server restart required after configuration changes.
+
+### StudentBot Configuration
+- `CHAT_MODEL` - LLM model (default: gpt-4-turbo)
+- `STUDENT_TEMPERATURE` - Response creativity 0.0-2.0 (default: 0.7)
+- `STUDENT_MAX_TOKENS` - Maximum response length (default: 150)
+
+### TutorBot Configuration
+- `ANALYSIS_MODEL` - LLM model (default: gpt-3.5-turbo)
+- `TUTOR_TEMPERATURE` - Response consistency 0.0-2.0 (default: 0.3)
+- `TUTOR_MAX_TOKENS` - Maximum feedback length (default: 100)
+- `TUTOR_INTERVENTION_THRESHOLD` - Intervention frequency per 10 questions, 1-10 (default: 3)
+
+### Configuration Update Process
+1. Edit `.env` file with desired parameter values
+2. Restart application: `systemctl restart misconcept_platform`
+3. Verify changes through health endpoint
+
+**Note**: Scenario-specific overrides can be configured directly in the database via scenario table.
+
 ## 🏗️ Technology Stack
 
 ### Backend
@@ -176,7 +198,6 @@ misconcept_platform/
 │   │   ├── analysis_framework.py
 │   │   ├── question_analysis.py
 │   │   ├── session_summary.py
-│   │   ├── chatbot_config.py      # Phase 3: Bot configuration
 │   │   └── prompt_template.py     # Phase 3: Prompt versioning
 │   ├── services/            # Business logic
 │   │   ├── student_bot.py   # AI student with misconception
@@ -184,7 +205,6 @@ misconcept_platform/
 │   │   ├── analyzer.py      # Question classification
 │   │   ├── session_mgr.py   # Dialogue orchestration
 │   │   ├── export.py        # CSV export with anonymization
-│   │   ├── config_cache.py  # Phase 3: Bot config caching
 │   │   └── prompt_manager.py # Phase 3: Dynamic prompt loading
 │   ├── api/
 │   │   ├── routes/          # FastAPI endpoints
@@ -195,7 +215,6 @@ misconcept_platform/
 │   │   │   ├── admin_scenarios.py    # Scenario CRUD
 │   │   │   ├── admin_frameworks.py   # Framework CRUD
 │   │   │   ├── admin_sessions.py     # Session logs
-│   │   │   ├── admin_chatbot_config.py # Phase 3: Config UI
 │   │   │   └── health.py    # Health/metrics
 │   │   ├── dependencies.py  # Dependency injection
 │   │   └── schemas.py       # Pydantic models
@@ -224,8 +243,6 @@ misconcept_platform/
 ├── docs/                    # Documentation
 │   ├── deployment.md        # Production deployment guide
 │   ├── security.md          # Security hardening guide
-│   ├── admin_chatbot_config_guide.md  # Admin chatbot config UI guide
-│   ├── developer_chatbot_config_guide.md  # Developer config guide
 │   └── spec.md              # Feature specification
 ├── specs/                   # Implementation specs
 │   └── 001-misconception-dialogue-sim/
@@ -303,9 +320,6 @@ pytest --cov=src --cov-report=html
 - `GET /admin/sessions` - Session logs
 - `GET /admin/sessions/export` - Bulk CSV export
 - `GET /admin/stats` - Statistics
-- `GET /admin/chatbot-config` - Bot configuration UI (Phase 3)
-- `PUT /admin/chatbot-config` - Update bot settings (Phase 3)
-- `GET /admin/chatbot-config/costs` - Cost metrics (Phase 3)
 - `GET /admin/api-usage-page` - API usage analytics (Phase 3)
 - `GET /admin/prompts-page` - Prompt template management (Phase 3)
 - `POST /admin/prompts` - Create prompt template (Phase 3)

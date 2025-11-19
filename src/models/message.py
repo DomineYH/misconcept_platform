@@ -1,5 +1,6 @@
 """Message model for dialogue turns (T026)."""
 from datetime import datetime
+from typing import Optional
 from sqlalchemy import (
     Integer,
     String,
@@ -32,6 +33,11 @@ class Message(Base):
         String(20), nullable=False
     )  # teacher, student, tutor
     content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Metadata (JSON string) for misconception analysis and other metadata
+    analysis_metadata: Mapped[Optional[str]] = mapped_column(
+        "metadata", Text, nullable=True
+    )
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(

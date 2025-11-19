@@ -24,15 +24,21 @@ class TutorBot:
     def __init__(
         self,
         db_session: AsyncSession,
+        scenario_title: str = "",
+        prompt: str = "",
+        student_profile: str = "",
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         intervention_threshold: Optional[int] = None,
     ):
-        """Initialize TutorBot with optional config parameters.
+        """Initialize TutorBot with scenario context and optional config.
 
         Args:
             db_session: Database session for dynamic prompt loading
+            scenario_title: Scenario display name
+            prompt: System prompt defining misconception
+            student_profile: Student characteristics
             model: Override default model (from config or DB)
             temperature: Override default temperature (0.0-2.0)
             max_tokens: Override default max tokens (50-300)
@@ -44,6 +50,11 @@ class TutorBot:
         self.temperature = temperature if temperature is not None else 0.3
         self.max_tokens = max_tokens or 100
         self.intervention_threshold = intervention_threshold or 3
+
+        # Store scenario context for dynamic prompt formatting
+        self.scenario_title = scenario_title
+        self.prompt = prompt
+        self.student_profile = student_profile
 
         # Track interventions for rate limiting
         self.intervention_count = 0
@@ -147,8 +158,15 @@ class TutorBot:
 
         try:
             # Load dynamic prompt template (5-min cache, <10ms)
-            system_prompt = await PromptManager.get_active_prompt(
+            template = await PromptManager.get_active_prompt(
                 self.db_session, "tutor"
+            )
+
+            # Format with scenario context
+            system_prompt = template.format(
+                scenario_title=self.scenario_title,
+                prompt=self.prompt,
+                student_profile=self.student_profile,
             )
 
             # Build analysis context
@@ -164,18 +182,24 @@ class TutorBot:
                     "role": "user",
                     "content": (
                         f"{context}\n"
-                        "Provide brief, constructive feedback for the teacher."
+                        "교사를 위한 간단하고 건설적인 피드백을 한글로 제공해주세요."
                     ),
                 },
             ]
 
             # Call OpenAI API
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-            )
+            # GPT-5 models only support temperature=1.0 (default)
+            params = {
+                "model": self.model,
+                "messages": messages,
+                "max_completion_tokens": self.max_tokens,
+            }
+
+            # Only add temperature for non-GPT-5 models
+            if not self.model.startswith("gpt-5"):
+                params["temperature"] = self.temperature
+
+            response = await self.client.chat.completions.create(**params)
 
             # Extract content
             content = response.choices[0].message.content.strip()

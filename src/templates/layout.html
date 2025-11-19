@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0">
   <title>
     {% block title %}
-    Misconception Dialogue Simulator
+    오개념 교정 대화 시뮬레이터
     {% endblock %}
   </title>
   <link rel="stylesheet" href="/static/css/styles.css">
@@ -15,17 +15,17 @@
 <body>
   <header>
     <nav>
-      <h1>Misconception Dialogue Simulator</h1>
+      <h1>오개념 교정 대화 시뮬레이터</h1>
       <ul>
-        <li><a href="/scenarios">Scenarios</a></li>
+        <li><a href="/scenarios">시나리오</a></li>
         {% if user and user.role == 'admin' %}
-        <li><a href="/admin">Admin</a></li>
+        <li><a href="/admin">관리자</a></li>
         {% endif %}
         {% if user %}
         <li>
           <form action="/logout" method="post"
                 style="display: inline;">
-            <button type="submit">Logout</button>
+            <button type="submit">로그아웃</button>
           </form>
         </li>
         {% endif %}
@@ -41,8 +41,8 @@
 
   <footer>
     <p>
-      Misconception Dialogue Simulator v0.1.0 |
-      Educational Research Tool
+      오개념 교정 대화 시뮬레이터 v0.1.0 |
+      교육 연구 도구
     </p>
   </footer>
 </body>

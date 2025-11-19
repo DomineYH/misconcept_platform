@@ -42,9 +42,6 @@ class User(Base):
     scenarios: Mapped[list["Scenario"]] = relationship(
         "Scenario", back_populates="creator"
     )
-    config_updates: Mapped[list["ChatbotConfig"]] = relationship(
-        "ChatbotConfig", back_populates="updater"
-    )
     prompt_updates: Mapped[list["PromptTemplate"]] = relationship(
         "PromptTemplate", back_populates="updater"
     )

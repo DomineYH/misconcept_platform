@@ -1,22 +1,22 @@
 {% extends "layout.html" %}
 
-{% block title %}Manage Frameworks - Admin{% endblock %}
+{% block title %}프레임워크 관리 - 관리자{% endblock %}
 
 {% block content %}
 <div class="container">
   <header class="page-header">
-    <h1>🔬 Manage Analysis Frameworks</h1>
+    <h1>🔬 분석 프레임워크 관리</h1>
     <p class="subtitle">
-      Configure question classification frameworks
+      질문 분류 프레임워크 설정
     </p>
   </header>
 
   <!-- Create New Framework Form -->
   <section class="create-section">
-    <h2>Create New Framework</h2>
+    <h2>새 프레임워크 생성</h2>
     <form id="create-form" class="framework-form">
       <div class="form-group">
-        <label for="new-name">Framework Name *</label>
+        <label for="new-name">프레임워크 이름 *</label>
         <input
           type="text"
           id="new-name"
@@ -24,12 +24,12 @@
           required
           minlength="3"
           maxlength="200"
-          placeholder="e.g., High/Low Leverage Questions"
+          placeholder="예: 높은/낮은 레버리지 질문"
         />
       </div>
 
       <div class="form-group">
-        <label for="new-description">Description *</label>
+        <label for="new-description">설명 *</label>
         <textarea
           id="new-description"
           name="description"
@@ -37,18 +37,18 @@
           required
           minlength="10"
           maxlength="1000"
-          placeholder="Describe the framework and its purpose (10-1000 chars)"
+          placeholder="프레임워크와 목적 설명 (10-1000자)"
         ></textarea>
       </div>
 
       <div class="form-group">
-        <label>Category Labels * (2-20 labels, 2-50 chars each)</label>
+        <label>카테고리 라벨 * (2-20개 라벨, 각 2-50자)</label>
         <div id="labels-container" class="labels-container">
           <div class="label-input-row">
             <input
               type="text"
               class="label-input"
-              placeholder="Label 1"
+              placeholder="라벨 1"
               minlength="2"
               maxlength="50"
               required
@@ -65,7 +65,7 @@
             <input
               type="text"
               class="label-input"
-              placeholder="Label 2"
+              placeholder="라벨 2"
               minlength="2"
               maxlength="50"
               required
@@ -78,19 +78,19 @@
           id="btn-add-label"
           class="btn btn-secondary"
         >
-          ➕ Add Label
+          ➕ 라벨 추가
         </button>
       </div>
 
       <button type="submit" class="btn btn-primary">
-        ✨ Create Framework
+        ✨ 프레임워크 생성
       </button>
     </form>
   </section>
 
   <!-- Existing Frameworks List -->
   <section class="frameworks-list">
-    <h2>Existing Frameworks ({{ frameworks|length }})</h2>
+    <h2>기존 프레임워크 ({{ frameworks|length }}개)</h2>
 
     {% if frameworks %}
     <div class="frameworks-table">
@@ -109,7 +109,7 @@
         </div>
 
         <div class="framework-labels">
-          <strong>Categories:</strong>
+          <strong>카테고리:</strong>
           <div class="labels-display">
             {% for label in framework.labels %}
             <span class="label-badge">{{ label }}</span>
@@ -121,7 +121,7 @@
     </div>
     {% else %}
     <p class="empty-state">
-      No frameworks found. Create your first framework above.
+      프레임워크를 찾을 수 없습니다. 위에서 첫 번째 프레임워크를 생성하세요.
     </p>
     {% endif %}
   </section>
@@ -242,7 +242,7 @@
 
   addLabelBtn.addEventListener("click", () => {
     if (labelCount >= 20) {
-      alert("Maximum 20 labels allowed");
+      alert("최대 20개 라벨까지 허용됩니다");
       return;
     }
 
@@ -253,7 +253,7 @@
       <input
         type="text"
         class="label-input"
-        placeholder="Label ${labelCount}"
+        placeholder="라벨 ${labelCount}"
         minlength="2"
         maxlength="50"
         required
@@ -297,22 +297,22 @@
 
     // Validation
     if (labels.length < 2) {
-      alert("At least 2 labels required");
+      alert("최소 2개 라벨이 필요합니다");
       return;
     }
 
     if (labels.length > 20) {
-      alert("Maximum 20 labels allowed");
+      alert("최대 20개 라벨까지 허용됩니다");
       return;
     }
 
     for (const label of labels) {
       if (label.length < 2) {
-        alert(`Label "${label}" is too short (min 2 chars)`);
+        alert(`라벨 "${label}"이(가) 너무 짧습니다 (최소 2자)`);
         return;
       }
       if (label.length > 50) {
-        alert(`Label "${label}" is too long (max 50 chars)`);
+        alert(`라벨 "${label}"이(가) 너무 깁니다 (최대 50자)`);
         return;
       }
     }
@@ -325,14 +325,14 @@
       });
 
       if (response.ok) {
-        alert("✅ Framework created successfully!");
+        alert("✅ 프레임워크가 성공적으로 생성되었습니다!");
         window.location.reload();
       } else {
         const error = await response.json();
-        alert(`❌ Error: ${error.detail || "Failed to create framework"}`);
+        alert(`❌ 오류: ${error.detail || "프레임워크 생성에 실패했습니다"}`);
       }
     } catch (err) {
-      alert(`❌ Network error: ${err.message}`);
+      alert(`❌ 네트워크 오류: ${err.message}`);
     }
   });
 </script>

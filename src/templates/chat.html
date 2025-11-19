@@ -53,7 +53,11 @@
           required
           maxlength="5000"
         ></textarea>
-        <button type="submit" class="btn-primary">
+        <button
+          type="submit"
+          class="btn-primary"
+          hx-disable-element="self"
+        >
           전송
         </button>
       </div>
@@ -99,21 +103,23 @@
     }
   });
 
+  // Get the maximum message ID from all messages in the DOM
+  function getLastMessageId() {
+    const messages = document.querySelectorAll('.message[data-message-id]');
+    if (messages.length === 0) return 0;
+
+    const ids = Array.from(messages).map(m => parseInt(m.dataset.messageId));
+    return Math.max(...ids);
+  }
+
   // Update last message ID after new messages are added
   htmx.on('htmx:afterSwap', (event) => {
     // Only process swaps for messages-container
     if (event.detail.target.id === 'messages-container') {
-      // Find all message elements with data-message-id
-      const messages = document.querySelectorAll('[data-message-id]');
-
-      if (messages.length > 0) {
-        // Extract last message ID
-        const lastMessage = messages[messages.length - 1];
-        const lastId = lastMessage.dataset.messageId;
-
-        // Update hidden input
+      // Update hidden input with the latest message ID
+      const lastId = getLastMessageId();
+      if (lastId > 0) {
         document.getElementById('last-message-id').value = lastId;
-
         console.log(`Updated last_message_id to: ${lastId}`);
       }
 
@@ -123,19 +129,33 @@
     }
   });
 
-  // Clear input after successful send
+  // Clear input after successful send (only for teacher-form)
   document.body.addEventListener('htmx:afterRequest', (event) => {
-    if (event.detail.successful) {
+    if (event.detail.successful &&
+        event.detail.target.id === 'teacher-form') {
       document.getElementById('teacher-input').value = '';
     }
   });
 
-  // HTMX error handler
+  // 에러 응답 처리
   document.body.addEventListener('htmx:responseError', (event) => {
-    console.error('HTMX error:', event.detail);
-    // Ignore polling errors (may be temporary)
-    if (!event.detail.pathInfo.requestPath.includes('/messages/updates')) {
-      alert('요청 처리 중 오류가 발생했습니다');
+    if (event.detail.target.id === 'teacher-form') {
+      console.error('Message send failed:', event.detail);
+      alert('Failed to send message. Please try again.');
+    } else {
+      // Ignore polling errors (may be temporary)
+      if (!event.detail.pathInfo.requestPath.includes('/messages/updates')) {
+        console.error('HTMX error:', event.detail);
+        alert('요청 처리 중 오류가 발생했습니다');
+      }
+    }
+  });
+
+  // 네트워크 에러 처리
+  document.body.addEventListener('htmx:sendError', (event) => {
+    if (event.detail.target.id === 'teacher-form') {
+      console.error('Network error:', event.detail);
+      alert('Network error. Please check your connection.');
     }
   });
 

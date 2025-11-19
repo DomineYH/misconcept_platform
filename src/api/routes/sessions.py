@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import (
     APIRouter,
     Depends,
+    Form,
     HTTPException,
     Query,
     Request,
@@ -43,27 +44,12 @@ class CreateSessionRequest(BaseModel):
     scenario_id: int
 
 
-class SendMessageRequest(BaseModel):
-    """Request schema for sending message."""
-
-    content: str
-
-
 class SessionResponse(BaseModel):
     """Response schema for session creation."""
 
     id: int
     scenario_id: int
     started_at: str
-
-
-class MessageResponse(BaseModel):
-    """Response schema for message."""
-
-    id: int
-    role: str
-    content: str
-    created_at: str
 
 
 @router.post("/sessions", status_code=201)
@@ -91,10 +77,10 @@ async def create_session(
 async def send_message(
     request: Request,
     session_id: int,
-    data: SendMessageRequest,
+    content: str = Form(..., min_length=1, max_length=5000),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> Response:
     """Send teacher message and get bot responses."""
     # Validate session belongs to user
     result = await db.execute(select(Session).where(Session.id == session_id))
@@ -106,26 +92,30 @@ async def send_message(
     if session.teacher_id != user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # Validate content
-    if not data.content or len(data.content) < 1:
+    # Validate content (Form already validates min_length=1)
+    if not content or len(content) < 1:
         raise HTTPException(status_code=400, detail="Content cannot be empty")
 
     # Process message through SessionManager
     manager = SessionManager(db, session_id)
-    new_messages = await manager.process_teacher_message(data.content)
+    new_messages = await manager.process_teacher_message(content)
 
-    # Return new messages
-    messages_data = [
-        MessageResponse(
-            id=msg.id,
-            role=msg.role,
-            content=msg.content,
-            created_at=msg.created_at.isoformat(),
+    # Render messages as HTML for immediate HTMX display
+    # (Previously returned JSON which caused 2-second delay)
+    rendered_messages = []
+    for message in new_messages:
+        html = templates.get_template("partials/message.html").render(
+            message=message, request=request
         )
-        for msg in new_messages
-    ]
+        rendered_messages.append(html)
 
-    return {"messages": [msg.dict() for msg in messages_data]}
+    combined_html = "".join(rendered_messages)
+
+    return Response(
+        content=combined_html,
+        media_type="text/html",
+        status_code=200,
+    )
 
 
 @router.get("/sessions/{session_id}/messages/updates")
@@ -249,9 +239,14 @@ async def end_session(
                 [f"{m.role}: {m.content}" for m in context_messages]
             )
 
-            # Classify question
+            # Classify question with scenario context
             result = await analyzer.classify_question(
-                msg.content, framework, context
+                question=msg.content,
+                framework=framework,
+                context=context,
+                scenario_title=scenario.title,
+                misconception_prompt=scenario.prompt,
+                student_profile=scenario.student_profile or "Grade 5 student",
             )
 
             # Create QuestionAnalysis record
