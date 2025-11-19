@@ -116,6 +116,28 @@
             {% endfor %}
           </div>
         </div>
+
+        <div class="framework-meta">
+          <span class="usage-info">
+            📊 사용 중: {{ framework_usage[framework.id] }}개 시나리오
+          </span>
+        </div>
+
+        <div class="framework-actions">
+          <button
+            class="btn btn-edit"
+            onclick="openEditModal({{ framework.id }}, '{{ framework.name|e }}', '{{ framework.description|e }}', {{ framework.labels|tojson }})"
+          >
+            ✏️ 수정
+          </button>
+          <button
+            class="btn btn-delete"
+            onclick="deleteFramework({{ framework.id }}, '{{ framework.name }}', {{ framework_usage[framework.id] }})"
+            {% if framework_usage[framework.id] > 0 %}disabled{% endif %}
+          >
+            🗑️ 삭제
+          </button>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -126,6 +148,63 @@
     {% endif %}
   </section>
 </div>
+
+<!-- Edit Framework Modal -->
+<dialog id="edit-modal" class="modal">
+  <div class="modal-content">
+    <h3>프레임워크 수정</h3>
+    <form id="edit-form">
+      <input type="hidden" id="edit-id" />
+
+      <div class="form-group">
+        <label for="edit-name">프레임워크 이름 *</label>
+        <input
+          type="text"
+          id="edit-name"
+          required
+          minlength="3"
+          maxlength="200"
+          placeholder="예: 높은/낮은 레버리지 질문"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="edit-description">설명 *</label>
+        <textarea
+          id="edit-description"
+          rows="4"
+          required
+          minlength="10"
+          maxlength="1000"
+          placeholder="프레임워크와 목적 설명 (10-1000자)"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>카테고리 라벨 * (2-20개 라벨, 각 2-50자)</label>
+        <div id="edit-labels-container" class="labels-container"></div>
+        <button
+          type="button"
+          id="edit-add-label"
+          class="btn btn-secondary"
+        >
+          ➕ 라벨 추가
+        </button>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">💾 저장</button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick="closeEditModal()"
+        >
+          취소
+        </button>
+      </div>
+    </form>
+  </div>
+</dialog>
 
 <style>
   /* Framework-specific styles */
@@ -232,6 +311,84 @@
     color: #999;
     padding: 2rem;
   }
+
+  .framework-meta {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+  }
+
+  .usage-info {
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  .framework-actions {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-edit {
+    background: #28a745;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .btn-edit:hover {
+    background: #218838;
+  }
+
+  .btn-delete {
+    background: #dc3545;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .btn-delete:hover {
+    background: #c82333;
+  }
+
+  .btn-delete:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  /* Edit Modal Styles */
+  .modal {
+    border: none;
+    border-radius: 8px;
+    padding: 0;
+    max-width: 600px;
+    width: 90%;
+  }
+
+  .modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .modal-content {
+    padding: 1.5rem;
+  }
+
+  .modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: #333;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    justify-content: flex-end;
+  }
 </style>
 
 <script>
@@ -330,6 +487,156 @@
       } else {
         const error = await response.json();
         alert(`❌ 오류: ${error.detail || "프레임워크 생성에 실패했습니다"}`);
+      }
+    } catch (err) {
+      alert(`❌ 네트워크 오류: ${err.message}`);
+    }
+  });
+
+  // Delete framework
+  async function deleteFramework(frameworkId, frameworkName, usageCount) {
+    if (usageCount > 0) {
+      alert(`❌ 이 프레임워크를 삭제할 수 없습니다.\n${usageCount}개의 시나리오가 사용 중입니다.`);
+      return;
+    }
+
+    if (!confirm(`정말로 프레임워크 "${frameworkName}"을(를) 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/admin/frameworks/${frameworkId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok || response.status === 204) {
+        alert("✅ 프레임워크가 성공적으로 삭제되었습니다!");
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(`❌ 오류: ${error.detail || "프레임워크 삭제에 실패했습니다"}`);
+      }
+    } catch (err) {
+      alert(`❌ 네트워크 오류: ${err.message}`);
+    }
+  }
+
+  // Edit framework functionality
+  const editModal = document.getElementById("edit-modal");
+  const editLabelsContainer = document.getElementById("edit-labels-container");
+  const editAddLabelBtn = document.getElementById("edit-add-label");
+  let editLabelCount = 0;
+
+  function openEditModal(id, name, description, labels) {
+    // Fill basic fields
+    document.getElementById("edit-id").value = id;
+    document.getElementById("edit-name").value = name;
+    document.getElementById("edit-description").value = description;
+
+    // Load existing labels
+    editLabelsContainer.innerHTML = "";
+    editLabelCount = 0;
+
+    labels.forEach((label) => {
+      addEditLabelRow(label);
+    });
+
+    editModal.showModal();
+  }
+
+  function closeEditModal() {
+    editModal.close();
+    document.getElementById("edit-form").reset();
+    editLabelsContainer.innerHTML = "";
+    editLabelCount = 0;
+  }
+
+  function addEditLabelRow(value = "") {
+    const row = document.createElement("div");
+    row.className = "label-input-row";
+    row.innerHTML = `
+      <input
+        type="text"
+        class="edit-label-input"
+        placeholder="예: 물리학적 오개념"
+        value="${value}"
+        minlength="2"
+        maxlength="50"
+        required
+      />
+      <button type="button" class="btn-remove-label">❌</button>
+    `;
+    editLabelsContainer.appendChild(row);
+    editLabelCount++;
+    updateEditRemoveButtons();
+  }
+
+  function updateEditRemoveButtons() {
+    const rows = editLabelsContainer.querySelectorAll(".label-input-row");
+    rows.forEach((row) => {
+      const btn = row.querySelector(".btn-remove-label");
+      btn.disabled = rows.length <= 2;
+    });
+  }
+
+  // Edit label add button
+  editAddLabelBtn.addEventListener("click", () => {
+    if (editLabelCount >= 20) {
+      alert("⚠️ 라벨은 최대 20개까지만 추가할 수 있습니다.");
+      return;
+    }
+    addEditLabelRow();
+  });
+
+  // Edit label remove button
+  editLabelsContainer.addEventListener("click", (e) => {
+    if (e.target.classList.contains("btn-remove-label")) {
+      const row = e.target.closest(".label-input-row");
+      row.remove();
+      editLabelCount--;
+      updateEditRemoveButtons();
+    }
+  });
+
+  // Edit form submission
+  document.getElementById("edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const id = document.getElementById("edit-id").value;
+    const name = document.getElementById("edit-name").value.trim();
+    const description = document.getElementById("edit-description").value.trim();
+
+    // Collect labels
+    const labelInputs = document.querySelectorAll(".edit-label-input");
+    const labels = Array.from(labelInputs)
+      .map((input) => input.value.trim())
+      .filter((label) => label.length > 0);
+
+    // Client-side validation
+    if (labels.length < 2) {
+      alert("⚠️ 라벨은 최소 2개 이상 필요합니다.");
+      return;
+    }
+
+    if (labels.length > 20) {
+      alert("⚠️ 라벨은 최대 20개까지만 가능합니다.");
+      return;
+    }
+
+    // PUT request
+    try {
+      const response = await fetch(`/admin/frameworks/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description, labels }),
+      });
+
+      if (response.ok) {
+        alert("✅ 프레임워크가 수정되었습니다!");
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(`❌ 수정 실패: ${error.detail || "프레임워크 수정에 실패했습니다"}`);
       }
     } catch (err) {
       alert(`❌ 네트워크 오류: ${err.message}`);

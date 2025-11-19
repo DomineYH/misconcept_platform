@@ -38,7 +38,9 @@ class SessionManager:
         """Load session and initialize StudentBot with scenario."""
         # Load session and scenario
         result = await self.db.execute(
-            select(Session).where(Session.id == self.session_id)
+            select(Session).where(
+                Session.id == self.session_id, Session.deleted_at.is_(None)
+            )
         )
         session = result.scalar_one()
 
@@ -58,7 +60,7 @@ class SessionManager:
             student_profile=scenario.student_profile or "Grade 5 student",
             db_session=self.db,
             model=bot_config["student_model"],
-            temperature=bot_config["student_temperature"],
+            reasoning_effort=bot_config["student_reasoning"],
             max_tokens=bot_config["student_max_tokens"],
         )
 
@@ -70,7 +72,7 @@ class SessionManager:
                 prompt=scenario.prompt,
                 student_profile=scenario.student_profile or "Grade 5 student",
                 model=bot_config["tutor_model"],
-                temperature=bot_config["tutor_temperature"],
+                reasoning_effort=bot_config["tutor_reasoning"],
                 max_tokens=bot_config["tutor_max_tokens"],
                 intervention_threshold=bot_config[
                     "tutor_intervention_threshold"
@@ -83,7 +85,7 @@ class SessionManager:
         self.misconception_analyzer = MisconceptionAnalyzer(
             db_session=self.db,
             model=config.ANALYSIS_MODEL,  # Use analysis model
-            temperature=0.3,  # Low temperature for consistent analysis
+            reasoning_effort="low",  # Low effort for consistent analysis
         )
 
     async def process_teacher_message(
@@ -199,14 +201,17 @@ class SessionManager:
         2. Environment variables (.env)
         3. Hardcoded defaults
 
-        Note: Database-based global config removed.
-              All defaults now managed via .env.
+        Note: Temperature is not supported for GPT-5 Responses API.
+              Use reasoning_effort (minimal/low/medium/high) instead.
 
         Args:
             scenario: Scenario model with optional bot config overrides
 
         Returns:
-            Dictionary with complete bot configuration parameters
+            Dictionary with complete bot configuration parameters:
+            - student_model, student_reasoning, student_max_tokens
+            - tutor_model, tutor_reasoning, tutor_max_tokens
+            - tutor_enabled, tutor_intervention_threshold
         """
         return {
             # StudentBot configuration
@@ -215,21 +220,17 @@ class SessionManager:
                 or config.CHAT_MODEL  # .env fallback
                 or "gpt-4-turbo"  # Default
             ),
-            "student_temperature": (
-                scenario.chat_temperature
-                if scenario.chat_temperature is not None
-                else getattr(config, "STUDENT_TEMPERATURE", 0.7)
-            ),
-            "student_max_tokens": getattr(config, "STUDENT_MAX_TOKENS", 150),
+            "student_reasoning": config.STUDENT_REASONING or "medium",
+            "student_max_tokens": config.STUDENT_MAX_TOKENS or 150,
             # TutorBot configuration
             "tutor_enabled": scenario.tutor_enabled,
             "tutor_model": config.ANALYSIS_MODEL or "gpt-3.5-turbo",
-            "tutor_temperature": getattr(config, "TUTOR_TEMPERATURE", 0.3),
-            "tutor_max_tokens": getattr(config, "TUTOR_MAX_TOKENS", 100),
+            "tutor_reasoning": config.TUTOR_REASONING or "low",
+            "tutor_max_tokens": config.TUTOR_MAX_TOKENS or 100,
             "tutor_intervention_threshold": (
                 scenario.tutor_intervention_threshold
                 if scenario.tutor_intervention_threshold is not None
-                else getattr(config, "TUTOR_INTERVENTION_THRESHOLD", 3)
+                else config.TUTOR_INTERVENTION_THRESHOLD or 3
             ),
         }
 
@@ -302,7 +303,9 @@ class SessionManager:
     async def end_session(self) -> None:
         """Mark session as ended."""
         result = await self.db.execute(
-            select(Session).where(Session.id == self.session_id)
+            select(Session).where(
+                Session.id == self.session_id, Session.deleted_at.is_(None)
+            )
         )
         session = result.scalar_one()
 

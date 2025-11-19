@@ -14,6 +14,7 @@ from tenacity import (
 )
 
 from src.config import config
+from src.utils.openai_helpers import extract_response_text
 
 logger = logging.getLogger(__name__)
 
@@ -25,19 +26,22 @@ class MisconceptionAnalyzer:
         self,
         db_session: AsyncSession,
         model: Optional[str] = None,
-        temperature: Optional[float] = None,
+        reasoning_effort: Optional[str] = None,
     ):
         """Initialize MisconceptionAnalyzer.
 
         Args:
             db_session: Database session for future use
             model: Override default model (from config)
-            temperature: Override default temperature (0.0-1.0)
+            reasoning_effort: Override reasoning effort (minimal, low,
+                medium, high)
         """
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.db_session = db_session
-        self.model = model or config.CHAT_MODEL
-        self.temperature = temperature if temperature is not None else 0.3
+        self.model = model or config.ANALYSIS_MODEL
+        self.reasoning_effort = (
+            reasoning_effort or config.ANALYSIS_REASONING
+        )
 
     @retry(
         retry=retry_if_exception_type(
@@ -79,30 +83,25 @@ class MisconceptionAnalyzer:
                 scenario_prompt, student_profile, scenario_title
             )
 
-            messages = [
-                {"role": "system", "content": system_prompt},
+            # Build input for Responses API (developer role)
+            input_messages = [
+                {"role": "developer", "content": system_prompt},
                 {
                     "role": "user",
                     "content": f"Student Response: {student_message}",
                 },
             ]
 
-            # OpenAI API 호출
-            # GPT-5 models only support temperature=1.0 (default)
-            params = {
-                "model": self.model,
-                "messages": messages,
-                "max_completion_tokens": 300,
-            }
+            # OpenAI Responses API 호출 (GPT-5 with reasoning)
+            response = await self.client.responses.create(
+                model=self.model,
+                input=input_messages,
+                max_output_tokens=300,
+                reasoning={"effort": self.reasoning_effort},
+            )
 
-            # Only add temperature for non-GPT-5 models
-            if not self.model.startswith("gpt-5"):
-                params["temperature"] = self.temperature
-
-            response = await self.client.chat.completions.create(**params)
-
-            # 응답 파싱
-            content = response.choices[0].message.content.strip()
+            # 응답 파싱 (Responses API output 처리)
+            content = extract_response_text(response)
             analysis_result = self._parse_analysis_response(content)
 
             logger.info(
@@ -121,7 +120,7 @@ class MisconceptionAnalyzer:
             logger.error(
                 f"Unexpected error in MisconceptionAnalyzer: {str(e)}"
             )
-            raise APIError(f"Misconception analysis failed: {str(e)}")
+            raise Exception(f"Misconception analysis failed: {str(e)}")
 
     def _build_analysis_prompt(
         self, scenario_prompt: str, student_profile: str, scenario_title: str

@@ -79,16 +79,20 @@ async def seed_database():
         )
         admin_id = admin_result.scalar()
 
-        # Seed sample scenario
+        # Seed sample scenario with bot override defaults
         await session.execute(
             text(
                 """
                 INSERT INTO scenario (
                     title, prompt, student_profile,
-                    is_active, framework_id, created_by
+                    is_active, framework_id, created_by,
+                    chat_model, chat_temperature,
+                    tutor_enabled, tutor_intervention_threshold
                 )
                 VALUES (:title, :prompt, :profile,
-                        :active, :fid, :created)
+                        :active, :fid, :created,
+                        :chat_model, :chat_temp,
+                        :tutor_enabled, :tutor_threshold)
                 """
             ),
             {
@@ -109,6 +113,11 @@ async def seed_database():
                 "active": 1,
                 "fid": framework_id,
                 "created": admin_id,
+                # Bot override defaults (NULL = use .env)
+                "chat_model": None,
+                "chat_temp": None,
+                "tutor_enabled": True,
+                "tutor_threshold": None,
             },
         )
 

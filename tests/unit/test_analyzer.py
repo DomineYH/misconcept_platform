@@ -34,18 +34,14 @@ async def test_classify_question_valid_response(
     analyzer, mock_framework
 ):
     """Test successful classification with valid response."""
-    # Mock OpenAI response
+    # Mock OpenAI Responses API response
     mock_response = Mock()
-    mock_response.choices = [
-        Mock(
-            message=Mock(
-                content='{"label": "Pressing", '
-                '"confidence": 0.92, '
-                '"reasoning": "Encourages articulation"}'
-            )
-        )
-    ]
-    analyzer.client.chat.completions.create = AsyncMock(
+    mock_response.output = Mock(
+        content='{"label": "Pressing", '
+        '"confidence": 0.92, '
+        '"reasoning": "Encourages articulation"}'
+    )
+    analyzer.client.responses.create = AsyncMock(
         return_value=mock_response
     )
 
@@ -65,16 +61,12 @@ async def test_classify_question_valid_response(
 @pytest.mark.asyncio
 async def test_classify_question_invalid_label(analyzer, mock_framework):
     """Test classification with invalid label falls back to first."""
-    # Mock response with invalid label
+    # Mock Responses API response with invalid label
     mock_response = Mock()
-    mock_response.choices = [
-        Mock(
-            message=Mock(
-                content='{"label": "InvalidLabel", "confidence": 0.8}'
-            )
-        )
-    ]
-    analyzer.client.chat.completions.create = AsyncMock(
+    mock_response.output = Mock(
+        content='{"label": "InvalidLabel", "confidence": 0.8}'
+    )
+    analyzer.client.responses.create = AsyncMock(
         return_value=mock_response
     )
 
@@ -92,16 +84,12 @@ async def test_classify_question_confidence_range(
     analyzer, mock_framework
 ):
     """Test confidence score is clamped to [0, 1]."""
-    # Mock response with out-of-range confidence
+    # Mock Responses API response with out-of-range confidence
     mock_response = Mock()
-    mock_response.choices = [
-        Mock(
-            message=Mock(
-                content='{"label": "Recall", "confidence": 1.5}'
-            )
-        )
-    ]
-    analyzer.client.chat.completions.create = AsyncMock(
+    mock_response.output = Mock(
+        content='{"label": "Recall", "confidence": 1.5}'
+    )
+    analyzer.client.responses.create = AsyncMock(
         return_value=mock_response
     )
 
@@ -117,12 +105,10 @@ async def test_classify_question_confidence_range(
 @pytest.mark.asyncio
 async def test_classify_question_json_error(analyzer, mock_framework):
     """Test handling of invalid JSON response."""
-    # Mock response with invalid JSON
+    # Mock Responses API response with invalid JSON
     mock_response = Mock()
-    mock_response.choices = [
-        Mock(message=Mock(content="Not valid JSON"))
-    ]
-    analyzer.client.chat.completions.create = AsyncMock(
+    mock_response.output = Mock(content="Not valid JSON")
+    analyzer.client.responses.create = AsyncMock(
         return_value=mock_response
     )
 
@@ -138,12 +124,10 @@ async def test_classify_question_missing_fields(
     analyzer, mock_framework
 ):
     """Test handling of response missing required fields."""
-    # Mock response missing confidence field
+    # Mock Responses API response missing confidence field
     mock_response = Mock()
-    mock_response.choices = [
-        Mock(message=Mock(content='{"label": "Recall"}'))
-    ]
-    analyzer.client.chat.completions.create = AsyncMock(
+    mock_response.output = Mock(content='{"label": "Recall"}')
+    analyzer.client.responses.create = AsyncMock(
         return_value=mock_response
     )
 
@@ -171,13 +155,11 @@ async def test_batch_classify_multiple_questions(
     async def mock_create(*args, **kwargs):
         nonlocal call_count
         response = Mock()
-        response.choices = [
-            Mock(message=Mock(content=mock_responses[call_count]))
-        ]
+        response.output = Mock(content=mock_responses[call_count])
         call_count += 1
         return response
 
-    analyzer.client.chat.completions.create = mock_create
+    analyzer.client.responses.create = mock_create
 
     # Batch classify
     questions = [
@@ -208,16 +190,12 @@ async def test_batch_classify_handles_failures(
         if call_count == 2:
             raise Exception("API error")
         response = Mock()
-        response.choices = [
-            Mock(
-                message=Mock(
-                    content='{"label": "Pressing", "confidence": 0.9}'
-                )
-            )
-        ]
+        response.output = Mock(
+            content='{"label": "Pressing", "confidence": 0.9}'
+        )
         return response
 
-    analyzer.client.chat.completions.create = mock_create
+    analyzer.client.responses.create = mock_create
 
     # Batch classify
     questions = ["Q1?", "Q2?", "Q3?"]

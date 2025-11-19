@@ -11,11 +11,18 @@
     {% endif %}
     <div class="header-actions">
       <button id="end-session-btn" class="btn-secondary">
-        세션 종료
+        대화 종료
       </button>
-      <a href="/scenarios" class="btn-secondary">시나리오로 돌아가기</a>
+      <button id="return-to-scenarios-btn" class="btn-secondary">
+        시나리오로 돌아가기
+      </button>
     </div>
   </header>
+
+  <!-- Session status banner (hidden by default) -->
+  <div id="session-status" style="display: none; padding: 1rem; background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 0.5rem; margin: 1rem 0; text-align: center; font-weight: 600;">
+    이 대화는 종료되었습니다. 다시 참여하려면 새 세션을 시작하세요.
+  </div>
 
   <div class="chat-wrapper">
     <!-- Hidden input for tracking last message ID -->
@@ -69,10 +76,84 @@
 </div>
 
 <script>
+  // Enable HTMX debug logging for development
+  // To enable in browser console: htmx.config.debugLoggingEnabled = true
+  console.log('💬 Chat initialized. Session ID:', {{ session_id }});
+  console.log('📋 To enable HTMX debug logging, run in console: htmx.config.debugLoggingEnabled = true');
+
   // Server provides session_id via template variable
   window.currentSessionId = {{ session_id }};
 
-  // Handle end session (T071 - redirect to analysis page)
+  // Function to lock chat UI when session ends
+  function lockChatUI(message) {
+    console.log('🔒 Locking chat UI');
+
+    // Disable textarea and submit button
+    const textarea = document.getElementById('teacher-input');
+    const submitBtn = document.querySelector('#teacher-form button[type="submit"]');
+
+    if (textarea) textarea.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+
+    // Show status banner
+    const banner = document.getElementById('session-status');
+    if (banner) {
+      if (message) banner.textContent = message;
+      banner.style.display = 'block';
+    }
+
+    // Stop HTMX polling by removing trigger attribute
+    const messagesContainer = document.getElementById('messages-container');
+    if (messagesContainer) {
+      messagesContainer.removeAttribute('hx-trigger');
+    }
+
+    // Disable both action buttons
+    const endBtn = document.getElementById('end-session-btn');
+    const returnBtn = document.getElementById('return-to-scenarios-btn');
+    if (endBtn) endBtn.disabled = true;
+    if (returnBtn) returnBtn.disabled = true;
+
+    console.log('✅ Chat UI locked');
+  }
+
+  // Function to close session and navigate
+  async function closeSessionAndGo(url) {
+    if (!window.currentSessionId) {
+      console.warn('No active session ID');
+      window.location.href = url;
+      return;
+    }
+
+    try {
+      const response = await fetch(`/sessions/${window.currentSessionId}/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Session closed:', data);
+        lockChatUI('이 대화는 종료되었습니다.');
+
+        // Navigate after a brief delay for user feedback
+        setTimeout(() => {
+          window.location.href = url;
+        }, 500);
+      } else {
+        const error = await response.json();
+        console.error('Failed to close session:', error);
+        alert(`세션 종료 실패: ${error.detail || '알 수 없는 오류'}. 계속 이동하시겠습니까?`);
+        window.location.href = url;
+      }
+    } catch (error) {
+      console.error('Network error closing session:', error);
+      alert('세션 종료 요청에 실패했습니다. 계속 이동하시겠습니까?');
+      window.location.href = url;
+    }
+  }
+
+  // Handle "대화 종료" button (end with analysis)
   document.getElementById('end-session-btn').addEventListener('click', async () => {
     if (!window.currentSessionId) {
       alert('활성 세션이 없습니다');
@@ -82,6 +163,9 @@
     if (!confirm('이 세션을 종료하고 분석을 보시겠습니까?')) {
       return;
     }
+
+    // Lock UI immediately
+    lockChatUI('세션을 종료하는 중...');
 
     try {
       const response = await fetch(`/sessions/${window.currentSessionId}/end`, {
@@ -95,37 +179,94 @@
       } else {
         const error = await response.json();
         alert(`세션 종료 실패: ${error.detail || '알 수 없는 오류'}`);
+
+        // Re-enable UI if end failed
+        window.location.reload();
       }
 
     } catch (error) {
       console.error('Failed to end session:', error);
       alert('세션 종료에 실패했습니다');
+      window.location.reload();
     }
+  });
+
+  // Handle "시나리오로 돌아가기" button (close without analysis)
+  document.getElementById('return-to-scenarios-btn').addEventListener('click', async () => {
+    if (!confirm('시나리오 목록으로 돌아가시겠습니까?')) {
+      return;
+    }
+
+    await closeSessionAndGo('/scenarios');
   });
 
   // Get the maximum message ID from all messages in the DOM
   function getLastMessageId() {
     const messages = document.querySelectorAll('.message[data-message-id]');
-    if (messages.length === 0) return 0;
 
-    const ids = Array.from(messages).map(m => parseInt(m.dataset.messageId));
-    return Math.max(...ids);
+    if (messages.length === 0) {
+      console.debug('📭 No messages found in DOM');
+      return 0;
+    }
+
+    // Parse IDs and filter out NaN values
+    const ids = Array.from(messages)
+      .map(m => {
+        const id = parseInt(m.dataset.messageId);
+        if (isNaN(id)) {
+          console.error('⚠️ Invalid message ID found:', m.dataset.messageId, m);
+          return null;
+        }
+        return id;
+      })
+      .filter(id => id !== null);
+
+    if (ids.length === 0) {
+      console.error('❌ No valid message IDs found! All IDs are NaN or null');
+      return 0;
+    }
+
+    const maxId = Math.max(...ids);
+    console.debug(`📊 Found ${ids.length} valid message IDs. Max: ${maxId}`);
+    return maxId;
   }
 
   // Update last message ID after new messages are added
   htmx.on('htmx:afterSwap', (event) => {
     // Only process swaps for messages-container
     if (event.detail.target.id === 'messages-container') {
+      console.log('📨 New messages added via HTMX swap');
+
+      // Log all message elements for debugging
+      const messages = document.querySelectorAll('.message[data-message-id]');
+      console.debug(`📊 Total messages in DOM: ${messages.length}`);
+
+      messages.forEach((msg, idx) => {
+        const msgId = msg.dataset.messageId;
+        const role = msg.querySelector('.role-label')?.textContent || 'unknown';
+        const content = msg.querySelector('.message-content')?.textContent?.substring(0, 50) || '';
+
+        console.debug(`  Message ${idx}: ID=${msgId}, role=${role}, content="${content}..."`);
+      });
+
       // Update hidden input with the latest message ID
       const lastId = getLastMessageId();
+
       if (lastId > 0) {
         document.getElementById('last-message-id').value = lastId;
-        console.log(`Updated last_message_id to: ${lastId}`);
+        console.log(`✅ Updated last_message_id to: ${lastId}`);
+      } else {
+        console.warn('⚠️ No valid message IDs found after swap!');
       }
 
-      // Scroll to bottom
+      // Scroll to bottom (with null check)
       const container = document.getElementById('messages-container');
-      container.scrollTop = container.scrollHeight;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+        console.debug('📜 Scrolled to bottom');
+      } else {
+        console.error('❌ messages-container element not found! Cannot scroll');
+      }
     }
   });
 
@@ -137,31 +278,67 @@
     }
   });
 
-  // 에러 응답 처리
+  // 에러 응답 처리 (HTTP error status codes)
   document.body.addEventListener('htmx:responseError', (event) => {
+    const xhr = event.detail.xhr;
+    const path = event.detail.pathInfo.requestPath;
+
     if (event.detail.target.id === 'teacher-form') {
-      console.error('Message send failed:', event.detail);
-      alert('Failed to send message. Please try again.');
+      console.error('❌ Message send failed:', {
+        status: xhr.status,
+        statusText: xhr.statusText,
+        responseText: xhr.responseText,
+        path: path,
+        fullEvent: event.detail
+      });
+
+      // Try to parse error message from server
+      let errorMsg = 'Failed to send message. Please try again.';
+      try {
+        const errorData = JSON.parse(xhr.responseText);
+        if (errorData.detail) {
+          errorMsg = `Error: ${errorData.detail}`;
+
+          // Special handling for ended session errors
+          if (errorData.detail.includes('already ended') || errorData.detail.includes('종료')) {
+            lockChatUI('이 대화는 이미 종료되었습니다.');
+            errorMsg = '이 세션은 이미 종료되었습니다. 새 세션을 시작해주세요.';
+          }
+        }
+      } catch (e) {
+        // Response is not JSON, use default message
+      }
+
+      alert(errorMsg);
     } else {
-      // Ignore polling errors (may be temporary)
-      if (!event.detail.pathInfo.requestPath.includes('/messages/updates')) {
-        console.error('HTMX error:', event.detail);
+      // Only log polling errors (don't alert for temporary issues)
+      if (!path.includes('/messages/updates')) {
+        console.error('❌ HTMX error:', event.detail);
         alert('요청 처리 중 오류가 발생했습니다');
+      } else {
+        console.warn('⚠️ Polling error (may be temporary):', xhr.status);
       }
     }
   });
 
-  // 네트워크 에러 처리
+  // 네트워크 에러 처리 (connection failures)
   document.body.addEventListener('htmx:sendError', (event) => {
     if (event.detail.target.id === 'teacher-form') {
-      console.error('Network error:', event.detail);
+      console.error('❌ Network error:', {
+        error: event.detail.error,
+        path: event.detail.pathInfo.requestPath,
+        fullEvent: event.detail
+      });
       alert('Network error. Please check your connection.');
+    } else {
+      console.warn('⚠️ Network error on polling (may be temporary)');
     }
   });
 
-  // HTMX timeout handler (optional but recommended)
+  // HTMX timeout handler
   document.body.addEventListener('htmx:timeout', (event) => {
-    console.warn('HTMX timeout:', event.detail);
+    console.warn('⏱️ HTMX timeout:', event.detail);
+
     // Only alert for non-polling requests
     if (!event.detail.pathInfo.requestPath.includes('/messages/updates')) {
       alert('요청 시간이 초과되었습니다. 다시 시도해주세요.');

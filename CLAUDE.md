@@ -35,7 +35,11 @@ Auto-generated from all feature plans. Last updated: 2025-11-06
 - Jinja2 (server-side templates)
 - HTMX (frontend interactivity)
 - SQLite3 (database)
-- OpenAI SDK (LLM integration)
+- OpenAI SDK (LLM integration via Responses API)
+  - **Primary Models** (권장): GPT-5, GPT-5.1
+  - **Fallback Models** (지원): GPT-4 Turbo
+  - Temperature auto-handling for GPT-5/5.1 (fixed at 1.0)
+  - All services use Responses API (max_output_tokens parameter)
 
 ## Project Structure
 
@@ -108,15 +112,180 @@ ruff check --fix .       # Auto-fix linting issues
 **Line Length**: Maximum 80 characters (constitution)
 **TDD Workflow**: Write tests FIRST, then implementation
 
+## Schema Migration Best Practices
+
+**Database migrations are critical**. Follow these guidelines to
+prevent schema-code drift and ensure system integrity.
+
+### Required Steps Before Any Migration
+
+1. **ORM Model Diff Analysis**
+   - Review all changes in `src/models/*.py`
+   - Document added/removed/modified columns
+
+2. **Codebase Reference Search**
+   - Search for ALL references to affected columns
+   - Use `rg -n "column_name" src/ tests/ templates/`
+   - Document impact in affected files
+
+3. **Three-Way Synchronization**
+   - Update ORM models (`src/models/`)
+   - Write migration SQL (`src/db/migrations/NNN_name.sql`)
+   - Update init schema (`src/db/init_schema.py`)
+
+4. **Local Testing**
+   - Backup database before migration
+   - Run migration SQL
+   - Verify schema with `PRAGMA table_info(table_name)`
+   - Run all tests: `pytest tests/ -v`
+
+**Detailed Checklist**: See `src/db/migrations/README.md` for
+complete 8-step process with commands and verification steps.
+
+## Preventing Schema-Code Drift
+
+Three automated tools prevent migration incidents:
+
+### 1. Contract Tests (Automated Validation)
+**File**: `tests/contract/test_schema_integrity.py`
+
+Automatically validates:
+- All ORM columns exist in database
+- Column types match between ORM and database
+- Critical scenario override columns present
+
+**Usage**:
+```bash
+# Run schema integrity tests
+pytest tests/contract/test_schema_integrity.py -v
+
+# Include in CI/CD pipeline
+pytest tests/contract/ -v
+```
+
+**When**: Run after every migration and in CI/CD pipeline
+
+### 2. Verification Script
+**File**: `src/db/migrations/verify_migration.sh`
+
+Comprehensive migration verification:
+- Database schema inspection
+- ORM model loading test
+- Data integrity checks
+- Record count validation
+
+**Usage**:
+```bash
+# Verify migration after applying
+./src/db/migrations/verify_migration.sh
+
+# Check specific table
+sqlite3 dialogue_sim.db "PRAGMA table_info(scenario);"
+```
+
+**When**: Immediately after applying migration
+
+### 3. CI/CD Integration (Recommended)
+Add to your CI pipeline:
+
+```yaml
+# .github/workflows/test.yml example
+- name: Schema Integrity Check
+  run: |
+    pytest tests/contract/test_schema_integrity.py -v
+    ./src/db/migrations/verify_migration.sh
+```
+
+**Benefit**: Catch schema drift before production deployment
+
+## Incident Post-Mortem: Migration 003
+
+**Date**: 2025-11-17
+**Severity**: High (Production API 500 errors)
+
+### What Happened
+Migration 003 removed `chatbot_config` table but accidentally
+dropped 4 scenario override columns during table recreation:
+- `chat_model` (String)
+- `chat_temperature` (Float)
+- `tutor_enabled` (Boolean)
+- `tutor_intervention_threshold` (Integer)
+
+**Impact**:
+- `AttributeError` on ORM model load
+- API 500 errors on scenario endpoints
+- Scenario-specific chatbot settings broken
+
+### Root Cause
+1. ORM models kept columns, but migration SQL omitted them
+2. No codebase reference search performed
+3. `init_schema.py` synchronization not verified
+4. Insufficient testing before deployment
+
+### Resolution
+**Migration 006** restored missing columns using table
+recreation pattern with data preservation.
+
+**Recovery Time**: ~2 hours (detection + fix + testing)
+
+### Prevention Measures Implemented
+
+**Phase 6 Three-Layer Safety System**:
+
+1. **Documentation** (`src/db/migrations/README.md`)
+   - 8-step migration process
+   - Mandatory checklist for authors and reviewers
+   - SQLite-specific constraints guide
+
+2. **Automated Testing** (`tests/contract/test_schema_integrity.py`)
+   - ORM-database column validation
+   - Type matching verification
+   - Critical column existence checks
+
+3. **Verification Script** (`src/db/migrations/verify_migration.sh`)
+   - Post-migration schema inspection
+   - Data integrity validation
+   - Quick sanity checks
+
+**Key Lesson**: Manual checklists fail. Automation prevents
+regression. All three layers must be used for every migration.
+
 ## Recent Changes
 
-- 2025-11-06: Phase 8 complete (100%) - All production polish tasks finished
+- 2025-11-18: Analyzer Responses API Migration (Phase 1.5)
+  - Migrated analyzer.py from Chat Completions to Responses API
+  - Updated 7 unit tests to use Responses API mocks
+  - All services now unified on Responses API
+  - System-wide GPT-5 support enabled (ANALYSIS_MODEL=gpt-5 safe)
+  - 100% test coverage maintained (7/7 tests passing)
+- 2025-11-18: Documentation Accuracy Update (Phase 2)
+  - Updated CLAUDE.md model support (Primary: GPT-5/5.1)
+  - All 4 services confirmed using Responses API
+  - Deployment blocker eliminated (analyzer compatibility)
+  - System integrity: 100% API consistency achieved
+- 2025-11-17: GPT-5.1 Model Support Enabled
+  - Added gpt-5.1-chat-latest and gpt-5.1 model support
+  - Code already compatible (temperature auto-handling exists)
+  - Updated .env.example, src/config.py, test parametrization
+  - Created comprehensive migration guide (docs/gpt-5-migration.md)
+  - Zero code changes required - defensive programming FTW!
+- 2025-11-17: Schema Migration Regression Fix (Phase 1-6 complete)
+  - Fixed Migration 003 regression via Migration 006
+  - Restored 4 scenario override columns
+  - Implemented 3-layer prevention system:
+    * Migration checklist (README.md)
+    * Schema integrity tests (contract tests)
+    * Verification script (verify_migration.sh)
+  - Updated documentation with incident post-mortem
+- 2025-11-06: Phase 8 complete (100%) - All production polish tasks
   - T109: Quickstart validation (quickstart.md reviewed)
   - T110: Pre-commit hooks (.pre-commit-config.yaml)
   - T111: Performance optimization (prompt caching, N+1 query fix)
   - T112: Security hardening (HTTPS, httponly, docs/security.md)
-- 2025-11-06: Phase 7 complete - Admin session logs with filtering, CSV export, statistics
-- 2025-11-05: Phase 3-6 complete - Full MVP with analysis, admin, framework configuration
+- 2025-11-06: Phase 7 complete - Admin session logs with filtering,
+  CSV export, statistics
+- 2025-11-05: Phase 3-6 complete - Full MVP with analysis, admin,
+  framework configuration
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
