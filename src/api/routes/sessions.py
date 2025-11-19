@@ -1,5 +1,6 @@
 """Session and message management routes."""
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import (
@@ -33,9 +34,77 @@ from src.services.analyzer import Analyzer
 from src.services.export import CSVExporter
 from src.services.session_mgr import SessionManager
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["Sessions"])
 templates = Jinja2Templates(directory="src/templates")
 limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
+
+
+# Helper functions for session management
+async def _load_session(
+    session_id: int,
+    user: User,
+    db: AsyncSession,
+) -> Session:
+    """Load session and validate ownership.
+
+    Args:
+        session_id: Session ID to load
+        user: Current user from auth
+        db: Database session
+
+    Returns:
+        Session object
+
+    Raises:
+        HTTPException: 404 if not found or wrong owner, 403 if forbidden
+    """
+    result = await db.execute(
+        select(Session).where(
+            Session.id == session_id, Session.deleted_at.is_(None)
+        )
+    )
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.teacher_id != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return session
+
+
+async def _mark_session_ended(
+    session: Session,
+    db: AsyncSession,
+    *,
+    force: bool = False,
+) -> tuple[datetime, bool]:
+    """Mark session as ended by setting ended_at timestamp.
+
+    Args:
+        session: Session to mark as ended
+        db: Database session
+        force: If True, allows idempotent behavior (no error if already ended)
+
+    Returns:
+        Tuple of (ended_at timestamp, was_already_ended boolean)
+
+    Raises:
+        HTTPException: 400 if already ended and force=False
+    """
+    if session.ended_at:
+        if not force:
+            raise HTTPException(status_code=400, detail="Session already ended")
+        return session.ended_at, True
+
+    session.ended_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(session)
+
+    return session.ended_at, False
 
 
 class CreateSessionRequest(BaseModel):
@@ -50,6 +119,14 @@ class SessionResponse(BaseModel):
     id: int
     scenario_id: int
     started_at: str
+
+
+class CloseSessionResponse(BaseModel):
+    """Response schema for session close operation."""
+
+    status: str
+    ended_at: str
+    already_ended: bool
 
 
 @router.post("/sessions", status_code=201)
@@ -82,15 +159,15 @@ async def send_message(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """Send teacher message and get bot responses."""
-    # Validate session belongs to user
-    result = await db.execute(select(Session).where(Session.id == session_id))
-    session = result.scalar_one_or_none()
+    # Load and validate session
+    session = await _load_session(session_id, user, db)
 
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if session.teacher_id != user.id:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    # Check if session is already ended
+    if session.ended_at:
+        raise HTTPException(
+            status_code=400,
+            detail="Session already ended. Cannot send messages to ended sessions.",
+        )
 
     # Validate content (Form already validates min_length=1)
     if not content or len(content) < 1:
@@ -104,12 +181,65 @@ async def send_message(
     # (Previously returned JSON which caused 2-second delay)
     rendered_messages = []
     for message in new_messages:
-        html = templates.get_template("partials/message.html").render(
-            message=message, request=request
-        )
-        rendered_messages.append(html)
+        try:
+            # Validate message has required attributes
+            if not hasattr(message, "id") or message.id is None:
+                logger.error(
+                    f"Message missing 'id' attribute. "
+                    f"role={getattr(message, 'role', None)}"
+                )
+                continue
+
+            if not hasattr(message, "role") or not message.role:
+                logger.error(f"Message {message.id} missing 'role' attribute")
+                continue
+
+            if not hasattr(message, "content"):
+                logger.error(f"Message {message.id} missing 'content' attribute")
+                continue
+
+            # Render message HTML
+            html = templates.get_template("partials/message.html").render(
+                message=message, request=request
+            )
+
+            # Validate rendered HTML contains expected structure
+            if not html or 'class="message' not in html:
+                logger.error(
+                    f"Rendered HTML invalid or empty for message {message.id}. "
+                    f"HTML length: {len(html) if html else 0}"
+                )
+                continue
+
+            rendered_messages.append(html)
+            logger.debug(
+                f"Successfully rendered message {message.id} ({message.role})"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Failed to render message {getattr(message, 'id', 'unknown')}: {e}",
+                exc_info=True,
+            )
+            continue
 
     combined_html = "".join(rendered_messages)
+
+    # Return 500 if no messages could be rendered
+    if not combined_html:
+        logger.error(
+            f"No messages rendered for session {session_id}. "
+            f"Total messages attempted: {len(new_messages)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to render bot responses. Check server logs.",
+        )
+
+    logger.info(
+        f"Rendered {len(rendered_messages)}/{len(new_messages)} messages "
+        f"for session {session_id}"
+    )
 
     return Response(
         content=combined_html,
@@ -160,18 +290,98 @@ async def get_message_updates(
     # Render each message using partial template
     rendered_messages = []
     for message in messages:
-        html = templates.get_template("partials/message.html").render(
-            message=message, request=request
-        )
-        rendered_messages.append(html)
+        try:
+            # Validate message attributes (same as send_message)
+            if not hasattr(message, "id") or message.id is None:
+                logger.error(
+                    f"Polling: Message missing 'id'. "
+                    f"role={getattr(message, 'role', None)}"
+                )
+                continue
+
+            if not hasattr(message, "role") or not message.role:
+                logger.error(f"Polling: Message {message.id} missing 'role'")
+                continue
+
+            if not hasattr(message, "content"):
+                logger.error(f"Polling: Message {message.id} missing 'content'")
+                continue
+
+            # Render message HTML
+            html = templates.get_template("partials/message.html").render(
+                message=message, request=request
+            )
+
+            # Validate rendered HTML
+            if not html or 'class="message' not in html:
+                logger.error(
+                    f"Polling: Invalid HTML for message {message.id}. "
+                    f"Length: {len(html) if html else 0}"
+                )
+                continue
+
+            rendered_messages.append(html)
+
+        except Exception as e:
+            logger.error(
+                f"Polling: Failed to render message "
+                f"{getattr(message, 'id', 'unknown')}: {e}",
+                exc_info=True,
+            )
+            continue
 
     # Combine all rendered messages
     combined_html = "".join(rendered_messages)
+
+    # Return 204 if all rendering failed
+    if not combined_html:
+        logger.warning(
+            f"Polling: No messages rendered from {len(messages)} messages "
+            f"for session {session_id}"
+        )
+        return Response(status_code=204)
+
+    logger.debug(
+        f"Polling: Rendered {len(rendered_messages)}/{len(messages)} messages "
+        f"for session {session_id}"
+    )
 
     return Response(
         content=combined_html,
         media_type="text/html",
         status_code=200,
+    )
+
+
+@router.post("/sessions/{session_id}/close")
+@limiter.limit("30/minute")
+async def close_session(
+    request: Request,
+    session_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> CloseSessionResponse:
+    """Close session without analysis (lightweight termination).
+
+    This endpoint is idempotent - calling it multiple times will
+    succeed without error. Used when user navigates away from chat
+    without clicking "대화 종료" button.
+
+    Returns:
+        CloseSessionResponse with ended_at timestamp and already_ended flag
+    """
+    # Load and validate session
+    session = await _load_session(session_id, user, db)
+
+    # Mark session as ended (idempotent with force=True)
+    ended_at, already_ended = await _mark_session_ended(
+        session, db, force=True
+    )
+
+    return CloseSessionResponse(
+        status="ended",
+        ended_at=ended_at.isoformat(),
+        already_ended=already_ended,
     )
 
 
@@ -184,23 +394,11 @@ async def end_session(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """End session, analyze questions, and generate summary (T066)."""
-    # Validate session
-    result = await db.execute(select(Session).where(Session.id == session_id))
-    session = result.scalar_one_or_none()
+    # Load and validate session
+    session = await _load_session(session_id, user, db)
 
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if session.teacher_id != user.id:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    # Check if already ended
-    if session.ended_at:
-        raise HTTPException(status_code=400, detail="Session already ended")
-
-    # Update Session.ended_at timestamp
-    session.ended_at = datetime.now(timezone.utc)
-    await db.commit()
+    # Mark session as ended (non-idempotent, raises error if already ended)
+    await _mark_session_ended(session, db, force=False)
 
     # Load scenario and framework for analysis
     scenario_result = await db.execute(

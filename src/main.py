@@ -198,6 +198,7 @@ from src.api.routes import (
     admin,
     admin_api_usage,
     admin_prompts,
+    admin_sessions,
     auth,
     health,
     scenarios,
@@ -211,3 +212,4 @@ app.include_router(sessions.router)
 app.include_router(admin.router)
 app.include_router(admin_api_usage.router)
 app.include_router(admin_prompts.router)
+app.include_router(admin_sessions.router)

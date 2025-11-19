@@ -365,3 +365,175 @@ class TestSessionExportEndpoint:
             "/sessions/99999/export.csv", cookies=cookies
         )
         assert response.status_code == 404
+
+
+class TestSessionCloseEndpoint:
+    """Test POST /sessions/{id}/close endpoint contract (lightweight termination)."""
+
+    def test_close_session_requires_authentication(self, test_client: TestClient):
+        """Verify unauthenticated request returns 401."""
+        response = test_client.post("/sessions/1/close")
+        assert response.status_code == 401
+
+    def test_close_session_success(self, test_client: TestClient):
+        """Verify session close returns ended timestamp."""
+        # Login and create session
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        session_response = test_client.post(
+            "/sessions", json={"scenario_id": 1}, cookies=cookies
+        )
+        session_id = session_response.json()["id"]
+
+        # Close session
+        response = test_client.post(
+            f"/sessions/{session_id}/close", cookies=cookies
+        )
+
+        # Contract: 200 with CloseSessionResponse
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ended"
+        assert "ended_at" in data
+        assert data["already_ended"] is False
+
+    def test_close_session_idempotent(self, test_client: TestClient):
+        """Verify closing already closed session returns 200 with already_ended=true."""
+        # Login and create session
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        session_response = test_client.post(
+            "/sessions", json={"scenario_id": 1}, cookies=cookies
+        )
+        session_id = session_response.json()["id"]
+
+        # Close session first time
+        response1 = test_client.post(
+            f"/sessions/{session_id}/close", cookies=cookies
+        )
+        assert response1.status_code == 200
+        data1 = response1.json()
+        assert data1["already_ended"] is False
+
+        # Close session second time (idempotent)
+        response2 = test_client.post(
+            f"/sessions/{session_id}/close", cookies=cookies
+        )
+        assert response2.status_code == 200
+        data2 = response2.json()
+        assert data2["status"] == "ended"
+        assert data2["already_ended"] is True
+        # Should return same timestamp
+        assert data2["ended_at"] == data1["ended_at"]
+
+    def test_close_nonexistent_session_returns_404(
+        self, test_client: TestClient
+    ):
+        """Verify closing nonexistent session returns 404."""
+        # Login
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        # Try to close nonexistent session
+        response = test_client.post("/sessions/99999/close", cookies=cookies)
+        assert response.status_code == 404
+
+    def test_close_other_users_session_returns_403(
+        self, test_client: TestClient
+    ):
+        """Verify cannot close another user's session."""
+        # Login as first user and create session
+        login1 = test_client.post(
+            "/login",
+            data={"student_uid": "user1", "nickname": "User 1"},
+        )
+        cookies1 = login1.cookies
+
+        session_response = test_client.post(
+            "/sessions", json={"scenario_id": 1}, cookies=cookies1
+        )
+        session_id = session_response.json()["id"]
+
+        # Login as second user
+        login2 = test_client.post(
+            "/login",
+            data={"student_uid": "user2", "nickname": "User 2"},
+        )
+        cookies2 = login2.cookies
+
+        # Try to close first user's session
+        response = test_client.post(
+            f"/sessions/{session_id}/close", cookies=cookies2
+        )
+        assert response.status_code == 403
+
+
+class TestEndedSessionValidation:
+    """Test that ended sessions cannot receive new messages."""
+
+    def test_send_message_to_ended_session_returns_400(
+        self, test_client: TestClient
+    ):
+        """Verify sending message to ended session returns 400."""
+        # Login and create session
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        session_response = test_client.post(
+            "/sessions", json={"scenario_id": 1}, cookies=cookies
+        )
+        session_id = session_response.json()["id"]
+
+        # Close session
+        test_client.post(f"/sessions/{session_id}/close", cookies=cookies)
+
+        # Try to send message to ended session
+        response = test_client.post(
+            f"/sessions/{session_id}/messages",
+            data={"content": "This should fail"},
+            cookies=cookies,
+        )
+
+        # Should return 400 with appropriate error message
+        assert response.status_code == 400
+        data = response.json()
+        assert "already ended" in data["detail"].lower()
+
+    def test_end_session_after_close_returns_400(
+        self, test_client: TestClient
+    ):
+        """Verify calling /end after /close returns 400."""
+        # Login and create session
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        session_response = test_client.post(
+            "/sessions", json={"scenario_id": 1}, cookies=cookies
+        )
+        session_id = session_response.json()["id"]
+
+        # Close session first
+        test_client.post(f"/sessions/{session_id}/close", cookies=cookies)
+
+        # Try to call /end (should fail since already ended)
+        response = test_client.post(
+            f"/sessions/{session_id}/end", cookies=cookies
+        )
+        assert response.status_code == 400

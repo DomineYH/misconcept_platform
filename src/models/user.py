@@ -56,3 +56,13 @@ class User(Base):
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, uid={self.student_uid}, role={self.role})>"
+
+    @property
+    def is_admin(self) -> bool:
+        """Check if user has admin role."""
+        return self.role == "admin"
+
+    @property
+    def is_teacher(self) -> bool:
+        """Check if user has teacher role."""
+        return self.role == "teacher"

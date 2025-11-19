@@ -29,6 +29,9 @@ class Session(Base):
         DateTime, nullable=False, default=datetime.utcnow
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
+    )
 
     # Relationships
     scenario: Mapped["Scenario"] = relationship(
@@ -56,6 +59,7 @@ class Session(Base):
     __table_args__ = (
         Index("ix_session_teacher_started", "teacher_id", "started_at"),
         Index("ix_session_ended", "ended_at"),
+        Index("idx_session_deleted", "deleted_at"),
     )
 
     @property
@@ -63,6 +67,15 @@ class Session(Base):
         """Check if session is still active (not ended)."""
         return self.ended_at is None
 
+    def mark_deleted(self) -> None:
+        """Mark session as soft-deleted with UTC timestamp."""
+        self.deleted_at = datetime.utcnow()
+
     def __repr__(self) -> str:
-        status = "active" if self.is_active else "ended"
+        if self.deleted_at:
+            status = "deleted"
+        elif self.is_active:
+            status = "active"
+        else:
+            status = "ended"
         return f"<Session(id={self.id}, status={status})>"

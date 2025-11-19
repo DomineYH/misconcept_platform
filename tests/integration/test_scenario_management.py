@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.user import User
 from src.models.analysis_framework import AnalysisFramework
+from src.models.scenario import Scenario
+from src.models.session import Session
 
 
 @pytest.fixture

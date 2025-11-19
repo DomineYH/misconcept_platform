@@ -41,12 +41,24 @@ CREATE TABLE IF NOT EXISTS scenario (
     CHECK(is_active IN (0, 1)),
   framework_id INTEGER NOT NULL
     REFERENCES analysis_framework(id),
+  -- Bot configuration overrides (optional)
+  chat_model VARCHAR(50) NULL,
+  chat_temperature REAL NULL
+    CHECK(chat_temperature IS NULL OR
+      (chat_temperature >= 0 AND chat_temperature <= 2)),
+  tutor_enabled BOOLEAN NOT NULL DEFAULT 1,
+  tutor_intervention_threshold INTEGER NULL
+    CHECK(tutor_intervention_threshold IS NULL OR
+      (tutor_intervention_threshold BETWEEN 1 AND 10)),
   created_by INTEGER REFERENCES user(id),
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_scenario_active
   ON scenario(is_active);
+CREATE INDEX IF NOT EXISTS idx_scenario_deleted
+  ON scenario(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_scenario_framework
   ON scenario(framework_id);
 
@@ -56,13 +68,16 @@ CREATE TABLE IF NOT EXISTS session (
   scenario_id INTEGER NOT NULL REFERENCES scenario(id),
   teacher_id INTEGER NOT NULL REFERENCES user(id),
   started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  ended_at DATETIME
+  ended_at DATETIME,
+  deleted_at DATETIME NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_teacher_started
   ON session(teacher_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_session_ended
   ON session(ended_at);
+CREATE INDEX IF NOT EXISTS idx_session_deleted
+  ON session(deleted_at);
 
 -- Message table
 CREATE TABLE IF NOT EXISTS message (
@@ -72,6 +87,7 @@ CREATE TABLE IF NOT EXISTS message (
   role TEXT NOT NULL CHECK(role IN
     ('student','teacher','tutor')),
   content TEXT NOT NULL,
+  metadata TEXT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -38,9 +38,11 @@ async def list_scenarios(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Display active scenarios list."""
-    # Query active scenarios
+    # Query active scenarios (exclude deleted)
     result = await db.execute(
-        select(Scenario).where(Scenario.is_active == 1)
+        select(Scenario)
+        .where(Scenario.is_active == 1)
+        .where(Scenario.deleted_at.is_(None))
     )
     scenarios = result.scalars().all()
 
@@ -58,9 +60,11 @@ async def get_scenario_detail(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Display scenario and dialogue interface."""
-    # Load scenario
+    # Load scenario (exclude deleted)
     result = await db.execute(
-        select(Scenario).where(Scenario.id == scenario_id)
+        select(Scenario)
+        .where(Scenario.id == scenario_id)
+        .where(Scenario.deleted_at.is_(None))
     )
     scenario = result.scalar_one_or_none()
 

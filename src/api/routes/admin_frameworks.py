@@ -1,82 +1,42 @@
-"""Admin framework management routes (T087-T088)."""
+"""Admin framework management routes with web UI."""
 import json
-from typing import List
+import logging
 
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Request,
     status,
 )
-from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
-from src.models.user import User
+from src.api.schemas import (
+    AdminFrameworkResponse,
+    FrameworkCreateWeb,
+    FrameworkUpdateWeb,
+)
 from src.models.analysis_framework import AnalysisFramework
+from src.models.scenario import Scenario
+from src.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin Frameworks"])
+templates = Jinja2Templates(directory="src/templates")
 
 
-# Pydantic schemas
-class FrameworkCreate(BaseModel):
-    """Schema for creating an analysis framework (T088)."""
-
-    name: str = Field(..., min_length=3, max_length=200)
-    description: str = Field(..., min_length=10, max_length=1000)
-    labels: List[str] = Field(..., min_length=2, max_length=20)
-
-    @field_validator("labels")
-    @classmethod
-    def validate_labels(cls, v: List[str]) -> List[str]:
-        """Validate each label length (2-50 chars)."""
-        if len(v) < 2:
-            raise ValueError("At least 2 labels required")
-        if len(v) > 20:
-            raise ValueError("Maximum 20 labels allowed")
-
-        for label in v:
-            if len(label) < 2:
-                raise ValueError(
-                    f"Label '{label}' too short (min 2 chars)"
-                )
-            if len(label) > 50:
-                raise ValueError(
-                    f"Label '{label}' too long (max 50 chars)"
-                )
-
-        return v
-
-
-class FrameworkResponse(BaseModel):
-    """Schema for framework response (T087-T088)."""
-
-    model_config = {"from_attributes": True}
-
-    id: int
-    name: str
-    description: str
-    labels: List[str]
-
-    @field_validator("labels", mode="before")
-    @classmethod
-    def parse_labels_json(cls, v):
-        """Parse labels from JSON string or list."""
-        if isinstance(v, str):
-            return json.loads(v)
-        return v
-
-
-@router.get(
-    "/admin/frameworks",
-    response_model=List[FrameworkResponse],
-)
-async def list_frameworks(
+@router.get("/admin/frameworks", response_class=HTMLResponse)
+async def list_all_frameworks_web(
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """GET /admin/frameworks - List all frameworks (T087)."""
+    """GET /admin/frameworks - Framework management page (Web UI)."""
     # Check admin role
     if user.role != "admin":
         raise HTTPException(
@@ -84,34 +44,46 @@ async def list_frameworks(
             detail="Admin role required",
         )
 
-    # Get all frameworks
-    query = select(AnalysisFramework).order_by(AnalysisFramework.name)
+    # Get all frameworks with usage count
+    query = select(AnalysisFramework).order_by(
+        AnalysisFramework.id.desc()
+    )
     result = await db.execute(query)
     frameworks = result.scalars().all()
 
-    # Convert to response format with parsed labels
-    return [
-        FrameworkResponse(
-            id=fw.id,
-            name=fw.name,
-            description=fw.description,
-            labels=fw.labels,  # Uses property getter
+    # Get usage count for each framework
+    framework_usage = {}
+    for fw in frameworks:
+        usage_query = (
+            select(func.count(Scenario.id))
+            .where(Scenario.framework_id == fw.id)
+            .where(Scenario.deleted_at.is_(None))
         )
-        for fw in frameworks
-    ]
+        count = await db.scalar(usage_query)
+        framework_usage[fw.id] = count or 0
+
+    return templates.TemplateResponse(
+        "admin/frameworks.html",
+        {
+            "request": request,
+            "user": user,
+            "frameworks": frameworks,
+            "framework_usage": framework_usage,
+        },
+    )
 
 
 @router.post(
     "/admin/frameworks",
-    response_model=FrameworkResponse,
+    response_model=AdminFrameworkResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_framework(
-    framework_data: FrameworkCreate,
+async def create_framework_web(
+    framework_data: FrameworkCreateWeb,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """POST /admin/frameworks - Create new framework (T088)."""
+    """POST /admin/frameworks - Create new framework (Web UI)."""
     # Check admin role
     if user.role != "admin":
         raise HTTPException(
@@ -119,21 +91,138 @@ async def create_framework(
             detail="Admin role required",
         )
 
-    # Create framework with labels as JSON
-    framework = AnalysisFramework(
+    # Check for duplicate name
+    existing_query = select(AnalysisFramework).where(
+        AnalysisFramework.name == framework_data.name
+    )
+    existing = await db.scalar(existing_query)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"프레임워크 '{framework_data.name}'이(가) 이미 존재합니다",
+        )
+
+    # Create framework
+    new_framework = AnalysisFramework(
         name=framework_data.name,
         description=framework_data.description,
         labels_json=json.dumps(framework_data.labels),
     )
 
-    db.add(framework)
+    db.add(new_framework)
+    await db.commit()
+    await db.refresh(new_framework)
+
+    logger.info(
+        f"Framework created: id={new_framework.id}, "
+        f"name={new_framework.name}"
+    )
+
+    return new_framework
+
+
+@router.put(
+    "/admin/frameworks/{framework_id}",
+    response_model=AdminFrameworkResponse,
+)
+async def update_framework_web(
+    framework_id: int,
+    framework_data: FrameworkUpdateWeb,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """PUT /admin/frameworks/{id} - Update existing framework (Web UI)."""
+    # Check admin role
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
+    # Get framework
+    framework = await db.get(AnalysisFramework, framework_id)
+    if not framework:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="프레임워크를 찾을 수 없습니다",
+        )
+
+    # Check for duplicate name if updating name
+    if (
+        framework_data.name
+        and framework_data.name != framework.name
+    ):
+        existing_query = select(AnalysisFramework).where(
+            AnalysisFramework.name == framework_data.name
+        )
+        existing = await db.scalar(existing_query)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"프레임워크 '{framework_data.name}'이(가) 이미 존재합니다",
+            )
+
+    # Update fields
+    if framework_data.name:
+        framework.name = framework_data.name
+    if framework_data.description:
+        framework.description = framework_data.description
+    if framework_data.labels:
+        framework.labels_json = json.dumps(framework_data.labels)
+
     await db.commit()
     await db.refresh(framework)
 
-    # Return with parsed labels
-    return FrameworkResponse(
-        id=framework.id,
-        name=framework.name,
-        description=framework.description,
-        labels=framework.labels,  # Uses property getter
+    logger.info(f"Framework updated: id={framework_id}")
+
+    return framework
+
+
+@router.delete(
+    "/admin/frameworks/{framework_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_framework_web(
+    framework_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """DELETE /admin/frameworks/{id} - Delete framework if not in use."""
+    # Check admin role
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
+    # Get framework
+    framework = await db.get(AnalysisFramework, framework_id)
+    if not framework:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="프레임워크를 찾을 수 없습니다",
+        )
+
+    # Check if framework is in use by any scenarios
+    usage_query = (
+        select(func.count(Scenario.id))
+        .where(Scenario.framework_id == framework_id)
+        .where(Scenario.deleted_at.is_(None))
     )
+    usage_count = await db.scalar(usage_query)
+
+    if usage_count and usage_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"삭제할 수 없습니다: {usage_count}개의 시나리오가 이 프레임워크를 사용 중입니다",
+        )
+
+    # Delete framework
+    await db.delete(framework)
+    await db.commit()
+
+    logger.info(
+        f"Framework deleted: id={framework_id}, name={framework.name}"
+    )
+
+    return None

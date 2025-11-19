@@ -1,333 +1,207 @@
-"""Admin session logs and statistics routes (T095-T097)."""
-import csv
-import io
-from datetime import datetime, timezone
-from typing import List, Optional
+"""Admin session management routes."""
+from datetime import datetime
+from typing import Optional, List, Dict, Any
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    Query,
-    status,
-)
-from fastapi.responses import Response
-from pydantic import BaseModel
-from sqlalchemy import and_, func, select
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
+from fastapi.responses import HTMLResponse, Response, JSONResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import func, select, desc
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import get_current_user, get_db_session
-from src.models.message import Message
-from src.models.session import Session
 from src.models.user import User
+from src.models.session import Session
+from src.models.scenario import Scenario
+from src.services.export import CSVExporter
 
-router = APIRouter(tags=["Admin Sessions"])
-
-
-# Pydantic schemas
-class SessionListItem(BaseModel):
-    """Schema for session list item."""
-
-    model_config = {"from_attributes": True}
-
-    id: int
-    scenario_id: int
-    scenario_title: str
-    teacher_id: int
-    teacher_nickname: str
-    started_at: datetime
-    ended_at: Optional[datetime] = None
-    message_count: int
+router = APIRouter()
+templates = Jinja2Templates(directory="src/templates")
 
 
-class SessionListResponse(BaseModel):
-    """Schema for session list response."""
-
-    sessions: List[SessionListItem]
-    total: int
-
-
-class StatsResponse(BaseModel):
-    """Schema for aggregated statistics (T097)."""
-
-    total_sessions: int
-    total_teachers: int
-    avg_session_duration_minutes: float
-    avg_questions_per_session: float
-    active_sessions: int
-
-
-@router.get("/admin/sessions", response_model=SessionListResponse)
-async def list_sessions(
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    teacher_id: Optional[int] = Query(None),
+@router.get("/admin/sessions-page", response_class=HTMLResponse)
+async def sessions_page(
+    request: Request,
+    scenario_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """GET /admin/sessions - List sessions with filtering (T095)."""
-    # Check admin role
+    """List all sessions with optional filtering (HTML Page)."""
     if user.role != "admin":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
         )
 
-    # Build query with joins
     query = (
         select(Session)
-        .options(
-            selectinload(Session.scenario),
-            selectinload(Session.teacher),
-        )
-        .order_by(Session.started_at.desc())
+        .options(joinedload(Session.scenario))
+        .where(Session.deleted_at.is_(None))
+        .order_by(desc(Session.started_at))
     )
+    if scenario_id:
+        query = query.where(Session.scenario_id == scenario_id)
 
-    # Apply filters
-    filters = []
-
-    if date_from:
-        try:
-            date_from_dt = datetime.fromisoformat(date_from)
-            filters.append(Session.started_at >= date_from_dt)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date_from format",
-            )
-
-    if date_to:
-        try:
-            date_to_dt = datetime.fromisoformat(date_to)
-            filters.append(Session.started_at <= date_to_dt)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date_to format",
-            )
-
-    if teacher_id:
-        filters.append(Session.teacher_id == teacher_id)
-
-    if filters:
-        query = query.where(and_(*filters))
-
-    # Execute query
     result = await db.execute(query)
     sessions = result.scalars().all()
 
-    # Get message counts for each session
-    session_data = []
-    for session in sessions:
-        # Count messages for this session
-        msg_count_query = select(func.count(Message.id)).where(
-            Message.session_id == session.id
-        )
-        msg_count_result = await db.execute(msg_count_query)
-        msg_count = msg_count_result.scalar() or 0
-
-        session_data.append(
-            SessionListItem(
-                id=session.id,
-                scenario_id=session.scenario_id,
-                scenario_title=session.scenario.title,
-                teacher_id=session.teacher_id,
-                teacher_nickname=session.teacher.nickname,
-                started_at=session.started_at,
-                ended_at=session.ended_at,
-                message_count=msg_count,
-            )
-        )
-
-    return SessionListResponse(
-        sessions=session_data, total=len(session_data)
+    # Get scenarios for filter dropdown
+    scenarios_result = await db.execute(
+        select(Scenario).order_by(Scenario.title)
     )
+    scenarios = scenarios_result.scalars().all()
 
-
-@router.get("/admin/sessions/export")
-async def export_sessions_csv(
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    teacher_id: Optional[int] = Query(None),
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """GET /admin/sessions/export - Export sessions as CSV (T096)."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
-    # Build query with joins (same as list_sessions)
-    query = (
-        select(Session)
-        .options(
-            selectinload(Session.scenario),
-            selectinload(Session.teacher),
-            selectinload(Session.messages),
-        )
-        .order_by(Session.started_at.desc())
-    )
-
-    # Apply filters (same logic as list_sessions)
-    filters = []
-
-    if date_from:
-        try:
-            date_from_dt = datetime.fromisoformat(date_from)
-            filters.append(Session.started_at >= date_from_dt)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date_from format",
-            )
-
-    if date_to:
-        try:
-            date_to_dt = datetime.fromisoformat(date_to)
-            filters.append(Session.started_at <= date_to_dt)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date_to format",
-            )
-
-    if teacher_id:
-        filters.append(Session.teacher_id == teacher_id)
-
-    if filters:
-        query = query.where(and_(*filters))
-
-    # Execute query
-    result = await db.execute(query)
-    sessions = result.scalars().all()
-
-    # Generate CSV
-    output = io.StringIO()
-    writer = csv.writer(output)
-
-    # Write header
-    writer.writerow(
-        [
-            "session_id",
-            "scenario_title",
-            "teacher_nickname",
-            "started_at",
-            "ended_at",
-            "duration_minutes",
-            "message_count",
-            "teacher_message_count",
-        ]
-    )
-
-    # Write data rows
-    for session in sessions:
-        # Calculate duration
-        duration_minutes = None
-        if session.ended_at:
-            duration_seconds = (
-                session.ended_at - session.started_at
-            ).total_seconds()
-            duration_minutes = round(duration_seconds / 60, 2)
-
-        # Count teacher messages
-        teacher_msg_count = sum(
-            1 for msg in session.messages if msg.role == "teacher"
-        )
-
-        writer.writerow(
-            [
-                session.id,
-                session.scenario.title,
-                session.teacher.nickname,
-                session.started_at.isoformat(),
-                (
-                    session.ended_at.isoformat()
-                    if session.ended_at
-                    else "Active"
-                ),
-                duration_minutes if duration_minutes else "N/A",
-                len(session.messages),
-                teacher_msg_count,
-            ]
-        )
-
-    # Generate filename with timestamp
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"session_export_{timestamp}.csv"
-
-    # Return CSV response
-    csv_content = output.getvalue()
-    return Response(
-        content=csv_content,
-        media_type="text/csv",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Content-Type": "text/csv; charset=utf-8",
+    return templates.TemplateResponse(
+        "admin/sessions.html",
+        {
+            "request": request,
+            "user": user,
+            "sessions": sessions,
+            "scenarios": scenarios,
+            "current_scenario_id": scenario_id,
         },
     )
 
 
-@router.get("/admin/stats", response_model=StatsResponse)
-async def get_statistics(
+@router.get("/admin/sessions", response_class=JSONResponse)
+async def list_sessions_api(
+    scenario_id: Optional[int] = None,
+    teacher_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> Dict[str, List[Dict[str, Any]]]:
+    """List all sessions with optional filtering (API)."""
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
+        )
+
+    query = (
+        select(Session)
+        .options(joinedload(Session.scenario), joinedload(Session.teacher))
+        .where(Session.deleted_at.is_(None))
+        .order_by(desc(Session.started_at))
+    )
+
+    if scenario_id:
+        query = query.where(Session.scenario_id == scenario_id)
+
+    if teacher_id:
+        query = query.where(Session.teacher_id == teacher_id)
+
+    if date_from:
+        try:
+            # Handle 'Z' suffix or standard ISO format
+            if date_from.endswith("Z"):
+                date_from = date_from[:-1]
+            dt = datetime.fromisoformat(date_from)
+            query = query.where(Session.started_at >= dt)
+        except ValueError:
+            pass  # Ignore invalid date format
+
+    result = await db.execute(query)
+    sessions = result.scalars().all()
+
+    return {
+        "sessions": [
+            {
+                "id": s.id,
+                "scenario_id": s.scenario_id,
+                "scenario_title": s.scenario.title if s.scenario else "Unknown",
+                "teacher_id": s.teacher_id,
+                "teacher_nickname": s.teacher.nickname if s.teacher else "Unknown",
+                "started_at": s.started_at.isoformat(),
+                "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+                "status": "ended" if s.ended_at else "active",
+            }
+            for s in sessions
+        ]
+    }
+
+
+@router.get("/admin/sessions/export")
+async def export_sessions(
+    scenario_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """GET /admin/stats - Aggregated statistics (T097)."""
+    """Export filtered sessions to CSV."""
     if user.role != "admin":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
         )
 
+    query = (
+        select(Session.id)
+        .where(Session.deleted_at.is_(None))
+        .order_by(desc(Session.started_at))
+    )
+    if scenario_id:
+        query = query.where(Session.scenario_id == scenario_id)
+
+    result = await db.execute(query)
+    session_ids = result.scalars().all()
+
+    if not session_ids:
+        return Response(content="No sessions found", media_type="text/plain")
+
+    exporter = CSVExporter()
+    csv_content = await exporter.export_multiple_sessions(list(session_ids), db)
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": "attachment; filename=sessions_export.csv"
+        },
+    )
+
+
+@router.get("/admin/stats")
+async def get_stats(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Get system statistics for dashboard charts."""
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
+        )
+
+    # Calculate statistics
+    # Total teachers (unique teacher_id in sessions)
+    total_teachers_query = select(
+        func.count(func.distinct(Session.teacher_id))
+    ).where(Session.deleted_at.is_(None))
+    total_teachers = await db.scalar(total_teachers_query) or 0
+
     # Total sessions
-    total_query = select(func.count(Session.id))
-    total_result = await db.execute(total_query)
-    total_sessions = total_result.scalar() or 0
-
-    # Total unique teachers
-    teachers_query = select(func.count(func.distinct(Session.teacher_id)))
-    teachers_result = await db.execute(teachers_query)
-    total_teachers = teachers_result.scalar() or 0
-
-    # Active sessions
-    active_query = select(func.count(Session.id)).where(
-        Session.ended_at.is_(None)
+    total_sessions_query = select(func.count(Session.id)).where(
+        Session.deleted_at.is_(None)
     )
-    active_result = await db.execute(active_query)
-    active_sessions = active_result.scalar() or 0
+    total_sessions = await db.scalar(total_sessions_query) or 0
 
-    # Avg duration (ended sessions only)
-    ended_sessions = await db.execute(
-        select(Session).where(Session.ended_at.isnot(None))
+    # Active sessions (no ended_at)
+    active_sessions_query = select(func.count(Session.id)).where(
+        Session.ended_at.is_(None), Session.deleted_at.is_(None)
     )
-    sessions_list = ended_sessions.scalars().all()
+    active_sessions = await db.scalar(active_sessions_query) or 0
 
-    avg_duration = 0.0
-    if sessions_list:
-        durations = [
-            (s.ended_at - s.started_at).total_seconds() / 60
-            for s in sessions_list
-        ]
-        avg_duration = sum(durations) / len(durations)
+    # Average session duration (minutes)
+    duration_query = select(
+        func.avg(
+            func.julianday(Session.ended_at)
+            - func.julianday(Session.started_at)
+        )
+        * 24
+        * 60
+    ).where(Session.ended_at.isnot(None), Session.deleted_at.is_(None))
+    avg_duration = await db.scalar(duration_query) or 0
 
-    # Avg questions per session
-    msg_query = select(func.count(Message.id)).where(
-        Message.role == "teacher"
-    )
-    msg_result = await db.execute(msg_query)
-    total_questions = msg_result.scalar() or 0
-    avg_questions = (
-        total_questions / total_sessions if total_sessions > 0 else 0.0
-    )
-
-    return StatsResponse(
-        total_sessions=total_sessions,
-        total_teachers=total_teachers,
-        avg_session_duration_minutes=round(avg_duration, 2),
-        avg_questions_per_session=round(avg_questions, 2),
-        active_sessions=active_sessions,
-    )
+    return {
+        "total_teachers": total_teachers,
+        "total_sessions": total_sessions,
+        "active_sessions": active_sessions,
+        "avg_session_duration_minutes": round(avg_duration, 1),
+        "avg_questions_per_session": 0,  # Placeholder
+    }

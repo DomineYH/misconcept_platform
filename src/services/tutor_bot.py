@@ -14,6 +14,7 @@ from tenacity import (
 
 from src.config import config
 from src.services.prompt_manager import PromptManager
+from src.utils.openai_helpers import extract_response_text
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class TutorBot:
         prompt: str = "",
         student_profile: str = "",
         model: Optional[str] = None,
-        temperature: Optional[float] = None,
+        reasoning_effort: Optional[str] = None,
         max_tokens: Optional[int] = None,
         intervention_threshold: Optional[int] = None,
     ):
@@ -40,16 +41,19 @@ class TutorBot:
             prompt: System prompt defining misconception
             student_profile: Student characteristics
             model: Override default model (from config or DB)
-            temperature: Override default temperature (0.0-2.0)
+            reasoning_effort: Override reasoning effort (minimal, low,
+                medium, high)
             max_tokens: Override default max tokens (50-300)
             intervention_threshold: Interventions per 10 questions (1-10)
         """
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.db_session = db_session
         self.model = model or config.ANALYSIS_MODEL
-        self.temperature = temperature if temperature is not None else 0.3
-        self.max_tokens = max_tokens or 100
-        self.intervention_threshold = intervention_threshold or 3
+        self.reasoning_effort = reasoning_effort or config.TUTOR_REASONING
+        self.max_tokens = max_tokens or config.TUTOR_MAX_TOKENS
+        self.intervention_threshold = (
+            intervention_threshold or config.TUTOR_INTERVENTION_THRESHOLD
+        )
 
         # Store scenario context for dynamic prompt formatting
         self.scenario_title = scenario_title
@@ -176,8 +180,9 @@ class TutorBot:
             context += f"TEACHER: {teacher_question}\n"
             context += f"STUDENT: {student_response}\n"
 
-            messages = [
-                {"role": "system", "content": system_prompt},
+            # Build input for Responses API (developer role)
+            input_messages = [
+                {"role": "developer", "content": system_prompt},
                 {
                     "role": "user",
                     "content": (
@@ -187,29 +192,23 @@ class TutorBot:
                 },
             ]
 
-            # Call OpenAI API
-            # GPT-5 models only support temperature=1.0 (default)
-            params = {
-                "model": self.model,
-                "messages": messages,
-                "max_completion_tokens": self.max_tokens,
-            }
+            # OpenAI Responses API 호출 (GPT-5 with reasoning)
+            response = await self.client.responses.create(
+                model=self.model,
+                input=input_messages,
+                max_output_tokens=self.max_tokens,
+                reasoning={"effort": self.reasoning_effort},
+            )
 
-            # Only add temperature for non-GPT-5 models
-            if not self.model.startswith("gpt-5"):
-                params["temperature"] = self.temperature
-
-            response = await self.client.chat.completions.create(**params)
-
-            # Extract content
-            content = response.choices[0].message.content.strip()
+            # Extract content (Responses API output 처리)
+            content = extract_response_text(response)
 
             # Extract usage information if available
             usage_dict = None
             if hasattr(response, "usage") and response.usage is not None:
                 usage_dict = {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
+                    "prompt_tokens": response.usage.input_tokens,
+                    "completion_tokens": response.usage.output_tokens,
                     "total_tokens": response.usage.total_tokens,
                 }
 
@@ -221,4 +220,6 @@ class TutorBot:
             raise
         except Exception as e:
             logger.error(f"Unexpected error in TutorBot: {str(e)}")
-            raise APIError(f"Tutor feedback generation failed: {str(e)}")
+            raise RuntimeError(
+                f"Tutor feedback generation failed: {str(e)}"
+            ) from e

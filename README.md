@@ -12,8 +12,8 @@ A three-party dialogue simulator for teacher training where teachers practice pe
 - ✅ **Phase 3**: MVP Dialogue System (Complete)
   - Teacher authentication with session management
   - Scenario selection and dialogue interface
-  - AI student bot with misconception role-play (GPT-4-turbo)
-  - AI tutor bot with intervention logic (GPT-3.5-turbo)
+  - AI student bot with misconception role-play (GPT-5/GPT-4-turbo)
+  - AI tutor bot with intervention logic (GPT-5/GPT-4-turbo)
   - Three-party real-time conversation flow
 - ✅ **Phase 4**: Session Analysis (Complete)
   - Post-dialogue question classification
@@ -53,7 +53,7 @@ See `specs/001-misconception-dialogue-sim/STATUS.md` for detailed status.
 ### Prerequisites
 
 - Python 3.11 or higher
-- OpenAI API key (GPT-4 and GPT-3.5 access)
+- OpenAI API key with GPT-5/GPT-4 access (Responses API support)
 - 2GB RAM minimum, 4GB recommended
 
 ### Installation
@@ -146,15 +146,27 @@ Visit http://localhost:8000
 
 All chatbot parameters are managed via environment variables (.env file). Server restart required after configuration changes.
 
-### StudentBot Configuration
-- `CHAT_MODEL` - LLM model (default: gpt-4-turbo)
-- `STUDENT_TEMPERATURE` - Response creativity 0.0-2.0 (default: 0.7)
-- `STUDENT_MAX_TOKENS` - Maximum response length (default: 150)
+**All services use OpenAI Responses API** (Phase 1 & 1.5 complete)
 
-### TutorBot Configuration
-- `ANALYSIS_MODEL` - LLM model (default: gpt-3.5-turbo)
-- `TUTOR_TEMPERATURE` - Response consistency 0.0-2.0 (default: 0.3)
-- `TUTOR_MAX_TOKENS` - Maximum feedback length (default: 100)
+### Model Configuration
+- `CHAT_MODEL` - StudentBot/TutorBot LLM model (default: gpt-5)
+  - **Primary Models** (권장): gpt-5, gpt-5.1, gpt-5.1-chat-latest
+  - **Fallback Models** (지원): gpt-4-turbo
+  - **NOT supported**: gpt-3.5 (Responses API limitation)
+- `ANALYSIS_MODEL` - MisconceptionAnalyzer LLM model (default: gpt-5)
+  - Same model support as CHAT_MODEL
+
+### GPT-5 Reasoning Configuration
+- `CHAT_REASONING_EFFORT` - Reasoning intensity (default: medium)
+  - Valid values: minimal, low, medium, high
+- `ANALYSIS_REASONING_EFFORT` - Analysis reasoning (default: medium)
+
+### Output Length Configuration
+- `STUDENT_MAX_OUTPUT_TOKENS` - StudentBot response length (default: 150)
+- `TUTOR_MAX_OUTPUT_TOKENS` - TutorBot feedback length (default: 100)
+- `ANALYSIS_MAX_OUTPUT_TOKENS` - Analyzer output length (default: 300)
+
+### TutorBot Intervention
 - `TUTOR_INTERVENTION_THRESHOLD` - Intervention frequency per 10 questions, 1-10 (default: 3)
 
 ### Configuration Update Process
@@ -162,14 +174,16 @@ All chatbot parameters are managed via environment variables (.env file). Server
 2. Restart application: `systemctl restart misconcept_platform`
 3. Verify changes through health endpoint
 
-**Note**: Scenario-specific overrides can be configured directly in the database via scenario table.
+**Note**:
+- Temperature is NOT configurable (fixed at 1.0 for Responses API)
+- Scenario-specific model overrides available in admin panel
 
 ## 🏗️ Technology Stack
 
 ### Backend
 - **Framework**: FastAPI (async web framework)
 - **Database**: SQLite3 with SQLAlchemy 2.x (async ORM)
-- **LLM**: OpenAI API (GPT-4-turbo, GPT-3.5-turbo)
+- **LLM**: OpenAI Responses API (GPT-5, GPT-5.1, GPT-4-turbo)
 - **Authentication**: Session-based with secure cookies
 - **Rate Limiting**: slowapi (IP-based)
 - **Logging**: python-json-logger (structured logs)
@@ -488,7 +502,7 @@ This project is licensed under the MIT License.
 
 ## 🙏 Acknowledgments
 
-- OpenAI for GPT-4 and GPT-3.5 APIs
+- OpenAI for GPT-5 and GPT-4 Responses API
 - FastAPI for the excellent async web framework
 - HTMX for seamless partial updates
 - SQLAlchemy for robust ORM

@@ -46,7 +46,10 @@ class Scenario(Base):
     chat_model: Mapped[Optional[str]] = mapped_column(
         String(50),
         nullable=True,
-        comment="Override StudentBot model for this scenario (NULL = use global)",
+        comment=(
+            "Override StudentBot model for this scenario "
+            "(NULL = use global)"
+        ),
     )
 
     chat_temperature: Mapped[Optional[float]] = mapped_column(
@@ -65,7 +68,10 @@ class Scenario(Base):
     tutor_intervention_threshold: Mapped[Optional[int]] = mapped_column(
         Integer,
         nullable=True,
-        comment="Override tutor interventions per 10 questions (NULL = use global)",
+        comment=(
+            "Override tutor interventions per 10 questions "
+            "(NULL = use global)"
+        ),
     )
 
     # Foreign keys
@@ -79,6 +85,9 @@ class Scenario(Base):
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
     )
 
     # Relationships
@@ -98,5 +107,17 @@ class Scenario(Base):
     )
 
     def __repr__(self) -> str:
-        config = f"model={self.chat_model or 'global'}, tutor={'on' if self.tutor_enabled else 'off'}"
-        return f"<Scenario(id={self.id}, title={self.title[:30]}, {config})>"
+        config = (
+            f"model={self.chat_model or 'global'}, "
+            f"tutor={'on' if self.tutor_enabled else 'off'}"
+        )
+        status = "deleted" if self.deleted_at else "active"
+        return (
+            f"<Scenario(id={self.id}, "
+            f"title={self.title[:30]}, "
+            f"{config}, {status})>"
+        )
+
+    def mark_deleted(self) -> None:
+        """Mark scenario as soft-deleted with UTC timestamp."""
+        self.deleted_at = datetime.utcnow()

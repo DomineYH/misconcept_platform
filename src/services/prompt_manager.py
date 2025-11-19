@@ -232,6 +232,79 @@ class PromptManager:
         return template
 
     @classmethod
+    async def update_prompt(
+        cls,
+        db: AsyncSession,
+        prompt_id: int,
+        template_name: Optional[str] = None,
+        template_text: Optional[str] = None,
+        updated_by: Optional[int] = None,
+    ) -> PromptTemplate:
+        """프롬프트 내용 수정 (버전 유지).
+
+        Note: 데이터 정합성을 위해 중요 변경은 create_prompt(새 버전) 권장.
+        오타 수정 등을 위해 제한적으로 사용.
+
+        Args:
+            db: Database session
+            prompt_id: 수정할 프롬프트 ID
+            template_name: 새 이름 (Optional)
+            template_text: 새 텍스트 (Optional)
+            updated_by: 수정한 User ID
+
+        Returns:
+            수정된 PromptTemplate 객체
+        """
+        result = await db.execute(
+            select(PromptTemplate).where(PromptTemplate.id == prompt_id)
+        )
+        template = result.scalar_one()
+
+        if template_name:
+            template.template_name = template_name
+        if template_text:
+            template.template_text = template_text
+        
+        template.updated_at = datetime.now(timezone.utc)
+        if updated_by:
+            template.updated_by = updated_by
+            
+        await db.flush()
+
+        # 활성화된 프롬프트였다면 캐시 갱신
+        if template.is_active:
+            cls._invalidate_cache(template.bot_type)
+            logger.info(f"Updated active prompt: {template.bot_type} v{template.version}")
+        
+        return template
+
+    @classmethod
+    async def delete_prompt(cls, db: AsyncSession, prompt_id: int) -> None:
+        """프롬프트 삭제.
+
+        Args:
+            db: Database session
+            prompt_id: 삭제할 프롬프트 ID
+        """
+        result = await db.execute(
+            select(PromptTemplate).where(PromptTemplate.id == prompt_id)
+        )
+        template = result.scalar_one()
+        
+        bot_type = template.bot_type
+        is_active = template.is_active
+        
+        await db.delete(template)
+        await db.flush()
+        
+        # 활성 프롬프트 삭제 시 캐시 무효화
+        if is_active:
+            cls._invalidate_cache(bot_type)
+            logger.warning(f"Deleted active prompt: {bot_type} v{template.version}")
+        else:
+            logger.info(f"Deleted prompt: {bot_type} v{template.version}")
+
+    @classmethod
     async def _deactivate_all(cls, db: AsyncSession, bot_type: str) -> None:
         """특정 bot_type의 모든 활성 프롬프트 비활성화.
 

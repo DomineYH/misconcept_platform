@@ -45,10 +45,15 @@ uv pip install -e "."
 Create `.env` file in project root:
 
 ```bash
-# OpenAI API Configuration
+# OpenAI API Configuration (Responses API only)
 OPENAI_API_KEY=sk-your-openai-api-key-here
-CHAT_MODEL=gpt-4-turbo
-ANALYSIS_MODEL=gpt-3.5-turbo
+CHAT_MODEL=gpt-5
+ANALYSIS_MODEL=gpt-5
+
+# Note: Supported models (Responses API only)
+# Primary (권장): gpt-5, gpt-5.1, gpt-5.1-chat-latest
+# Fallback: gpt-4-turbo
+# NOT supported: gpt-3.5 (incompatible with Responses API)
 
 # Session Security (CHANGE THIS!)
 SESSION_SECRET=your-secure-random-secret-key-here

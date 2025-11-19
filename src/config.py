@@ -12,23 +12,20 @@ class Config:
 
     # OpenAI API Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "gpt-4-turbo")
-    ANALYSIS_MODEL: str = os.getenv(
-        "ANALYSIS_MODEL", "gpt-3.5-turbo"
-    )
+    # Supported: gpt-5 (Responses API with reasoning)
+    # Recommended: gpt-5 (latest, Aug 2025)
+    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "gpt-5")
+    ANALYSIS_MODEL: str = os.getenv("ANALYSIS_MODEL", "gpt-5")
 
-    # ===== Chatbot Parameter Configuration =====
-    # StudentBot settings
-    STUDENT_TEMPERATURE: float = float(
-        os.getenv("STUDENT_TEMPERATURE", "0.7")
-    )
+    # ===== GPT-5 Reasoning Effort Configuration =====
+    # Valid values: minimal, low, medium, high
+    ANALYSIS_REASONING: str = os.getenv("ANALYSIS_REASONING", "high")
+    STUDENT_REASONING: str = os.getenv("STUDENT_REASONING", "medium")
+    TUTOR_REASONING: str = os.getenv("TUTOR_REASONING", "low")
+
+    # ===== Bot Token Limits =====
     STUDENT_MAX_TOKENS: int = int(
         os.getenv("STUDENT_MAX_TOKENS", "150")
-    )
-
-    # TutorBot settings
-    TUTOR_TEMPERATURE: float = float(
-        os.getenv("TUTOR_TEMPERATURE", "0.3")
     )
     TUTOR_MAX_TOKENS: int = int(os.getenv("TUTOR_MAX_TOKENS", "100"))
     TUTOR_INTERVENTION_THRESHOLD: int = int(
@@ -74,23 +71,31 @@ class Config:
                 "SESSION_SECRET must be changed in .env file"
             )
 
-        # Validate StudentBot parameters
-        if not (0.0 <= cls.STUDENT_TEMPERATURE <= 2.0):
+        # Validate Reasoning Effort values
+        # GPT-5: minimal, low, medium, high
+        # GPT-5.1: none, low, medium, high
+        valid_reasoning = ["none", "minimal", "low", "medium", "high"]
+        if cls.ANALYSIS_REASONING not in valid_reasoning:
             raise ValueError(
-                f"STUDENT_TEMPERATURE must be between 0.0 and 2.0, "
-                f"got {cls.STUDENT_TEMPERATURE}"
+                f"ANALYSIS_REASONING must be one of {valid_reasoning}, "
+                f"got {cls.ANALYSIS_REASONING}"
             )
+        if cls.STUDENT_REASONING not in valid_reasoning:
+            raise ValueError(
+                f"STUDENT_REASONING must be one of {valid_reasoning}, "
+                f"got {cls.STUDENT_REASONING}"
+            )
+        if cls.TUTOR_REASONING not in valid_reasoning:
+            raise ValueError(
+                f"TUTOR_REASONING must be one of {valid_reasoning}, "
+                f"got {cls.TUTOR_REASONING}"
+            )
+
+        # Validate Token Limits
         if cls.STUDENT_MAX_TOKENS <= 0:
             raise ValueError(
                 f"STUDENT_MAX_TOKENS must be positive, "
                 f"got {cls.STUDENT_MAX_TOKENS}"
-            )
-
-        # Validate TutorBot parameters
-        if not (0.0 <= cls.TUTOR_TEMPERATURE <= 2.0):
-            raise ValueError(
-                f"TUTOR_TEMPERATURE must be between 0.0 and 2.0, "
-                f"got {cls.TUTOR_TEMPERATURE}"
             )
         if cls.TUTOR_MAX_TOKENS <= 0:
             raise ValueError(

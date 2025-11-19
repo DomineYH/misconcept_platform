@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
+from src.api.schemas.prompt import PromptUpdateRequest
 from src.models.user import User
 from src.services.prompt_manager import PromptManager
 
@@ -165,3 +166,70 @@ async def activate_prompt(
         raise HTTPException(
             status_code=500, detail="Failed to activate prompt"
         )
+
+@router.put("/prompts/{prompt_id}")
+async def update_prompt(
+    prompt_id: int,
+    req: PromptUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """프롬프트 내용 수정.
+
+    Args:
+        prompt_id: 수정할 프롬프트 ID
+        req: 수정할 내용 (이름, 텍스트)
+
+    Returns:
+        수정된 프롬프트 정보
+    """
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        prompt = await PromptManager.update_prompt(
+            db,
+            prompt_id,
+            template_name=req.template_name,
+            template_text=req.template_text,
+            updated_by=user.id,
+        )
+        await db.commit()
+
+        logger.info(
+            f"Admin {user.username} updated prompt {prompt_id} "
+            f"(v{prompt.version})"
+        )
+        return {"prompt": prompt.to_dict()}
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to update prompt {prompt_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update prompt")
+
+
+@router.delete("/prompts/{prompt_id}")
+async def delete_prompt(
+    prompt_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """프롬프트 삭제.
+
+    Args:
+        prompt_id: 삭제할 프롬프트 ID
+    """
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        await PromptManager.delete_prompt(db, prompt_id)
+        await db.commit()
+
+        logger.info(f"Admin {user.username} deleted prompt {prompt_id}")
+        return {"status": "success", "id": prompt_id}
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to delete prompt {prompt_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete prompt")

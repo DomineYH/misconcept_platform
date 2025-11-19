@@ -26,19 +26,21 @@ logger = logging.getLogger(__name__)
 
 class Analyzer:
     """
-    Question classification service using OpenAI GPT-3.5-turbo.
+    Question classification service using OpenAI Responses API.
+
+    Supports GPT-5 and GPT-4 models via Responses API (GPT-3.5 not supported).
 
     Attributes:
         client: Async OpenAI client
-        model: Model identifier (GPT-3.5-turbo)
-        temperature: Low temperature for deterministic classification
+        model: Model identifier (GPT-5 or GPT-4)
+        temperature: Deprecated (Responses API uses fixed temperature)
     """
 
     def __init__(self):
         """Initialize analyzer with OpenAI client."""
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
-        self.model = config.ANALYSIS_MODEL or "gpt-3.5-turbo"
-        self.temperature = 0.2
+        self.model = config.ANALYSIS_MODEL or "gpt-5"
+        # Note: temperature is not used in Responses API (GPT-5/5.1 use fixed temperature=1.0)
         # Load cached prompt template (T111 optimization)
         self.prompt_template = load_prompt_template("analysis_prompt.txt")
 
@@ -89,22 +91,22 @@ class Analyzer:
         )
 
         try:
-            # Call OpenAI API
-            # GPT-5 models only support temperature=1.0 (default)
-            params = {
-                "model": self.model,
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-            }
+            # OpenAI Responses API 호출 (GPT-5 호환)
+            # GPT-5 models use temperature=1.0 (default, not configurable)
+            # For GPT-4/3.5: temperature is ignored in Responses API
 
-            # Only add temperature for non-GPT-5 models
-            if not self.model.startswith("gpt-5"):
-                params["temperature"] = self.temperature
+            # Build input (user role)
+            input_messages = [{"role": "user", "content": prompt}]
 
-            response = await self.client.chat.completions.create(**params)
+            response = await self.client.responses.create(
+                model=self.model,
+                input=input_messages,
+                max_output_tokens=500,  # Analyzer needs more tokens
+                modalities=["text"],
+            )
 
-            # Parse JSON response
-            content = response.choices[0].message.content
+            # Parse JSON response (output.content instead of choices)
+            content = response.output.content.strip()
             result = json.loads(content)
 
             # Validate response structure

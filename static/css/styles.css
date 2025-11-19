@@ -148,3 +148,21 @@ button:hover {
 .htmx-request.htmx-indicator {
   display: inline;
 }
+
+/* Session count warning styles */
+.meta-item.has-sessions {
+  color: #d32f2f;
+  font-weight: 600;
+}
+
+.session-warning {
+  font-size: 0.85em;
+  color: #d32f2f;
+  font-weight: 500;
+  margin-left: 0.25rem;
+}
+
+.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

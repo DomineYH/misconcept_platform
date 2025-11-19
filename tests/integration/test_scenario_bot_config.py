@@ -214,7 +214,7 @@ class TestScenarioBotConfigAPI:
                 "prompt": "Initial prompt",
                 "student_profile": "Grade 5 student",
                 "framework_id": test_framework.id,
-                "chat_model": "gpt-3.5-turbo",
+                "chat_model": "gpt-4-turbo",
                 "chat_temperature": 0.5,
                 "tutor_enabled": True,
                 "tutor_intervention_threshold": 5,
@@ -300,15 +300,17 @@ class TestScenarioBotConfigAPI:
             },
         )
 
+        # Only Responses API compatible models (GPT-3.5 not supported)
         valid_models = [
-            "gpt-3.5-turbo",
-            "gpt-3.5",
             "gpt-4-turbo",
             "gpt-4",
             "gpt-4o-turbo",
             "gpt-4o",
             "gpt-4o-mini-turbo",
             "gpt-4o-mini",
+            "gpt-5.1-chat-latest",
+            "gpt-5.1",
+            "gpt-5",
         ]
 
         for model in valid_models:
