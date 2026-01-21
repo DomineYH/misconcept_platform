@@ -22,6 +22,7 @@ from src.api.schemas import (
 )
 from src.models.analysis_framework import AnalysisFramework
 from src.models.scenario import Scenario
+from src.models.session import Session
 from src.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -216,6 +217,35 @@ async def delete_framework_web(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"삭제할 수 없습니다: {usage_count}개의 시나리오가 이 프레임워크를 사용 중입니다",
         )
+
+    # Hard-delete soft-deleted scenarios referencing this framework
+    # (to avoid NOT NULL constraint violation on framework_id)
+    soft_deleted_query = select(Scenario).where(
+        Scenario.framework_id == framework_id,
+        Scenario.deleted_at.is_not(None),
+    )
+    soft_deleted_result = await db.execute(soft_deleted_query)
+    soft_deleted_scenarios = soft_deleted_result.scalars().all()
+
+    # For each soft-deleted scenario, delete associated sessions first
+    # (to avoid NOT NULL constraint violation on session.scenario_id)
+    for scenario in soft_deleted_scenarios:
+        sessions_query = select(Session).where(
+            Session.scenario_id == scenario.id
+        )
+        sessions_result = await db.execute(sessions_query)
+        sessions = sessions_result.scalars().all()
+        for session in sessions:
+            await db.delete(session)
+
+    await db.flush()
+
+    # Now delete the soft-deleted scenarios
+    for scenario in soft_deleted_scenarios:
+        await db.delete(scenario)
+
+    # Flush to ensure scenarios are deleted before framework
+    await db.flush()
 
     # Delete framework
     await db.delete(framework)

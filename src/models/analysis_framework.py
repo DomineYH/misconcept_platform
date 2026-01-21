@@ -31,7 +31,9 @@ class AnalysisFramework(Base):
 
     # Relationships
     scenarios: Mapped[list["Scenario"]] = relationship(
-        "Scenario", back_populates="framework"
+        "Scenario",
+        back_populates="framework",
+        passive_deletes=True,
     )
 
     @property

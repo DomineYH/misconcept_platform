@@ -1,77 +1,98 @@
-/* Basic styles for Misconception Dialogue Simulator */
+/* Luminous Azure - Modern Clean Theme */
 
 :root {
-  --color-primary: #3498db;
-  --color-primary-hover: #2980b9;
-  --color-brand: #0084ff;
-  --color-brand-hover: #0073e6;
-  --color-brand-dark: #0062c4;
-  
-  --color-navy: #2c3e50;
-  --color-text-primary: #1c1e21;
-  --color-text-body: #333;
-  --color-text-secondary: #65676b;
-  --color-text-tertiary: #5f6368;
-  --color-text-muted: #6c757d;
-  
-  --color-bg-body: #f5f5f5;
+  /* Core Palette - Light & Airy */
+  --color-bg-body: #f0f2f5;
   --color-bg-surface: #ffffff;
-  --color-bg-secondary: #f0f2f5;
-  --color-bg-tertiary: #f8f9fa;
-  --color-bg-highlight: #f7f8fa;
-  
-  --color-border-light: #e4e6eb;
+  --color-bg-secondary: #e4e6eb;
+  --color-bg-tertiary: #f7f9fa;
+  --color-bg-highlight: #eef2ff;
+
+  /* Accents - Royal & Sky Blue */
+  --color-brand: #2563eb;
+  --color-brand-hover: #1d4ed8;
+  --color-brand-dark: #1e40af;
+  --color-brand-light: #eff6ff;
+
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-navy: #1e3a8a;
+
+  /* Typography Colors - High Contrast */
+  --color-text-primary: #111827;
+  --color-text-body: #374151;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary: #9ca3af;
+  --color-text-muted: #d1d5db;
+  --color-text-inverse: #ffffff;
+
+  /* Borders & Shadows */
+  --color-border-light: #e5e7eb;
   --color-border-medium: #d1d5db;
-  --color-border-dark: #ced4da;
-  
-  --color-student: #4caf50;
-  --color-teacher: #2196f3;
-  --color-tutor: #ff9800;
-  --color-tutor-bg: #fff3e0;
-  --color-tutor-border: #ffe0b2;
-  --color-tutor-text: #bf360c;
-  
-  --color-success: #22c55e;
-  --color-success-text: #166534;
-  --color-success-bg: #dcfce7;
-  --color-success-border: #badbcc;
+  --color-border-dark: #9ca3af;
+
+  /* Functional Colors */
+  --color-student: #10b981;
+  --color-teacher: #3b82f6;
+  --color-tutor: #f59e0b;
+  --color-tutor-bg: #fffbeb;
+  --color-tutor-border: #fcd34d;
+  --color-tutor-text: #b45309;
+
+  --color-success: #10b981;
+  --color-success-text: #065f46;
+  --color-success-bg: #d1fae5;
+  --color-success-border: #6ee7b7;
+
   --color-warning: #f59e0b;
-  --color-warning-text: #664d03;
-  --color-warning-bg: #fff3cd;
-  --color-warning-border: #ffecb5;
-  --color-danger: #dc2626;
+  --color-warning-text: #92400e;
+  --color-warning-bg: #fef3c7;
+  --color-warning-border: #fcd34d;
+
+  --color-danger: #ef4444;
   --color-danger-text: #991b1b;
   --color-danger-bg: #fee2e2;
   --color-info-text: #1e40af;
   --color-info-bg: #dbeafe;
-  
+
+  /* Spacing */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
-  
-  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+
+  /* Fonts */
+  --font-family-display: 'Inter', -apple-system, sans-serif;
+  --font-family-mono: 'Share Tech Mono', monospace;
+  /* Kept for code/data if needed */
+  --font-family-body: 'Inter', -apple-system, sans-serif;
+  --font-family: var(--font-family-body);
+
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.25rem;
   --font-size-2xl: 1.5rem;
-  
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-bubble: 18px;
+
+  /* Radii - Modern Rounded */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-bubble: 20px;
   --radius-round: 50%;
-  --radius-pill: 999px;
-  
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-modal: 0 10px 25px rgba(0, 0, 0, 0.2);
-  
+  --radius-pill: 9999px;
+
+  /* Shadows - Soft & Clean */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-glow: none;
+  /* Removed neon glow */
+
+  /* Transitions */
   --transition-fast: 0.15s ease;
   --transition-normal: 0.2s ease;
   --transition-slow: 0.3s ease;
@@ -84,10 +105,13 @@
 }
 
 body {
-  font-family: var(--font-family);
+  font-family: var(--font-family-body);
   line-height: 1.6;
   color: var(--color-text-body);
   background-color: var(--color-bg-body);
+  background-image: none;
+  /* Removed dark gradient */
+  min-height: 100vh;
 }
 
 :focus-visible {
@@ -111,8 +135,11 @@ textarea:focus-visible {
   background: var(--color-brand);
   color: white;
   padding: 8px 16px;
-  z-index: 100;
+  z-index: 1000;
   transition: top 0.3s;
+  font-family: var(--font-family);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
 }
 
 .skip-link:focus {
@@ -120,10 +147,16 @@ textarea:focus-visible {
 }
 
 header {
-  background-color: var(--color-navy);
-  color: white;
+  background-color: var(--color-bg-surface);
+  backdrop-filter: blur(10px);
+  color: var(--color-text-primary);
   padding: 1rem 2rem;
-  position: relative;
+  position: sticky;
+  /* Sticky header */
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
 }
 
 header nav {
@@ -133,7 +166,12 @@ header nav {
 }
 
 header nav h1 {
-  font-size: 1.5rem;
+  font-family: var(--font-family);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--color-brand);
+  text-shadow: none;
 }
 
 .nav-menu {
@@ -164,22 +202,31 @@ header nav h1 {
 }
 
 header nav a {
-  color: white;
+  color: var(--color-text-secondary);
   text-decoration: none;
+  font-family: var(--font-family);
+  text-transform: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  transition: color 0.2s ease;
 }
 
 header nav a:hover {
-  text-decoration: underline;
+  text-decoration: none;
+  color: var(--color-brand);
+  text-shadow: none;
 }
 
 main {
-  max-width: 1200px;
+  max-width: 1400px;
+  /* Wider for dashboard feel */
   margin: 2rem auto;
-  padding: 0 1rem;
-  background-color: white;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
   padding: 2rem;
+  background-color: transparent;
+  /* Remove white bg */
+  border-radius: 0;
+  box-shadow: none;
 }
 
 footer {
@@ -204,10 +251,23 @@ label {
 input[type="text"],
 input[type="password"],
 textarea {
-  padding: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: white;
   border: 1px solid var(--color-border-medium);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
   font-size: 1rem;
+  color: var(--color-text-primary);
+  transition: all 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+textarea:focus {
+  background-color: white;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  outline: none;
 }
 
 button,
@@ -216,24 +276,30 @@ button,
   align-items: center;
   justify-content: center;
   padding: 0.6rem 1.2rem;
-  background-color: var(--color-primary);
-  color: white;
-  border: none;
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-medium);
   border-radius: var(--radius-lg);
   cursor: pointer;
-  font-family: inherit;
+  font-family: var(--font-family);
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: normal;
   line-height: 1.5;
   text-decoration: none;
-  transition: var(--transition-normal);
-  box-shadow: var(--shadow-md);
+  text-transform: none;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  clip-path: none;
+  overflow: visible;
 }
 
 button:hover,
 .btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  background-color: var(--color-bg-tertiary);
+  box-shadow: var(--shadow-md);
+  text-shadow: none;
 }
 
 button:active,
@@ -248,15 +314,17 @@ button:active,
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-brand) 0%, var(--color-brand-hover) 100%);
+  background: var(--color-brand);
   color: white;
-  border: none;
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-brand);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--color-brand-hover) 0%, var(--color-brand-dark) 100%);
-  box-shadow: 0 4px 12px rgba(0, 132, 255, 0.3);
+  background: var(--color-brand-hover);
+  color: white;
+  border-color: var(--color-brand-hover);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-primary:disabled {
@@ -269,15 +337,15 @@ button:active,
 .btn-secondary {
   background-color: white;
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border-dark);
-  box-shadow: none;
+  border: 1px solid var(--color-border-medium);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary:hover {
-  background-color: var(--color-bg-secondary);
+  background-color: var(--color-bg-tertiary);
   color: var(--color-text-primary);
   border-color: var(--color-border-medium);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-icon-primary {
@@ -312,21 +380,21 @@ button:active,
 
 /* Message styles */
 /* Chat Container */
-.chat-container {
+.chat-panel {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 140px);
-  /* Adjust based on header/footer height */
-  background-color: var(--bg-tertiary);
+  background-color: white;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border-light);
 }
 
 .chat-header {
-  background-color: var(--bg-surface);
+  background-color: white;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--color-border-light);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -359,6 +427,7 @@ button:active,
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  background-color: white;
 }
 
 /* Messages Area */
@@ -370,6 +439,7 @@ button:active,
   flex-direction: column;
   gap: 1rem;
   scroll-behavior: smooth;
+  background-color: white;
 }
 
 /* Message Bubbles */
@@ -399,14 +469,15 @@ button:active,
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background-color: var(--border-dark);
+  background-color: var(--color-bg-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
   margin-right: 0.75rem;
   flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
+  border: none;
 }
 
 .avatar.student {
@@ -433,13 +504,14 @@ button:active,
 }
 
 .message-bubble {
-  padding: 0.75rem 1rem;
+  padding: 0.8rem 1.2rem;
   border-radius: 18px;
   font-size: 0.95rem;
   line-height: 1.5;
   position: relative;
   word-wrap: break-word;
   box-shadow: var(--shadow-sm);
+  font-family: var(--font-family);
 }
 
 .message-meta {
@@ -455,10 +527,11 @@ button:active,
 }
 
 .message-student .message-bubble {
-  background-color: var(--bg-surface);
-  color: var(--text-primary);
-  border: 1px solid var(--border-light);
+  background-color: white;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-light);
   border-bottom-left-radius: 4px;
+  box-shadow: var(--shadow-sm);
 }
 
 /* Teacher (User) - Right Aligned */
@@ -473,10 +546,11 @@ button:active,
 }
 
 .message-teacher .message-bubble {
-  background-color: var(--bg-surface);
-  color: var(--text-primary);
-  border: 1px solid var(--border-light);
+  background-color: var(--color-brand);
+  color: white;
+  border: 1px solid var(--color-brand);
   border-bottom-right-radius: 4px;
+  box-shadow: var(--shadow-sm);
 }
 
 .message-teacher .message-meta {
@@ -500,32 +574,46 @@ button:active,
 }
 
 /* Input Area */
+/* Input Area */
 .teacher-form {
-  background-color: var(--bg-surface);
+  background-color: white;
   padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--color-border-light);
+  max-width: none;
+  width: 100%;
 }
 
 .input-group {
   display: flex;
   gap: 0.75rem;
   align-items: flex-end;
-  background-color: var(--bg-tertiary);
-  padding: 0.5rem;
-  border-radius: 20px;
+  background-color: white;
+  padding: 0;
+  border-radius: var(--radius-lg);
+  border: none;
 }
 
 textarea#teacher-input {
   flex: 1;
-  border: none;
-  background-color: transparent;
+  border: 1px solid var(--color-border-medium);
+  border-radius: var(--radius-lg);
+  background-color: white;
   resize: none;
-  padding: 0.5rem;
+  padding: 0.75rem 1rem;
   font-family: inherit;
   font-size: 0.95rem;
   max-height: 100px;
+  color: var(--color-text-primary);
+  transition: all 0.2s ease;
+}
+
+textarea#teacher-input:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
   outline: none;
 }
+
+
 
 
 
@@ -582,6 +670,7 @@ textarea#teacher-input {
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(360deg);
   }
@@ -913,17 +1002,21 @@ textarea#teacher-input {
   margin-bottom: 1.25rem;
   padding: 1rem;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .info-section h3 {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  font-family: var(--font-family);
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   margin: 0 0 0.75rem 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .info-section p {
@@ -1030,7 +1123,7 @@ textarea#teacher-input {
     gap: 1rem;
     display: none;
     z-index: 1000;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   }
 
   .nav-menu.active {
@@ -1057,7 +1150,8 @@ textarea#teacher-input {
 
   .split-layout {
     flex-direction: column;
-    height: calc(100vh - 104px); /* Account for header + tabs */
+    height: calc(100vh - 104px);
+    /* Account for header + tabs */
   }
 
   .scenario-panel,
@@ -1144,30 +1238,40 @@ textarea#teacher-input {
 }
 
 .scenario-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-medium);
+  background: white;
+  backdrop-filter: none;
+  border: 1px solid var(--color-border-medium);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   min-height: 200px;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.scenario-card::before {
+  display: none;
 }
 
 .scenario-card:hover {
   box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
+  border-color: var(--color-brand);
 }
 
 .scenario-card .scenario-title {
+  font-family: var(--font-family);
   font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 700;
+  color: var(--color-text-primary);
   margin: 0 0 0.75rem 0;
+  text-shadow: none;
 }
 
 .scenario-card .scenario-description {
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   font-size: 0.9rem;
   line-height: 1.5;
   flex-grow: 1;
@@ -1175,6 +1279,7 @@ textarea#teacher-input {
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
 }
 
@@ -1284,7 +1389,7 @@ textarea#teacher-input {
     box-shadow: none;
     background: transparent;
   }
-  
+
   .login-container {
     background: white;
     align-items: flex-start;
@@ -1527,15 +1632,15 @@ textarea#teacher-input {
   .scenarios-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .filter-bar {
     flex-direction: column;
   }
-  
+
   .filter-group {
     width: 100%;
   }
-  
+
   .filter-select {
     flex: 1;
   }
@@ -1712,6 +1817,7 @@ textarea#teacher-input {
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -2171,15 +2277,19 @@ textarea#teacher-input {
 .bg-pressing {
   background-color: #22c55e;
 }
+
 .bg-linking {
   background-color: #3b82f6;
 }
+
 .bg-directing {
   background-color: #eab308;
 }
+
 .bg-recall {
   background-color: #ef4444;
 }
+
 .bg-default {
   background-color: #9ca3af;
 }
@@ -2210,31 +2320,32 @@ textarea#teacher-input {
 }
 
 @media (max-width: 600px) {
+
   .analysis-section .chart-container,
   .analysis-container .chart-container {
     padding: 1rem;
   }
-  
+
   .chart-row {
     min-width: 350px;
   }
-  
+
   .chart-label {
     flex: 0 0 100px;
     min-width: 100px;
     font-size: 0.75rem;
   }
-  
+
   .chart-track {
     min-width: 60px;
     height: 20px;
   }
-  
+
   .chart-value {
     font-size: 0.75rem;
     min-width: 50px;
   }
-  
+
   .chart-percentage {
     font-size: 0.7rem;
   }
@@ -2469,11 +2580,11 @@ textarea#teacher-input {
   .action-buttons-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .action-cell {
     flex-direction: column;
   }
-  
+
   .action-cell .btn {
     width: 100%;
   }
@@ -2602,10 +2713,21 @@ textarea#teacher-input {
   line-height: 1;
 }
 
-.toast-success .toast-icon { color: var(--color-success); }
-.toast-error .toast-icon { color: var(--color-danger); }
-.toast-warning .toast-icon { color: var(--color-warning); }
-.toast-info .toast-icon { color: var(--color-brand); }
+.toast-success .toast-icon {
+  color: var(--color-success);
+}
+
+.toast-error .toast-icon {
+  color: var(--color-danger);
+}
+
+.toast-warning .toast-icon {
+  color: var(--color-warning);
+}
+
+.toast-info .toast-icon {
+  color: var(--color-brand);
+}
 
 .toast-content {
   flex: 1;
@@ -2632,6 +2754,7 @@ textarea#teacher-input {
     transform: translateX(100%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -2643,6 +2766,7 @@ textarea#teacher-input {
     transform: translateX(0);
     opacity: 1;
   }
+
   to {
     transform: translateX(100%);
     opacity: 0;
@@ -2748,31 +2872,31 @@ textarea#teacher-input {
     --color-brand: #3b82f6;
     --color-brand-hover: #2563eb;
     --color-brand-dark: #1d4ed8;
-    
+
     --color-navy: #1e293b;
     --color-text-primary: #f1f5f9;
     --color-text-body: #e2e8f0;
     --color-text-secondary: #94a3b8;
     --color-text-tertiary: #64748b;
     --color-text-muted: #475569;
-    
+
     --color-bg-body: #0f172a;
     --color-bg-surface: #1e293b;
     --color-bg-secondary: #334155;
     --color-bg-tertiary: #1e293b;
     --color-bg-highlight: #334155;
-    
+
     --color-border-light: #334155;
     --color-border-medium: #475569;
     --color-border-dark: #64748b;
-    
+
     --color-student: #4ade80;
     --color-teacher: #60a5fa;
     --color-tutor: #fbbf24;
     --color-tutor-bg: #451a03;
     --color-tutor-border: #78350f;
     --color-tutor-text: #fcd34d;
-    
+
     --color-success: #22c55e;
     --color-success-text: #86efac;
     --color-success-bg: #14532d;
@@ -2786,23 +2910,23 @@ textarea#teacher-input {
     --color-danger-bg: #450a0a;
     --color-info-text: #93c5fd;
     --color-info-bg: #1e3a5f;
-    
+
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
     --shadow-modal: 0 10px 25px rgba(0, 0, 0, 0.6);
   }
-  
+
   body {
     color-scheme: dark;
   }
-  
+
   /* Header dark mode */
   header {
     background-color: #0f172a;
     border-bottom: 1px solid var(--color-border-light);
   }
-  
+
   /* Form inputs dark mode */
   input,
   select,
@@ -2811,19 +2935,19 @@ textarea#teacher-input {
     border-color: var(--color-border-medium);
     color: var(--color-text-body);
   }
-  
+
   input::placeholder,
   textarea::placeholder {
     color: var(--color-text-tertiary);
   }
-  
+
   input:focus,
   select:focus,
   textarea:focus {
     border-color: var(--color-brand);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
   }
-  
+
   /* Cards and surfaces dark mode */
   .scenario-card,
   .stat-card,
@@ -2833,43 +2957,43 @@ textarea#teacher-input {
     background-color: var(--color-bg-surface);
     border-color: var(--color-border-light);
   }
-  
+
   /* Tables dark mode */
   .data-table th {
     background-color: var(--color-bg-secondary);
     color: var(--color-text-primary);
   }
-  
+
   .data-table td {
     border-color: var(--color-border-light);
   }
-  
+
   .data-table tr:hover {
     background-color: var(--color-bg-secondary);
   }
-  
+
   /* Chat messages dark mode */
   .message.student {
     background-color: #166534;
     color: #dcfce7;
   }
-  
+
   .message.teacher {
     background-color: #1e40af;
     color: #dbeafe;
   }
-  
+
   .message.tutor {
     background-color: var(--color-tutor-bg);
     border-color: var(--color-tutor-border);
     color: var(--color-tutor-text);
   }
-  
+
   /* Modal overlay dark mode */
   .modal-overlay {
     background-color: rgba(0, 0, 0, 0.7);
   }
-  
+
   /* Buttons - secondary variant */
   .btn-secondary,
   .btn-outline {
@@ -2877,65 +3001,65 @@ textarea#teacher-input {
     border-color: var(--color-border-medium);
     color: var(--color-text-body);
   }
-  
+
   .btn-secondary:hover,
   .btn-outline:hover {
     background-color: var(--color-bg-highlight);
   }
-  
+
   /* Toast dark mode */
   .toast {
     background-color: var(--color-bg-surface);
     border-color: var(--color-border-medium);
     color: var(--color-text-body);
   }
-  
+
   /* Empty state dark mode */
   .empty-state {
     background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-surface) 100%);
     border-color: var(--color-border-medium);
   }
-  
+
   /* Scrollbar dark mode */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
-  
+
   ::-webkit-scrollbar-track {
     background: var(--color-bg-body);
   }
-  
+
   ::-webkit-scrollbar-thumb {
     background: var(--color-border-medium);
     border-radius: 5px;
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-border-dark);
   }
-  
+
   /* Focus styles for dark mode */
   :focus-visible {
     outline-color: var(--color-brand);
   }
-  
+
   /* Badge dark mode adjustments */
   .badge-success {
     background-color: var(--color-success-bg);
     color: var(--color-success-text);
   }
-  
+
   .badge-warning {
     background-color: var(--color-warning-bg);
     color: var(--color-warning-text);
   }
-  
+
   .badge-danger {
     background-color: var(--color-danger-bg);
     color: var(--color-danger-text);
   }
-  
+
   /* Spinner dark mode */
   .spinner {
     border-color: var(--color-border-medium);
@@ -3000,7 +3124,8 @@ textarea#teacher-input {
 .video-player-container {
   position: relative;
   width: 100%;
-  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  padding-bottom: 56.25%;
+  /* 16:9 aspect ratio */
   height: 0;
   overflow: hidden;
   border-radius: var(--radius-lg);

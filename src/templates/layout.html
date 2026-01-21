@@ -1,17 +1,22 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>
     {% block title %}
     오개념 교정 대화 시뮬레이터
     {% endblock %}
   </title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="/static/css/styles.css">
   <script src="/static/js/htmx.min.js"></script>
 </head>
+
 <body>
   <a href="#main-content" class="skip-link">본문으로 건너뛰기</a>
   <header>
@@ -29,8 +34,7 @@
         {% endif %}
         {% if user %}
         <li>
-          <form action="/logout" method="post"
-                style="display: inline;">
+          <form action="/logout" method="post" style="display: inline;">
             <button type="submit">로그아웃</button>
           </form>
         </li>
@@ -59,22 +63,22 @@
       const toast = document.createElement('div');
       toast.className = `toast toast-${type}`;
       toast.role = 'alert';
-      
+
+
       const iconMap = {
-        success: '✓',
-        error: '✕',
-        warning: '⚠',
-        info: 'ℹ'
+        success: '',
+        error: '',
+        warning: '',
+        info: ''
       };
-      
+
       toast.innerHTML = `
-        <div class="toast-icon">${iconMap[type] || 'ℹ'}</div>
         <div class="toast-content">${message}</div>
         <button class="toast-close" onclick="this.parentElement.remove()" aria-label="Close">×</button>
       `;
-      
+
       container.appendChild(toast);
-      
+
       setTimeout(() => {
         toast.style.animation = 'toastSlideOut 0.3s forwards';
         toast.addEventListener('animationend', () => {
@@ -95,7 +99,7 @@
 
     const hamburger = document.querySelector('.hamburger');
     const navMenu = document.querySelector('.nav-menu');
-    
+
     if (hamburger && navMenu) {
       hamburger.addEventListener('click', () => {
         navMenu.classList.toggle('active');
@@ -105,4 +109,5 @@
     }
   </script>
 </body>
+
 </html>

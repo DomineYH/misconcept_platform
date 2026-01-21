@@ -106,7 +106,10 @@ class Scenario(Base):
         "User", back_populates="scenarios"
     )
     sessions: Mapped[list["Session"]] = relationship(
-        "Session", back_populates="scenario"
+        "Session",
+        back_populates="scenario",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     # Constraints

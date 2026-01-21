@@ -1,4 +1,5 @@
 """API Pydantic schemas."""
+from datetime import datetime
 from pydantic import BaseModel, Field, validator
 
 # Framework Schemas
@@ -21,9 +22,9 @@ class FrameworkUpdateWeb(BaseModel):
 class AdminFrameworkResponse(BaseModel):
     id: int
     name: str
-    description: str
+    description: str | None
     labels_json: str
-    created_at: str | None = None
+    created_at: datetime | None = None
 
     class Config:
         from_attributes = True

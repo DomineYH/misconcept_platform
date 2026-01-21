@@ -47,7 +47,10 @@ class Session(Base):
         order_by="Message.created_at",
     )
     summary: Mapped["SessionSummary"] = relationship(  # noqa: F821
-        "SessionSummary", back_populates="session", uselist=False
+        "SessionSummary",
+        back_populates="session",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
     api_usage_logs: Mapped[list["ApiUsageLog"]] = relationship(
         "ApiUsageLog",
