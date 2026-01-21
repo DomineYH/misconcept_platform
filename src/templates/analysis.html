@@ -3,94 +3,117 @@
 {% block title %}세션 분석{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8 max-w-4xl">
-    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h1 class="text-2xl font-bold mb-4">세션 분석 리포트</h1>
+<div class="analysis-container">
+    <div class="analysis-header">
+        <h1>세션 분석 리포트</h1>
+        <p>세션 종료 시간: {{ session_ended_at }}</p>
+    </div>
 
-        <div class="mb-4">
-            <p class="text-gray-600">
-                세션 종료 시간: {{ session_ended_at }}
-            </p>
-        </div>
+    <div class="analysis-feedback">
+        <h2>분석 피드백</h2>
+        <p>{{ feedback }}</p>
+    </div>
 
-        <!-- Feedback Section -->
-        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-            <h2 class="font-semibold text-lg mb-2">분석 피드백</h2>
-            <p class="text-gray-700">{{ feedback }}</p>
-        </div>
+    <div class="analysis-section">
+        <h3>질문 유형 분포</h3>
+        {% include "partials/analysis_bar.html" %}
+    </div>
 
-        <!-- Distribution Chart -->
-        <div class="mb-8">
-            <h2 class="text-xl font-semibold mb-4">
-                질문 유형 분포
-            </h2>
-            {% include "partials/analysis_bar.html" %}
-        </div>
+    <div class="analysis-section">
+        <h3>질문 목록 ({{ questions|length }}개)</h3>
 
-        <!-- Question List -->
         <div>
-            <h2 class="text-xl font-semibold mb-4">
-                질문 목록 ({{ questions|length }}개)
-            </h2>
+            {% for question in questions %}
+            <div class="question-card">
+                <div class="question-header">
+                    <p class="question-text">
+                        {{ question.content }}
+                    </p>
+                    <span class="label-badge
+                        {% if question.label == 'Pressing' %}label-pressing
+                        {% elif question.label == 'Linking' %}label-linking
+                        {% elif question.label == 'Directing' %}label-directing
+                        {% elif question.label == 'Recall' %}label-recall
+                        {% else %}label-default{% endif %}">
+                        {{ question.label }}
+                    </span>
+                </div>
 
-            <div class="space-y-3">
-                {% for question in questions %}
-                <div class="border rounded p-4 hover:bg-gray-50">
-                    <div class="flex justify-between items-start mb-2">
-                        <p class="text-gray-800 flex-1">
-                            {{ question.content }}
-                        </p>
-                        <span
-                            class="ml-4 px-3 py-1 rounded-full text-sm
-                            font-medium whitespace-nowrap
-                            {% if question.label == 'Pressing' %}
-                                bg-green-100 text-green-800
-                            {% elif question.label == 'Linking' %}
-                                bg-blue-100 text-blue-800
-                            {% elif question.label == 'Directing' %}
-                                bg-yellow-100 text-yellow-800
-                            {% elif question.label == 'Recall' %}
-                                bg-red-100 text-red-800
-                            {% else %}
-                                bg-gray-100 text-gray-800
-                            {% endif %}
-                            "
-                        >
-                            {{ question.label }}
-                        </span>
-                    </div>
+                <div class="confidence-bar-container">
+                    <span>{{ question.created_at }}</span>
+                    {% if question.confidence %}
+                    <span>
+                        신뢰도: {{ "%.0f"|format(question.confidence * 100) }}%
+                    </span>
+                    {% endif %}
+                </div>
 
-                    <div class="flex items-center text-sm text-gray-500">
-                        <span>{{ question.created_at }}</span>
-                        {% if question.confidence %}
-                        <span class="ml-4">
-                            신뢰도: {{ "%.0f"|format(question.confidence * 100) }}%
-                        </span>
+                {% if question.reasoning %}
+                <details class="analysis-details">
+                    <summary>상세 분석 보기</summary>
+                    <div class="analysis-content">
+                        <div class="analysis-box summary">
+                            <strong>요약:</strong> {{ question.reasoning.summary }}
+                        </div>
+
+                        {% if question.reasoning.pedagogical %}
+                        <div class="analysis-box pedagogical">
+                            <h4>교육학적 분석</h4>
+                            <dl class="analysis-dl">
+                                <dt>교육 원리:</dt>
+                                <dd>{{ question.reasoning.pedagogical.educational_principle }}</dd>
+                                <dt>효과성:</dt>
+                                <dd>{{ question.reasoning.pedagogical.effectiveness }}</dd>
+                                {% if question.reasoning.pedagogical.improvement_suggestion %}
+                                <dt>개선 제안:</dt>
+                                <dd>{{ question.reasoning.pedagogical.improvement_suggestion }}</dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                        {% endif %}
+
+                        {% if question.reasoning.cognitive %}
+                        <div class="analysis-box cognitive">
+                            <h4>인지적 분석</h4>
+                            <dl class="analysis-dl">
+                                <dt>인지적 요구 수준:</dt>
+                                <dd>{{ question.reasoning.cognitive.cognitive_demand }}</dd>
+                                <dt>예상 학생 반응:</dt>
+                                <dd>{{ question.reasoning.cognitive.student_response_prediction }}</dd>
+                                <dt>오개념 대응:</dt>
+                                <dd>{{ question.reasoning.cognitive.misconception_addressing }}</dd>
+                            </dl>
+                        </div>
+                        {% endif %}
+
+                        {% if question.reasoning.contextual %}
+                        <div class="analysis-box contextual">
+                            <h4>맥락적 분석</h4>
+                            <dl class="analysis-dl">
+                                <dt>대화 내 역할:</dt>
+                                <dd>{{ question.reasoning.contextual.dialogue_role }}</dd>
+                                <dt>타이밍 적절성:</dt>
+                                <dd>{{ question.reasoning.contextual.timing_appropriateness }}</dd>
+                                <dt>이전 발화 연결:</dt>
+                                <dd>{{ question.reasoning.contextual.connection_to_prior }}</dd>
+                            </dl>
+                        </div>
                         {% endif %}
                     </div>
-                </div>
-                {% endfor %}
+                </details>
+                {% endif %}
             </div>
+            {% endfor %}
         </div>
+    </div>
 
-        <!-- Export Button -->
-        <div class="mt-8 flex gap-4">
-            <a
-                href="/sessions/{{ session_id }}/export.csv"
-                class="bg-green-600 text-white px-6 py-2 rounded
-                hover:bg-green-700 transition"
-                download
-            >
-                CSV 다운로드
-            </a>
-            <a
-                href="/scenarios"
-                class="bg-gray-600 text-white px-6 py-2 rounded
-                hover:bg-gray-700 transition"
-            >
-                시나리오로 돌아가기
-            </a>
-        </div>
+    <div class="analysis-actions">
+        <a href="/sessions/{{ session_id }}/export.csv" class="btn btn-primary">
+            CSV 다운로드
+        </a>
+        <a href="/scenarios" class="btn btn-secondary">
+            시나리오로 돌아가기
+        </a>
     </div>
 </div>
 {% endblock %}

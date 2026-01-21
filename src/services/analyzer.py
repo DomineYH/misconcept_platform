@@ -18,7 +18,9 @@ from tenacity import (
 
 from src.config import config
 from src.models.analysis_framework import AnalysisFramework
+from src.prompts.example_templates import generate_examples
 from src.utils.cache import load_prompt_template
+from src.utils.openai_helpers import extract_response_text
 
 
 logger = logging.getLogger(__name__)
@@ -40,9 +42,43 @@ class Analyzer:
         """Initialize analyzer with OpenAI client."""
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.model = config.ANALYSIS_MODEL or "gpt-5"
-        # Note: temperature is not used in Responses API (GPT-5/5.1 use fixed temperature=1.0)
-        # Load cached prompt template (T111 optimization)
+        self.reasoning_effort = config.ANALYSIS_REASONING
+        # Load cached prompt templates (T111 optimization)
         self.prompt_template = load_prompt_template("analysis_prompt.txt")
+        self.greeting_template = load_prompt_template("greeting_detection.txt")
+
+    def _normalize_reasoning(self, reasoning: any) -> dict:
+        """
+        Normalize reasoning to structured format for backward compatibility.
+
+        Args:
+            reasoning: Raw reasoning from LLM (string or dict)
+
+        Returns:
+            Structured reasoning dict with all required keys
+        """
+        if isinstance(reasoning, str):
+            # Legacy format - convert to new structure
+            return {
+                "summary": reasoning,
+                "pedagogical": None,
+                "cognitive": None,
+                "contextual": None,
+            }
+        elif isinstance(reasoning, dict):
+            # Ensure all keys exist with proper structure
+            return {
+                "summary": reasoning.get("summary", ""),
+                "pedagogical": reasoning.get("pedagogical"),
+                "cognitive": reasoning.get("cognitive"),
+                "contextual": reasoning.get("contextual"),
+            }
+        return {
+            "summary": str(reasoning) if reasoning else "",
+            "pedagogical": None,
+            "cognitive": None,
+            "contextual": None,
+        }
 
     @retry(
         retry=retry_if_exception_type(
@@ -78,11 +114,17 @@ class Analyzer:
             ValueError: If response format is invalid
             APIError: If OpenAI API call fails after retries
         """
+        # Generate dynamic few-shot examples using framework labels
+        few_shot_examples = generate_examples(
+            framework.labels, framework.description or ""
+        )
+
         # Format prompt with framework, scenario context, and question
         prompt = self.prompt_template.format(
             framework_name=framework.name,
             framework_description=framework.description or "",
             framework_labels=", ".join(framework.labels),
+            few_shot_examples=few_shot_examples,
             scenario_title=scenario_title or "Not specified",
             misconception_prompt=misconception_prompt or "Not specified",
             student_profile=student_profile or "Not specified",
@@ -101,12 +143,12 @@ class Analyzer:
             response = await self.client.responses.create(
                 model=self.model,
                 input=input_messages,
-                max_output_tokens=500,  # Analyzer needs more tokens
-                modalities=["text"],
+                max_output_tokens=1500,  # Increased for structured reasoning
+                reasoning={"effort": self.reasoning_effort},
             )
 
-            # Parse JSON response (output.content instead of choices)
-            content = response.output.content.strip()
+            # Parse JSON response using helper (handles GPT-5 response structure)
+            content = extract_response_text(response)
             result = json.loads(content)
 
             # Validate response structure
@@ -130,6 +172,11 @@ class Analyzer:
                     f"Invalid confidence {confidence}, clamping to [0,1]"
                 )
                 result["confidence"] = max(0.0, min(1.0, confidence))
+
+            # Normalize reasoning to structured format
+            result["reasoning"] = self._normalize_reasoning(
+                result.get("reasoning", "")
+            )
 
             return result
 
@@ -189,3 +236,86 @@ class Analyzer:
                     }
                 )
         return results
+
+    @retry(
+        retry=retry_if_exception_type(
+            (APIConnectionError, APIError, RateLimitError)
+        ),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def detect_greetings(
+        self, messages: list[str]
+    ) -> list[Dict[str, any]]:
+        """
+        Detect greeting messages using LLM.
+
+        Args:
+            messages: List of teacher message contents
+
+        Returns:
+            List of dicts with keys: index, is_greeting, reason
+
+        Example:
+            [
+                {"index": 0, "is_greeting": True, "reason": "Opening greeting"},
+                {"index": 1, "is_greeting": False, "reason": "Conceptual question"}
+            ]
+        """
+        if not messages:
+            return []
+
+        # Format messages for prompt
+        formatted_messages = "\n".join(
+            f"{i}. {msg}" for i, msg in enumerate(messages)
+        )
+        prompt = self.greeting_template.format(messages=formatted_messages)
+
+        try:
+            response = await self.client.responses.create(
+                model=self.model,
+                input=[{"role": "user", "content": prompt}],
+                max_output_tokens=500,
+                reasoning={"effort": self.reasoning_effort},
+            )
+
+            content = extract_response_text(response)
+            results = json.loads(content)
+
+            # Validate response structure
+            if not isinstance(results, list):
+                raise ValueError("Response must be a JSON array")
+
+            # Ensure all indices are covered
+            validated_results = []
+            result_map = {r.get("index"): r for r in results}
+
+            for i in range(len(messages)):
+                if i in result_map:
+                    validated_results.append(result_map[i])
+                else:
+                    # Default to non-greeting if missing
+                    validated_results.append(
+                        {
+                            "index": i,
+                            "is_greeting": False,
+                            "reason": "Not classified",
+                        }
+                    )
+
+            return validated_results
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"Greeting detection JSON parse error: {e}")
+            # Return safe defaults (assume no greetings)
+            return [
+                {"index": i, "is_greeting": False, "reason": "Parse error"}
+                for i in range(len(messages))
+            ]
+        except Exception as e:
+            logger.warning(f"Greeting detection failed: {e}")
+            # Return safe defaults (assume no greetings)
+            return [
+                {"index": i, "is_greeting": False, "reason": "Detection failed"}
+                for i in range(len(messages))
+            ]

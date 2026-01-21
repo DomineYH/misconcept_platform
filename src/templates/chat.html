@@ -3,112 +3,317 @@
 {% block title %}{{ scenario.title }} - 대화{% endblock %}
 
 {% block content %}
-<div class="chat-container">
-  <header class="chat-header">
-    <h1>{{ scenario.title }}</h1>
-    {% if scenario.student_profile %}
-    <p class="student-info">{{ scenario.student_profile }}</p>
-    {% endif %}
-    <div class="header-actions">
-      <button id="end-session-btn" class="btn-secondary">
-        대화 종료
-      </button>
-      <button id="return-to-scenarios-btn" class="btn-secondary">
-        시나리오로 돌아가기
-      </button>
-    </div>
-  </header>
+<!-- Mobile Tab Navigation -->
+<div class="mobile-tabs">
+  <button class="mobile-tab" data-panel="scenario">상황 정보</button>
+  <button class="mobile-tab active" data-panel="chat">대화</button>
+</div>
 
-  <!-- Session status banner (hidden by default) -->
-  <div id="session-status" style="display: none; padding: 1rem; background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 0.5rem; margin: 1rem 0; text-align: center; font-weight: 600;">
-    이 대화는 종료되었습니다. 다시 참여하려면 새 세션을 시작하세요.
-  </div>
-
-  <div class="chat-wrapper">
-    <!-- Hidden input for tracking last message ID -->
-    <input type="hidden" name="since" value="0" id="last-message-id">
-
-    <!-- Messages container -->
-    <div
-      id="messages-container"
-      class="messages-container"
-      hx-get="/sessions/{{ session_id }}/messages/updates"
-      hx-trigger="every 2s"
-      hx-swap="beforeend"
-      hx-include="#last-message-id"
-    >
-      {% for message in messages %}
-        {% include 'partials/message.html' %}
-      {% endfor %}
-    </div>
-
-    <!-- Teacher input form -->
-    <form
-      id="teacher-form"
-      class="teacher-form"
-      hx-post="/sessions/{{ session_id }}/messages"
-      hx-target="#messages-container"
-      hx-swap="beforeend"
-      hx-indicator="#loading-indicator"
-    >
-      <div class="input-group">
-        <textarea
-          name="content"
-          id="teacher-input"
-          rows="3"
-          placeholder="질문이나 응답을 입력하세요..."
-          required
-          maxlength="5000"
-        ></textarea>
-        <button
-          type="submit"
-          class="btn-primary"
-          hx-disable-element="self"
-        >
-          전송
+<div class="split-layout">
+  <!-- Left Panel: Scenario Information -->
+  <aside class="scenario-panel panel-hidden" id="scenario-panel">
+    <div class="scenario-header">
+      <h1>{{ scenario.title }}</h1>
+      <div class="header-actions">
+        <button id="end-session-btn" class="btn-secondary">
+          대화 종료
+        </button>
+        <button id="return-to-scenarios-btn" class="btn-secondary">
+          나가기
         </button>
       </div>
-      <div id="loading-indicator" class="htmx-indicator">
-        응답 생성 중...
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="info-tabs">
+      <button class="info-tab active" data-tab="profile">학생 프로필</button>
+      <button class="info-tab" data-tab="situation">학습 상황</button>
+      <button class="info-tab" data-tab="video">영상</button>
+    </div>
+
+    <!-- Tab Content Container -->
+    <div class="tab-content">
+      <!-- Student Profile Tab -->
+      <div class="tab-pane active" id="tab-profile">
+        {% if scenario.student_profile %}
+        <section class="info-section">
+          <p>{{ scenario.student_profile }}</p>
+        </section>
+        {% else %}
+        <section class="info-section">
+          <p class="text-muted">학생 프로필 정보가 없습니다.</p>
+        </section>
+        {% endif %}
       </div>
-    </form>
+
+      <!-- Learning Situation Tab -->
+      <div class="tab-pane" id="tab-situation">
+        <section class="info-section">
+          <div class="scenario-prompt">{{ scenario.prompt }}</div>
+        </section>
+      </div>
+
+      <!-- Video Tab -->
+      <div class="tab-pane" id="tab-video">
+        <section class="info-section">
+          {% if scenario.video_url %}
+          <div class="video-player-container" id="video-player-wrapper">
+            <iframe
+              id="video-iframe"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen>
+            </iframe>
+          </div>
+          {% else %}
+          <div class="video-player-placeholder">
+            <p class="text-muted">등록된 영상이 없습니다</p>
+          </div>
+          {% endif %}
+        </section>
+        <section class="info-section">
+          <h4>영상 대본</h4>
+          {% if scenario.video_transcript %}
+          <div class="video-transcript-content">{{ scenario.video_transcript }}</div>
+          {% else %}
+          <div class="video-transcript-placeholder">
+            <p class="text-muted">등록된 대본이 없습니다</p>
+          </div>
+          {% endif %}
+        </section>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right Panel: Chat Interface -->
+  <section class="chat-panel" id="chat-panel">
+    <!-- Session status banner (hidden by default) -->
+    <div id="session-status" style="display: none;">
+      이 대화는 종료되었습니다.
+    </div>
+
+    <div class="chat-wrapper">
+      <!-- Hidden input for tracking last message ID -->
+      <input type="hidden" name="since" value="0" id="last-message-id">
+      <!-- Flag to track if conversation has started -->
+      <input type="hidden" id="polling-enabled" value="false">
+
+      <!-- Messages container -->
+      <div id="messages-container" class="messages-container"
+        hx-get="/sessions/{{ session_id }}/messages/updates"
+        hx-trigger="none" hx-swap="beforeend" hx-include="#last-message-id">
+        {% for message in messages %}
+        {% include 'partials/message.html' %}
+        {% endfor %}
+      </div>
+
+      <!-- Teacher input form -->
+      <form id="teacher-form" class="teacher-form"
+        hx-post="/sessions/{{ session_id }}/messages"
+        hx-target="#messages-container" hx-swap="beforeend"
+        hx-indicator="#loading-indicator">
+        <div class="input-group">
+          <textarea name="content" id="teacher-input" rows="1"
+            placeholder="메시지를 입력하세요..." required maxlength="5000"
+            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+          <button type="submit" class="btn-icon-primary"
+            hx-disable-element="self" title="전송" aria-label="메시지 전송">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+        <div id="loading-indicator" class="htmx-indicator">
+          <span class="spinner spinner-sm"></span>
+          <span>응답 생성 중...</span>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+
+<!-- Analysis Modal Overlay -->
+<div id="analysis-modal-overlay" class="modal-overlay hidden">
+  <div id="analysis-modal-container" class="modal-container modal-xl">
+    <!-- Modal content loaded via HTMX -->
   </div>
 </div>
 
 <script>
   // Enable HTMX debug logging for development
-  // To enable in browser console: htmx.config.debugLoggingEnabled = true
   console.log('💬 Chat initialized. Session ID:', {{ session_id }});
-  console.log('📋 To enable HTMX debug logging, run in console: htmx.config.debugLoggingEnabled = true');
+  console.log('📋 Polling disabled until first message is sent');
 
   // Server provides session_id via template variable
   window.currentSessionId = {{ session_id }};
 
-  // Function to lock chat UI when session ends
+  // ========================================
+  // YouTube URL Conversion
+  // ========================================
+  function convertToEmbedUrl(url) {
+    if (!url) return '';
+
+    // YouTube live URL
+    let match = url.match(/youtube\.com\/live\/([^?&]+)/);
+    if (match) return `https://www.youtube.com/embed/${match[1]}`;
+
+    // YouTube watch URL
+    match = url.match(/youtube\.com\/watch\?v=([^&]+)/);
+    if (match) return `https://www.youtube.com/embed/${match[1]}`;
+
+    // YouTube short URL
+    match = url.match(/youtu\.be\/([^?&]+)/);
+    if (match) return `https://www.youtube.com/embed/${match[1]}`;
+
+    // Already embed URL or other format
+    return url;
+  }
+
+  // Initialize video player if video URL exists
+  {% if scenario.video_url %}
+  const videoIframe = document.getElementById('video-iframe');
+  if (videoIframe) {
+    const originalUrl = "{{ scenario.video_url }}";
+    const embedUrl = convertToEmbedUrl(originalUrl);
+    videoIframe.src = embedUrl;
+    console.log('🎥 Video player initialized:', embedUrl);
+  }
+  {% endif %}
+
+  // ========================================
+  // Mobile Tab Switching
+  // ========================================
+  document.querySelectorAll('.mobile-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Update active tab
+      document.querySelectorAll('.mobile-tab').forEach(t => {
+        t.classList.remove('active');
+      });
+      tab.classList.add('active');
+
+      // Show/hide panels
+      const panelId = tab.dataset.panel;
+      const scenarioPanel = document.getElementById('scenario-panel');
+      const chatPanel = document.getElementById('chat-panel');
+
+      if (panelId === 'scenario') {
+        scenarioPanel.classList.remove('panel-hidden');
+        chatPanel.classList.add('panel-hidden');
+      } else {
+        scenarioPanel.classList.add('panel-hidden');
+        chatPanel.classList.remove('panel-hidden');
+      }
+    });
+  });
+
+  // ========================================
+  // Info Tab Switching (Scenario Panel)
+  // ========================================
+  document.querySelectorAll('.info-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Update active tab
+      document.querySelectorAll('.info-tab').forEach(t => {
+        t.classList.remove('active');
+      });
+      tab.classList.add('active');
+
+      // Show/hide tab panes
+      const tabId = tab.dataset.tab;
+      document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+      });
+
+      const targetPane = document.getElementById(`tab-${tabId}`);
+      if (targetPane) {
+        targetPane.classList.add('active');
+      }
+    });
+  });
+
+  // Initialize panels based on screen size
+  function initializePanels() {
+    const scenarioPanel = document.getElementById('scenario-panel');
+    const chatPanel = document.getElementById('chat-panel');
+
+    if (window.innerWidth <= 768) {
+      // Mobile: show chat by default, hide scenario
+      scenarioPanel.classList.add('panel-hidden');
+      chatPanel.classList.remove('panel-hidden');
+    } else {
+      // Desktop: show both panels
+      scenarioPanel.classList.remove('panel-hidden');
+      chatPanel.classList.remove('panel-hidden');
+    }
+  }
+
+  // Handle resize events
+  window.addEventListener('resize', () => {
+    initializePanels();
+    // Reset tab states on resize
+    if (window.innerWidth > 768) {
+      document.querySelectorAll('.mobile-tab').forEach(t => {
+        t.classList.remove('active');
+      });
+      document.querySelector('[data-panel="chat"]').classList.add('active');
+    }
+  });
+
+  // Initialize on load
+  initializePanels();
+
+  // ========================================
+  // Polling Functions
+  // ========================================
+  function enablePolling() {
+    const pollingFlag = document.getElementById('polling-enabled');
+    if (pollingFlag && pollingFlag.value === 'true') {
+      console.log('📡 Polling already enabled');
+      return;
+    }
+
+    const messagesContainer = document.getElementById('messages-container');
+    if (messagesContainer) {
+      messagesContainer.setAttribute('hx-trigger', 'every 2s');
+      htmx.process(messagesContainer);
+      if (pollingFlag) pollingFlag.value = 'true';
+      console.log('📡 Polling enabled - checking for updates every 2s');
+    }
+  }
+
+  function disablePolling() {
+    const messagesContainer = document.getElementById('messages-container');
+    const pollingFlag = document.getElementById('polling-enabled');
+    if (messagesContainer) {
+      messagesContainer.setAttribute('hx-trigger', 'none');
+      htmx.process(messagesContainer);
+      if (pollingFlag) pollingFlag.value = 'false';
+      console.log('🛑 Polling disabled');
+    }
+  }
+
+  // ========================================
+  // UI Lock Function
+  // ========================================
   function lockChatUI(message) {
     console.log('🔒 Locking chat UI');
 
-    // Disable textarea and submit button
     const textarea = document.getElementById('teacher-input');
     const submitBtn = document.querySelector('#teacher-form button[type="submit"]');
 
     if (textarea) textarea.disabled = true;
     if (submitBtn) submitBtn.disabled = true;
 
-    // Show status banner
     const banner = document.getElementById('session-status');
     if (banner) {
       if (message) banner.textContent = message;
       banner.style.display = 'block';
     }
 
-    // Stop HTMX polling by removing trigger attribute
-    const messagesContainer = document.getElementById('messages-container');
-    if (messagesContainer) {
-      messagesContainer.removeAttribute('hx-trigger');
-    }
+    disablePolling();
 
-    // Disable both action buttons
     const endBtn = document.getElementById('end-session-btn');
     const returnBtn = document.getElementById('return-to-scenarios-btn');
     if (endBtn) endBtn.disabled = true;
@@ -117,7 +322,9 @@
     console.log('✅ Chat UI locked');
   }
 
-  // Function to close session and navigate
+  // ========================================
+  // Session Management
+  // ========================================
   async function closeSessionAndGo(url) {
     if (!window.currentSessionId) {
       console.warn('No active session ID');
@@ -136,7 +343,6 @@
         console.log('✅ Session closed:', data);
         lockChatUI('이 대화는 종료되었습니다.');
 
-        // Navigate after a brief delay for user feedback
         setTimeout(() => {
           window.location.href = url;
         }, 500);
@@ -153,7 +359,31 @@
     }
   }
 
-  // Handle "대화 종료" button (end with analysis)
+  // ========================================
+  // Modal Functions
+  // ========================================
+  function closeAnalysisModal() {
+    const overlay = document.getElementById('analysis-modal-overlay');
+    overlay.classList.add('hidden');
+    overlay.classList.remove('flex');
+    document.getElementById('analysis-modal-container').innerHTML = '';
+  }
+
+  document.getElementById('analysis-modal-overlay').addEventListener('click', function(e) {
+    if (e.target.id === 'analysis-modal-overlay') {
+      closeAnalysisModal();
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeAnalysisModal();
+    }
+  });
+
+  // ========================================
+  // Button Event Handlers
+  // ========================================
   document.getElementById('end-session-btn').addEventListener('click', async () => {
     if (!window.currentSessionId) {
       alert('활성 세션이 없습니다');
@@ -164,8 +394,7 @@
       return;
     }
 
-    // Lock UI immediately
-    lockChatUI('세션을 종료하는 중...');
+    lockChatUI('분석 중...');
 
     try {
       const response = await fetch(`/sessions/${window.currentSessionId}/end`, {
@@ -174,13 +403,33 @@
       });
 
       if (response.ok) {
-        // Redirect to analysis page
-        window.location.href = `/sessions/${window.currentSessionId}/analysis_page`;
+        const overlay = document.getElementById('analysis-modal-overlay');
+        htmx.ajax(
+          'GET',
+          `/sessions/${window.currentSessionId}/analysis_modal`,
+          { target: '#analysis-modal-container', swap: 'innerHTML' }
+        )
+          .then(() => {
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+
+            // Fix: Update status banner from "분석 중..." to completion message
+            const banner = document.getElementById('session-status');
+            if (banner) {
+              banner.textContent = '이 대화는 종료되었습니다.';
+            }
+
+            // Fix: Re-enable exit button so user can leave after viewing analysis
+            const returnBtn = document.getElementById('return-to-scenarios-btn');
+            if (returnBtn) returnBtn.disabled = false;
+          })
+          .catch((err) => {
+            console.error('Analysis modal load failed', err);
+            alert('분석 결과를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.');
+          });
       } else {
         const error = await response.json();
         alert(`세션 종료 실패: ${error.detail || '알 수 없는 오류'}`);
-
-        // Re-enable UI if end failed
         window.location.reload();
       }
 
@@ -191,7 +440,6 @@
     }
   });
 
-  // Handle "시나리오로 돌아가기" button (close without analysis)
   document.getElementById('return-to-scenarios-btn').addEventListener('click', async () => {
     if (!confirm('시나리오 목록으로 돌아가시겠습니까?')) {
       return;
@@ -200,7 +448,9 @@
     await closeSessionAndGo('/scenarios');
   });
 
-  // Get the maximum message ID from all messages in the DOM
+  // ========================================
+  // Message Tracking
+  // ========================================
   function getLastMessageId() {
     const messages = document.querySelectorAll('.message[data-message-id]');
 
@@ -209,7 +459,6 @@
       return 0;
     }
 
-    // Parse IDs and filter out NaN values
     const ids = Array.from(messages)
       .map(m => {
         const id = parseInt(m.dataset.messageId);
@@ -231,13 +480,13 @@
     return maxId;
   }
 
-  // Update last message ID after new messages are added
+  // ========================================
+  // HTMX Event Handlers
+  // ========================================
   htmx.on('htmx:afterSwap', (event) => {
-    // Only process swaps for messages-container
     if (event.detail.target.id === 'messages-container') {
       console.log('📨 New messages added via HTMX swap');
 
-      // Log all message elements for debugging
       const messages = document.querySelectorAll('.message[data-message-id]');
       console.debug(`📊 Total messages in DOM: ${messages.length}`);
 
@@ -245,21 +494,23 @@
         const msgId = msg.dataset.messageId;
         const role = msg.querySelector('.role-label')?.textContent || 'unknown';
         const content = msg.querySelector('.message-content')?.textContent?.substring(0, 50) || '';
-
         console.debug(`  Message ${idx}: ID=${msgId}, role=${role}, content="${content}..."`);
       });
 
-      // Update hidden input with the latest message ID
       const lastId = getLastMessageId();
 
       if (lastId > 0) {
         document.getElementById('last-message-id').value = lastId;
         console.log(`✅ Updated last_message_id to: ${lastId}`);
+
+        const requestPath = event.detail.pathInfo?.requestPath || '';
+        if (!requestPath.includes('/messages/updates')) {
+          enablePolling();
+        }
       } else {
         console.warn('⚠️ No valid message IDs found after swap!');
       }
 
-      // Scroll to bottom (with null check)
       const container = document.getElementById('messages-container');
       if (container) {
         container.scrollTop = container.scrollHeight;
@@ -270,15 +521,26 @@
     }
   });
 
-  // Clear input after successful send (only for teacher-form)
   document.body.addEventListener('htmx:afterRequest', (event) => {
-    if (event.detail.successful &&
-        event.detail.target.id === 'teacher-form') {
+    // Clear input after successful message send
+    if (event.detail.successful && event.detail.elt.id === 'teacher-form') {
       document.getElementById('teacher-input').value = '';
+      document.getElementById('teacher-input').style.height = '';
     }
   });
 
-  // 에러 응답 처리 (HTTP error status codes)
+  // Enter key to send message (Shift+Enter for new line)
+  document.getElementById('teacher-input').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      const form = document.getElementById('teacher-form');
+      const input = document.getElementById('teacher-input');
+      if (input.value.trim()) {
+        htmx.trigger(form, 'submit');
+      }
+    }
+  });
+
   document.body.addEventListener('htmx:responseError', (event) => {
     const xhr = event.detail.xhr;
     const path = event.detail.pathInfo.requestPath;
@@ -292,26 +554,23 @@
         fullEvent: event.detail
       });
 
-      // Try to parse error message from server
       let errorMsg = 'Failed to send message. Please try again.';
       try {
         const errorData = JSON.parse(xhr.responseText);
         if (errorData.detail) {
           errorMsg = `Error: ${errorData.detail}`;
 
-          // Special handling for ended session errors
           if (errorData.detail.includes('already ended') || errorData.detail.includes('종료')) {
             lockChatUI('이 대화는 이미 종료되었습니다.');
             errorMsg = '이 세션은 이미 종료되었습니다. 새 세션을 시작해주세요.';
           }
         }
       } catch (e) {
-        // Response is not JSON, use default message
+        // Response is not JSON
       }
 
       alert(errorMsg);
     } else {
-      // Only log polling errors (don't alert for temporary issues)
       if (!path.includes('/messages/updates')) {
         console.error('❌ HTMX error:', event.detail);
         alert('요청 처리 중 오류가 발생했습니다');
@@ -321,7 +580,6 @@
     }
   });
 
-  // 네트워크 에러 처리 (connection failures)
   document.body.addEventListener('htmx:sendError', (event) => {
     if (event.detail.target.id === 'teacher-form') {
       console.error('❌ Network error:', {
@@ -335,13 +593,25 @@
     }
   });
 
-  // HTMX timeout handler
   document.body.addEventListener('htmx:timeout', (event) => {
     console.warn('⏱️ HTMX timeout:', event.detail);
 
-    // Only alert for non-polling requests
     if (!event.detail.pathInfo.requestPath.includes('/messages/updates')) {
       alert('요청 시간이 초과되었습니다. 다시 시도해주세요.');
+    }
+  });
+
+  // ========================================
+  // Initialization
+  // ========================================
+  document.addEventListener('DOMContentLoaded', () => {
+    const lastId = getLastMessageId();
+    if (lastId > 0) {
+      document.getElementById('last-message-id').value = lastId;
+      enablePolling();
+      console.log(`🚀 Page loaded with ${document.querySelectorAll('.message').length} messages. Polling enabled.`);
+    } else {
+      console.log('🔄 Page loaded with no messages. Polling disabled until first message.');
     }
   });
 </script>

@@ -3,23 +3,18 @@
 import logging
 from typing import Optional
 
-from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
+from openai import APIConnectionError, APIError, RateLimitError
 from sqlalchemy.ext.asyncio import AsyncSession
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from src.config import config
+from src.services.base import OpenAIBaseService, openai_retry
 from src.services.prompt_manager import PromptManager
 from src.utils.openai_helpers import extract_response_text
 
 logger = logging.getLogger(__name__)
 
 
-class TutorBot:
+class TutorBot(OpenAIBaseService):
     """Chatbot providing real-time pedagogical feedback."""
 
     def __init__(
@@ -46,7 +41,7 @@ class TutorBot:
             max_tokens: Override default max tokens (50-300)
             intervention_threshold: Interventions per 10 questions (1-10)
         """
-        self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        super().__init__()
         self.db_session = db_session
         self.model = model or config.ANALYSIS_MODEL
         self.reasoning_effort = reasoning_effort or config.TUTOR_REASONING
@@ -120,13 +115,7 @@ class TutorBot:
         # Intervene if low-leverage detected
         return any(low_leverage_indicators)
 
-    @retry(
-        retry=retry_if_exception_type(
-            (APIConnectionError, APIError, RateLimitError)
-        ),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-    )
+    @openai_retry
     async def generate_feedback(
         self,
         teacher_question: str,

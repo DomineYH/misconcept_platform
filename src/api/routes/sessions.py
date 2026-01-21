@@ -1,5 +1,6 @@
 """Session and message management routes."""
 
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -17,6 +18,7 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
@@ -397,92 +399,217 @@ async def end_session(
     # Load and validate session
     session = await _load_session(session_id, user, db)
 
-    # Mark session as ended (non-idempotent, raises error if already ended)
-    await _mark_session_ended(session, db, force=False)
+    # 세션 종료를 idempotent하게 처리
+    # 이미 종료된 세션이라도 분석이 생성되지 않았다면 재시도할 수 있도록 force=True
+    await _mark_session_ended(session, db, force=True)
 
-    # Load scenario and framework for analysis
+    # 이미 생성된 세션 요약이 있으면 재분석 없이 바로 반환
+    existing_summary_result = await db.execute(
+        select(SessionSummary).where(SessionSummary.session_id == session_id)
+    )
+    existing_summary = existing_summary_result.scalar_one_or_none()
+
+    if existing_summary:
+        return {
+            "distribution": existing_summary.distribution,
+            "feedback": existing_summary.feedback,
+        }
+
+    # Load scenario and framework for analysis (처음 분석 시에만 실행)
     scenario_result = await db.execute(
         select(Scenario).where(Scenario.id == session.scenario_id)
     )
-    scenario = scenario_result.scalar_one()
+    scenario = scenario_result.scalar_one_or_none()
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found")
 
     framework_result = await db.execute(
         select(AnalysisFramework).where(
             AnalysisFramework.id == scenario.framework_id
         )
     )
-    framework = framework_result.scalar_one()
+    framework = framework_result.scalar_one_or_none()
+    if not framework:
+        raise HTTPException(status_code=404, detail="Framework not found")
 
-    # Load all messages once (T111: fix N+1 query issue)
-    all_messages_result = await db.execute(
-        select(Message)
-        .where(Message.session_id == session_id)
-        .order_by(Message.created_at)
-    )
-    all_messages = all_messages_result.scalars().all()
+    try:
+        # Load all messages once (T111: fix N+1 query issue)
+        all_messages_result = await db.execute(
+            select(Message)
+            .where(Message.session_id == session_id)
+            .order_by(Message.created_at)
+        )
+        all_messages = all_messages_result.scalars().all()
 
-    # Filter teacher messages
-    teacher_messages = [m for m in all_messages if m.role == "teacher"]
+        # Filter teacher messages
+        teacher_messages = [m for m in all_messages if m.role == "teacher"]
 
-    # Analyze each teacher message
-    analyzer = Analyzer()
-    distribution = {label: 0 for label in framework.labels}
+        # Initialize analyzer
+        analyzer = Analyzer()
 
-    for idx, msg in enumerate(teacher_messages):
+        # Detect and filter greeting messages
+        if teacher_messages:
+            greeting_results = await analyzer.detect_greetings(
+                [m.content for m in teacher_messages]
+            )
+
+            # Filter out greetings
+            filtered_messages = []
+            for msg, result in zip(teacher_messages, greeting_results):
+                if not result.get("is_greeting", False):
+                    filtered_messages.append(msg)
+                else:
+                    logger.info(
+                        f"Filtered greeting message {msg.id}: "
+                        f"{result.get('reason', 'greeting')}"
+                    )
+
+            # Log filtering stats
+            filtered_count = len(teacher_messages) - len(filtered_messages)
+            if filtered_count > 0:
+                logger.info(
+                    f"Session {session_id}: Filtered {filtered_count} "
+                    f"greeting messages from analysis"
+                )
+
+            teacher_messages = filtered_messages
+
+        # Analyze each teacher message (excluding greetings)
+        distribution = {label: 0 for label in framework.labels}
+
+        for idx, msg in enumerate(teacher_messages):
+            try:
+                # Build context from previous messages (no DB query)
+                msg_idx = all_messages.index(msg)
+                context_messages = all_messages[max(0, msg_idx - 3) : msg_idx]
+                context = "\n".join(
+                    [f"{m.role}: {m.content}" for m in context_messages]
+                )
+
+                # Classify question with scenario context
+                result = await analyzer.classify_question(
+                    question=msg.content,
+                    framework=framework,
+                    context=context,
+                    scenario_title=scenario.title,
+                    misconception_prompt=scenario.prompt,
+                    student_profile=scenario.student_profile
+                    or "Grade 5 student",
+                )
+
+                # Create QuestionAnalysis record
+                # Serialize reasoning dict to JSON string for storage
+                reasoning = result.get("reasoning")
+                reasoning_json = (
+                    json.dumps(reasoning, ensure_ascii=False)
+                    if isinstance(reasoning, dict)
+                    else reasoning
+                )
+                analysis = QuestionAnalysis(
+                    message_id=msg.id,
+                    label=result["label"],
+                    confidence=result.get("confidence"),
+                    meta_json=reasoning_json,
+                )
+                db.add(analysis)
+
+                # Update distribution
+                distribution[result["label"]] += 1
+
+            except Exception as e:
+                # Log error but continue processing
+                print(f"Failed to analyze message {msg.id}: {e}")
+                continue
+
+        await db.commit()
+
+        # Generate SessionSummary
+        feedback = (
+            f"Session analysis complete. Classified "
+            f"{len(teacher_messages)} teacher questions."
+        )
+
+        summary = SessionSummary(
+            session_id=session_id,
+            distribution_json=json.dumps(distribution),
+            feedback=feedback,
+        )
+        db.add(summary)
+        await db.commit()
+
+        return {"distribution": distribution, "feedback": feedback}
+
+    except IntegrityError as e:
+        # Summary가 중복으로 삽입될 때 (동시 요청) 기존 요약을 반환
+        await db.rollback()
+        logger.warning(
+            f"Session {session_id}: duplicate summary insert detected: {e}"
+        )
+        summary_result = await db.execute(
+            select(SessionSummary).where(SessionSummary.session_id == session_id)
+        )
+        summary = summary_result.scalar_one_or_none()
+        if summary:
+            return {
+                "distribution": summary.distribution,
+                "feedback": summary.feedback,
+            }
+        # 없으면 안전하게 fallback 생성 시도
+        fallback_distribution = {label: 0 for label in framework.labels}
+        fallback_feedback = (
+            "분석에 실패했습니다. 잠시 후 다시 시도하거나 관리자에게 문의하세요."
+        )
+        summary = SessionSummary(
+            session_id=session_id,
+            distribution_json=json.dumps(fallback_distribution),
+            feedback=fallback_feedback,
+        )
+        db.add(summary)
+        await db.commit()
+        return {
+            "distribution": fallback_distribution,
+            "feedback": fallback_feedback,
+        }
+
+    except Exception as e:
+        # Rollback any partial writes and return safe fallback summary
+        await db.rollback()
+        logger.error(
+            f"Session {session_id}: analysis pipeline failed: {e}",
+            exc_info=True,
+        )
+
+        fallback_distribution = {label: 0 for label in framework.labels}
+        fallback_feedback = (
+            "분석에 실패했습니다. 잠시 후 다시 시도하거나 관리자에게 문의하세요."
+        )
+
         try:
-            # Build context from previous messages (no DB query)
-            msg_idx = all_messages.index(msg)
-            context_messages = all_messages[max(0, msg_idx - 3) : msg_idx]
-            context = "\n".join(
-                [f"{m.role}: {m.content}" for m in context_messages]
+            summary = SessionSummary(
+                session_id=session_id,
+                distribution_json=json.dumps(fallback_distribution),
+                feedback=fallback_feedback,
             )
-
-            # Classify question with scenario context
-            result = await analyzer.classify_question(
-                question=msg.content,
-                framework=framework,
-                context=context,
-                scenario_title=scenario.title,
-                misconception_prompt=scenario.prompt,
-                student_profile=scenario.student_profile or "Grade 5 student",
+            db.add(summary)
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            # 다른 요청이 이미 요약을 만든 경우
+            summary_result = await db.execute(
+                select(SessionSummary).where(SessionSummary.session_id == session_id)
             )
+            summary = summary_result.scalar_one_or_none()
+            if summary:
+                return {
+                    "distribution": summary.distribution,
+                    "feedback": summary.feedback,
+                }
 
-            # Create QuestionAnalysis record
-            analysis = QuestionAnalysis(
-                message_id=msg.id,
-                label=result["label"],
-                confidence=result.get("confidence"),
-                meta_json=result.get("reasoning"),
-            )
-            db.add(analysis)
-
-            # Update distribution
-            distribution[result["label"]] += 1
-
-        except Exception as e:
-            # Log error but continue processing
-            print(f"Failed to analyze message {msg.id}: {e}")
-            continue
-
-    await db.commit()
-
-    # Generate SessionSummary
-    import json
-
-    feedback = (
-        f"Session analysis complete. Classified "
-        f"{len(teacher_messages)} teacher questions."
-    )
-
-    summary = SessionSummary(
-        session_id=session_id,
-        distribution_json=json.dumps(distribution),
-        feedback=feedback,
-    )
-    db.add(summary)
-    await db.commit()
-
-    return {"distribution": distribution, "feedback": feedback}
+        return {
+            "distribution": fallback_distribution,
+            "feedback": fallback_feedback,
+            "error": "analysis_failed",
+        }
 
 
 @router.get("/sessions/{session_id}/analysis")
@@ -531,14 +658,27 @@ async def get_analysis(
     )
     message_analyses = messages_result.all()
 
-    # Format question list
+    # Format question list with parsed reasoning
     questions = []
     for msg, analysis in message_analyses:
+        reasoning = None
+        if analysis and analysis.meta_json:
+            try:
+                reasoning = json.loads(analysis.meta_json)
+            except json.JSONDecodeError:
+                # Legacy string format - convert to structured format
+                reasoning = {
+                    "summary": analysis.meta_json,
+                    "pedagogical": None,
+                    "cognitive": None,
+                    "contextual": None,
+                }
         questions.append(
             {
                 "content": msg.content,
                 "label": analysis.label if analysis else "Unclassified",
                 "confidence": (analysis.confidence if analysis else None),
+                "reasoning": reasoning,
                 "created_at": msg.created_at.isoformat(),
             }
         )
@@ -572,6 +712,31 @@ async def get_analysis_page(
             "feedback": analysis_data["feedback"],
             "questions": analysis_data["questions"],
             "session_ended_at": analysis_data["session_ended_at"],
+        },
+    )
+
+
+@router.get("/sessions/{session_id}/analysis_modal", response_class=HTMLResponse)
+async def get_analysis_modal(
+    request: Request,
+    session_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Render analysis modal content (HTMX partial).
+
+    Returns HTML fragment for modal display on session end.
+    """
+    # Get analysis data using existing endpoint logic
+    analysis_data = await get_analysis(session_id, user, db)
+
+    return templates.TemplateResponse(
+        "partials/analysis_modal.html",
+        {
+            "request": request,
+            "user": user,
+            "session_id": session_id,
+            **analysis_data,
         },
     )
 

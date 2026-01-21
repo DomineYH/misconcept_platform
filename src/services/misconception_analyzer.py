@@ -4,22 +4,17 @@ import json
 import logging
 from typing import Optional
 
-from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
+from openai import APIConnectionError, APIError, RateLimitError
 from sqlalchemy.ext.asyncio import AsyncSession
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from src.config import config
+from src.services.base import OpenAIBaseService, openai_retry
 from src.utils.openai_helpers import extract_response_text
 
 logger = logging.getLogger(__name__)
 
 
-class MisconceptionAnalyzer:
+class MisconceptionAnalyzer(OpenAIBaseService):
     """실시간 오개념 탐지 및 추적 서비스."""
 
     def __init__(
@@ -36,20 +31,14 @@ class MisconceptionAnalyzer:
             reasoning_effort: Override reasoning effort (minimal, low,
                 medium, high)
         """
-        self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        super().__init__()
         self.db_session = db_session
         self.model = model or config.ANALYSIS_MODEL
         self.reasoning_effort = (
             reasoning_effort or config.ANALYSIS_REASONING
         )
 
-    @retry(
-        retry=retry_if_exception_type(
-            (APIConnectionError, APIError, RateLimitError)
-        ),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-    )
+    @openai_retry
     async def analyze_student_response(
         self,
         student_message: str,
@@ -93,10 +82,12 @@ class MisconceptionAnalyzer:
             ]
 
             # OpenAI Responses API 호출 (GPT-5 with reasoning)
+            # Note: GPT-5 reasoning consumes tokens from max_output_tokens
+            # 500 = ~200 reasoning + ~300 actual output
             response = await self.client.responses.create(
                 model=self.model,
                 input=input_messages,
-                max_output_tokens=300,
+                max_output_tokens=500,
                 reasoning={"effort": self.reasoning_effort},
             )
 

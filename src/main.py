@@ -27,9 +27,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
     """Custom JSON formatter for structured logging."""
 
     def add_fields(self, log_record, record, message_dict):
-        super(CustomJsonFormatter, self).add_fields(
-            log_record, record, message_dict
-        )
+        super().add_fields(log_record, record, message_dict)
         log_record["timestamp"] = record.created
         log_record["level"] = record.levelname
         log_record["logger"] = record.name
@@ -44,7 +42,11 @@ formatter = CustomJsonFormatter(
 )
 json_handler.setFormatter(formatter)
 logger.addHandler(json_handler)
-logger.setLevel(logging.INFO)
+
+# Log level from environment (DEBUG for troubleshooting OpenAI responses)
+import os
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logger.setLevel(getattr(logging, log_level, logging.INFO))
 
 # Initialize rate limiter (disabled in test mode)
 limiter = Limiter(
@@ -119,7 +121,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         ] = "max-age=31536000; includeSubDomains"
         response.headers[
             "Content-Security-Policy"
-        ] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'"
+        ] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers[
             "Permissions-Policy"
@@ -196,6 +198,7 @@ templates = Jinja2Templates(directory="src/templates")
 # Register route blueprints
 from src.api.routes import (
     admin,
+    admin_analysis,
     admin_api_usage,
     admin_prompts,
     admin_sessions,
@@ -210,6 +213,7 @@ app.include_router(auth.router)
 app.include_router(scenarios.router)
 app.include_router(sessions.router)
 app.include_router(admin.router)
+app.include_router(admin_analysis.router)
 app.include_router(admin_api_usage.router)
 app.include_router(admin_prompts.router)
 app.include_router(admin_sessions.router)

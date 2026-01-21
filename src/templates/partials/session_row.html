@@ -1,0 +1,49 @@
+<tr class="{% if session.ended_at %}ended{% else %}active{% endif %}">
+  <td>{{ session.id }}</td>
+  <td>{{ session.scenario.title if session.scenario else '-' }}</td>
+  <td>
+    {% if session.teacher %}
+    {{ session.teacher.nickname }}
+    <small>({{ session.teacher.student_uid }})</small>
+    {% else %}
+    -
+    {% endif %}
+  </td>
+  <td>{{ session.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+  <td>
+    {% if session.ended_at %}
+      {{ session.ended_at.strftime('%Y-%m-%d %H:%M') }}
+    {% else %}
+      -
+    {% endif %}
+  </td>
+  <td>
+    {% if session.ended_at %}
+      <span class="badge badge-success">완료</span>
+    {% else %}
+      <span class="badge badge-warning">진행중</span>
+    {% endif %}
+  </td>
+  <td class="action-cell">
+    {% if not session.ended_at %}
+    <button type="button"
+      hx-post="/admin/sessions/{{ session.id }}/end"
+      hx-confirm="세션을 종료하시겠습니까?"
+      hx-target="closest tr"
+      hx-swap="outerHTML"
+      class="btn btn-sm btn-warning">종료</button>
+    {% else %}
+    <a href="/admin/sessions/{{ session.id }}/download"
+      class="btn btn-sm btn-primary">저장</a>
+    {% endif %}
+    <button type="button"
+      hx-delete="/admin/sessions/{{ session.id }}"
+      hx-confirm="세션을 삭제하시겠습니까? (복구 불가)"
+      hx-target="closest tr"
+      hx-swap="delete"
+      class="btn btn-sm btn-danger">삭제</button>
+    <button type="button"
+      class="btn btn-sm btn-secondary view-detail-btn"
+      data-session-id="{{ session.id }}">상세</button>
+  </td>
+</tr>

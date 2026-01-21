@@ -13,10 +13,16 @@
   <script src="/static/js/htmx.min.js"></script>
 </head>
 <body>
+  <a href="#main-content" class="skip-link">본문으로 건너뛰기</a>
   <header>
     <nav>
       <h1>오개념 교정 대화 시뮬레이터</h1>
-      <ul>
+      <button class="hamburger" aria-label="메뉴" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <ul class="nav-menu">
         <li><a href="/scenarios">시나리오</a></li>
         {% if user and user.role == 'admin' %}
         <li><a href="/admin">관리자</a></li>
@@ -33,7 +39,7 @@
     </nav>
   </header>
 
-  <main>
+  <main id="main-content">
     {% block content %}
     <!-- Page-specific content goes here -->
     {% endblock %}
@@ -45,5 +51,58 @@
       교육 연구 도구
     </p>
   </footer>
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    function showToast(message, type = 'info', duration = 4000) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.role = 'alert';
+      
+      const iconMap = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+        info: 'ℹ'
+      };
+      
+      toast.innerHTML = `
+        <div class="toast-icon">${iconMap[type] || 'ℹ'}</div>
+        <div class="toast-content">${message}</div>
+        <button class="toast-close" onclick="this.parentElement.remove()" aria-label="Close">×</button>
+      `;
+      
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.style.animation = 'toastSlideOut 0.3s forwards';
+        toast.addEventListener('animationend', () => {
+          if (toast.parentElement) {
+            toast.remove();
+          }
+        });
+      }, duration);
+
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const toasts = document.querySelectorAll('.toast');
+        toasts.forEach(t => t.remove());
+      }
+    });
+
+    const hamburger = document.querySelector('.hamburger');
+    const navMenu = document.querySelector('.nav-menu');
+    
+    if (hamburger && navMenu) {
+      hamburger.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+        const expanded = hamburger.getAttribute('aria-expanded') === 'true';
+        hamburger.setAttribute('aria-expanded', !expanded);
+      });
+    }
+  </script>
 </body>
 </html>

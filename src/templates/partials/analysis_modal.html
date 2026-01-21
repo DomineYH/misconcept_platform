@@ -1,0 +1,129 @@
+<!-- Analysis Modal Content (HTMX partial) -->
+<!-- Analysis Modal Content (HTMX partial) -->
+<!-- Modal Header -->
+<div class="modal-header">
+    <h2>세션 분석 결과</h2>
+    <button onclick="closeAnalysisModal()" class="close-modal-btn" aria-label="닫기">&times;</button>
+</div>
+
+<!-- Modal Body -->
+<div class="modal-body">
+    <!-- Distribution Section -->
+    <section class="analysis-section">
+        <h3>질문 유형 분포</h3>
+        {% include "partials/analysis_bar.html" %}
+    </section>
+
+    <!-- Questions Section -->
+    <section class="analysis-section">
+        <h3>
+            질문별 상세 분석 ({{ questions|length }}개)
+        </h3>
+
+        <div class="questions-list">
+            {% for question in questions %}
+            <div class="question-card">
+                <!-- Question Header -->
+                <div class="question-header">
+                    <p class="question-text">{{ question.content }}</p>
+                    <span class="label-badge
+                        {% if question.label == 'Pressing' %}label-pressing
+                        {% elif question.label == 'Linking' %}label-linking
+                        {% elif question.label == 'Directing' %}label-directing
+                        {% elif question.label == 'Recall' %}label-recall
+                        {% else %}label-default{% endif %}">
+                        {{ question.label }}
+                    </span>
+                </div>
+
+                <!-- Confidence -->
+                {% if question.confidence %}
+                <div class="confidence-bar-container">
+                    <span>신뢰도:</span>
+                    <div class="confidence-track">
+                        <div class="confidence-fill" style="width: {{ (question.confidence * 100)|int }}%"></div>
+                    </div>
+                    <span>{{ "%.0f"|format(question.confidence * 100) }}%</span>
+                </div>
+                {% endif %}
+
+                <!-- Detailed Reasoning -->
+                {% if question.reasoning %}
+                <details class="analysis-details">
+                    <summary>
+                        상세 분석 보기
+                    </summary>
+                    <div class="analysis-content">
+                        <!-- Summary -->
+                        <div class="analysis-box summary">
+                            <strong>요약:</strong>
+                            <span>{{ question.reasoning.summary }}</span>
+                        </div>
+
+                        <!-- Pedagogical -->
+                        {% if question.reasoning.pedagogical %}
+                        <div class="analysis-box pedagogical">
+                            <h4>교육학적 분석</h4>
+                            <dl class="analysis-dl">
+                                <dt>교육 원리:</dt>
+                                <dd>{{ question.reasoning.pedagogical.educational_principle }}</dd>
+                                <dt>효과성:</dt>
+                                <dd>{{ question.reasoning.pedagogical.effectiveness }}</dd>
+                                {% if question.reasoning.pedagogical.improvement_suggestion %}
+                                <dt>개선 제안:</dt>
+                                <dd>{{ question.reasoning.pedagogical.improvement_suggestion }}</dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                        {% endif %}
+
+                        <!-- Cognitive -->
+                        {% if question.reasoning.cognitive %}
+                        <div class="analysis-box cognitive">
+                            <h4>인지적 분석</h4>
+                            <dl class="analysis-dl">
+                                <dt>인지적 요구 수준:</dt>
+                                <dd>{{ question.reasoning.cognitive.cognitive_demand }}</dd>
+                                <dt>예상 학생 반응:</dt>
+                                <dd>{{ question.reasoning.cognitive.student_response_prediction }}</dd>
+                                <dt>오개념 대응:</dt>
+                                <dd>{{ question.reasoning.cognitive.misconception_addressing }}</dd>
+                            </dl>
+                        </div>
+                        {% endif %}
+
+                        <!-- Contextual -->
+                        {% if question.reasoning.contextual %}
+                        <div class="analysis-box contextual">
+                            <h4>맥락적 분석</h4>
+                            <dl class="analysis-dl">
+                                <dt>대화 내 역할:</dt>
+                                <dd>{{ question.reasoning.contextual.dialogue_role }}</dd>
+                                <dt>타이밍 적절성:</dt>
+                                <dd>{{ question.reasoning.contextual.timing_appropriateness }}</dd>
+                                <dt>이전 발화 연결:</dt>
+                                <dd>{{ question.reasoning.contextual.connection_to_prior }}</dd>
+                            </dl>
+                        </div>
+                        {% endif %}
+                    </div>
+                </details>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<!-- Modal Footer -->
+<div class="modal-footer">
+    <a href="/sessions/{{ session_id }}/analysis_page" class="btn-modal btn-modal-secondary">
+        전체 화면으로 보기
+    </a>
+    <a href="/sessions/{{ session_id }}/export.csv" class="btn-modal btn-modal-primary" download>
+        CSV 다운로드
+    </a>
+    <a href="/scenarios" class="btn-modal btn-modal-success">
+        시나리오 목록으로
+    </a>
+</div>

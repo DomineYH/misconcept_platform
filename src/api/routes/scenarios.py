@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import get_db_session, get_current_user
 from src.models import User, Scenario, Session
@@ -60,9 +61,10 @@ async def get_scenario_detail(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Display scenario and dialogue interface."""
-    # Load scenario (exclude deleted)
+    # Load scenario with framework (exclude deleted)
     result = await db.execute(
         select(Scenario)
+        .options(selectinload(Scenario.framework))
         .where(Scenario.id == scenario_id)
         .where(Scenario.deleted_at.is_(None))
     )

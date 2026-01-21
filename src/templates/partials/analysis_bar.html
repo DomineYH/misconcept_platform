@@ -1,35 +1,32 @@
 <!-- Frequency bar chart visualization (T070) -->
-<div class="space-y-3">
+<!-- Frequency bar chart visualization (T070) -->
+<div class="chart-container">
     {% for label, count in distribution.items() %}
-    <div class="flex items-center">
-        <div class="w-32 text-sm font-medium text-gray-700">
+    <div class="chart-row">
+        <div class="chart-label">
             {{ label }}
         </div>
-        <div class="flex-1 ml-4">
-            <div class="flex items-center">
+        <div class="chart-bar-wrapper">
+            <div class="chart-bar-container">
                 <!-- Calculate percentage for bar width -->
                 {% set total = distribution.values()|sum %}
                 {% set percentage = (count / total * 100) if total > 0 else 0 %}
 
                 <!-- Bar -->
-                <div class="w-full bg-gray-200 rounded-full h-6 mr-3">
-                    <div
-                        class="h-6 rounded-full flex items-center
-                        justify-end pr-2 text-white text-sm font-medium
+                <div class="chart-track">
+                    <div class="chart-fill
                         {% if label == 'Pressing' %}
-                            bg-green-500
+                            bg-pressing
                         {% elif label == 'Linking' %}
-                            bg-blue-500
+                            bg-linking
                         {% elif label == 'Directing' %}
-                            bg-yellow-500
+                            bg-directing
                         {% elif label == 'Recall' %}
-                            bg-red-500
+                            bg-recall
                         {% else %}
-                            bg-gray-500
+                            bg-default
                         {% endif %}
-                        "
-                        style="width: {{ percentage }}%"
-                    >
+                        " style="width: {{ percentage }}%">
                         {% if percentage > 10 %}
                         {{ count }}
                         {% endif %}
@@ -37,13 +34,10 @@
                 </div>
 
                 <!-- Count label (shown outside if bar too small) -->
-                <div class="w-16 text-right text-sm font-semibold">
-                    {% if percentage <= 10 %}
-                    {{ count }}
-                    {% endif %}
-                    <span class="text-gray-500 ml-1">
+                <div class="chart-value">
+                    {% if percentage <= 10 %} {{ count }} {% endif %} <span class="chart-percentage">
                         ({{ "%.0f"|format(percentage) }}%)
-                    </span>
+                        </span>
                 </div>
             </div>
         </div>
@@ -51,15 +45,13 @@
     {% endfor %}
 
     <!-- Total count -->
-    <div class="pt-3 border-t mt-3">
-        <div class="flex items-center">
-            <div class="w-32 text-sm font-bold text-gray-900">
+    <div class="chart-total">
+        <div class="chart-total-row">
+            <div class="chart-total-label">
                 총계
             </div>
-            <div class="flex-1 ml-4">
-                <div class="text-right font-bold text-gray-900">
-                    {{ distribution.values()|sum }}개 질문
-                </div>
+            <div class="chart-total-value">
+                {{ distribution.values()|sum }}개 질문
             </div>
         </div>
     </div>

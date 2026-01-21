@@ -3,23 +3,18 @@
 import logging
 from typing import Optional
 
-from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
+from openai import APIConnectionError, APIError, RateLimitError
 from sqlalchemy.ext.asyncio import AsyncSession
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from src.config import config
+from src.services.base import OpenAIBaseService, openai_retry
 from src.services.prompt_manager import PromptManager
 from src.utils.openai_helpers import extract_response_text
 
 logger = logging.getLogger(__name__)
 
 
-class StudentBot:
+class StudentBot(OpenAIBaseService):
     """Chatbot simulating student with specific misconception."""
 
     def __init__(
@@ -44,7 +39,7 @@ class StudentBot:
                 medium, high)
             max_tokens: Override default max tokens (50-500)
         """
-        self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        super().__init__()
         self.db_session = db_session
         self.model = model or config.CHAT_MODEL
         self.reasoning_effort = reasoning_effort or config.STUDENT_REASONING
@@ -55,13 +50,7 @@ class StudentBot:
         self.scenario_title = scenario_title
         self.student_profile = student_profile
 
-    @retry(
-        retry=retry_if_exception_type(
-            (APIConnectionError, APIError, RateLimitError)
-        ),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-    )
+    @openai_retry
     async def generate_response(
         self, teacher_message: str, conversation_history: list[dict]
     ) -> tuple[str, Optional[dict]]:

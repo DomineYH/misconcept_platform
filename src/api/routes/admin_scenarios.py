@@ -121,6 +121,9 @@ async def create_scenario(
         tutor_intervention_threshold=(
             scenario_data.tutor_intervention_threshold
         ),
+        # Video fields
+        video_url=scenario_data.video_url,
+        video_transcript=scenario_data.video_transcript,
     )
 
     db.add(scenario)
@@ -208,6 +211,12 @@ async def update_scenario(
         scenario.tutor_intervention_threshold = (
             scenario_data.tutor_intervention_threshold
         )
+
+    # Update video fields
+    if scenario_data.video_url is not None:
+        scenario.video_url = scenario_data.video_url
+    if scenario_data.video_transcript is not None:
+        scenario.video_transcript = scenario_data.video_transcript
 
     await db.commit()
     await db.refresh(scenario)

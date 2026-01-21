@@ -3,966 +3,650 @@
 {% block title %}시나리오 관리 - 관리자{% endblock %}
 
 {% block content %}
-<div class="container">
-  <header class="page-header">
-    <h1>📝 시나리오 관리</h1>
-    <p class="subtitle">대화 시나리오 생성, 수정 및 관리</p>
+<div class="container scenarios-admin">
+  <!-- Page Header with Create Button -->
+  <header class="page-header-admin">
+    <div class="header-content">
+      <h1>시나리오 관리</h1>
+      <p class="subtitle">대화 시나리오 생성, 수정 및 관리</p>
+    </div>
+    <button type="button" class="btn btn-primary" id="open-create-modal">
+      + 새 시나리오
+    </button>
   </header>
 
-  <!-- Create New Scenario Form -->
-  <section class="create-section">
-    <h2>새 시나리오 생성</h2>
-    <form id="create-form" class="scenario-form">
+  <!-- Search and Filter Bar -->
+  <section class="filter-bar">
+    <div class="search-box">
+      <input
+        type="text"
+        id="search-input"
+        placeholder="시나리오 검색..."
+        class="search-input"
+      />
+    </div>
+    <div class="filter-group">
+      <select id="filter-framework" class="filter-select">
+        <option value="">모든 프레임워크</option>
+        {% for framework in frameworks %}
+        <option value="{{ framework.id }}">{{ framework.name }}</option>
+        {% endfor %}
+      </select>
+      <select id="filter-status" class="filter-select">
+        <option value="">모든 상태</option>
+        <option value="active">활성</option>
+        <option value="inactive">비활성</option>
+      </select>
+    </div>
+  </section>
+
+  <!-- Scenarios Grid -->
+  <section class="scenarios-grid-container">
+    <h2 class="section-title">
+      시나리오 목록
+      <span class="count-badge">{{ scenarios|length }}개</span>
+    </h2>
+
+    {% if scenarios %}
+    <div class="scenarios-grid" id="scenarios-grid">
+      {% for scenario in scenarios %}
+      <div
+        class="scenario-card {% if scenario.is_active != 1 %}inactive{% endif %}"
+        data-scenario-id="{{ scenario.id }}"
+        data-framework-id="{{ scenario.framework_id }}"
+        data-title="{{ scenario.title }}"
+      >
+        <!-- Status Badge -->
+        <div class="card-status">
+          <label class="status-badge {% if scenario.is_active == 1 %}active{% endif %}">
+            <input
+              type="checkbox"
+              class="status-toggle"
+              data-id="{{ scenario.id }}"
+              {% if scenario.is_active == 1 %}checked{% endif %}
+            />
+            <span class="badge-text">
+              {% if scenario.is_active == 1 %}활성{% else %}비활성{% endif %}
+            </span>
+          </label>
+        </div>
+
+        <!-- Card Content -->
+        <div class="card-body">
+          <h3 class="card-title">{{ scenario.title }}</h3>
+          
+          <div class="card-meta">
+            <span class="meta-tag framework">
+              {{ scenario.framework.name }}
+            </span>
+            <span class="meta-tag {% if session_counts[scenario.id] > 0 %}sessions{% endif %}">
+              세션 {{ session_counts[scenario.id] }}개
+            </span>
+          </div>
+
+          <p class="card-description">
+            {{ scenario.prompt[:120] }}{% if scenario.prompt|length > 120 %}...{% endif %}
+          </p>
+        </div>
+
+        <!-- Card Actions -->
+        <div class="card-actions">
+          <a
+            href="/admin/sessions-page?scenario_id={{ scenario.id }}"
+            class="btn btn-sm btn-outline"
+          >
+            💬 대화목록
+          </a>
+          <button
+            type="button"
+            class="btn btn-sm btn-secondary edit-btn"
+            data-id="{{ scenario.id }}"
+          >
+            수정
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-danger delete-btn"
+            data-id="{{ scenario.id }}"
+            data-title="{{ scenario.title }}"
+            data-session-count="{{ session_counts[scenario.id] }}"
+          >
+            삭제
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <span class="empty-state-icon">📝</span>
+      <h3 class="empty-state-title">시나리오가 없습니다</h3>
+      <p>등록된 시나리오가 없습니다.</p>
+      <button type="button" class="btn btn-primary" id="open-create-modal-empty">
+        + 첫 번째 시나리오 만들기
+      </button>
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+<!-- ========================================
+     CREATE SCENARIO MODAL
+     ======================================== -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal-container modal-lg">
+    <div class="modal-header">
+      <h2>새 시나리오 생성</h2>
+      <button type="button" class="close-modal-btn" data-modal="create-modal" aria-label="닫기">&times;</button>
+    </div>
+    <form id="create-form" class="modal-form">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="new-title">제목 <span class="required">*</span></label>
+            <input
+              type="text"
+              id="new-title"
+              name="title"
+              required
+              minlength="3"
+              maxlength="200"
+              placeholder="시나리오 제목 입력"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="new-framework">프레임워크 <span class="required">*</span></label>
+            <select id="new-framework" name="framework_id" required>
+              <option value="">선택하세요</option>
+              {% for framework in frameworks %}
+              <option value="{{ framework.id }}">{{ framework.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="new-prompt">시나리오 프롬프트 <span class="required">*</span></label>
+          <textarea
+            id="new-prompt"
+            name="prompt"
+            rows="4"
+            required
+            minlength="10"
+            maxlength="10000"
+            placeholder="시나리오 맥락을 설명하세요"
+          ></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="new-profile">학생 프로필 <span class="required">*</span></label>
+          <textarea
+            id="new-profile"
+            name="student_profile"
+            rows="3"
+            required
+            minlength="3"
+            maxlength="5000"
+            placeholder="학생의 특성을 설명하세요"
+          ></textarea>
+        </div>
+
+        <!-- Video Settings (Collapsible) -->
+        <details class="advanced-settings">
+          <summary>영상 설정</summary>
+          <div class="settings-content">
+            <div class="form-group">
+              <label for="new-video-url">영상 URL</label>
+              <input
+                type="url"
+                id="new-video-url"
+                name="video_url"
+                maxlength="500"
+                placeholder="https://www.youtube.com/..."
+              />
+              <small class="form-help">YouTube, Vimeo 등 영상 URL을 입력하세요</small>
+            </div>
+
+            <div class="form-group">
+              <label for="new-video-transcript">영상 대본</label>
+              <textarea
+                id="new-video-transcript"
+                name="video_transcript"
+                rows="4"
+                placeholder="영상에서 나오는 대사/대본을 입력하세요..."
+              ></textarea>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal="create-modal">취소</button>
+        <button type="submit" class="btn btn-primary">시나리오 생성</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========================================
+     EDIT SCENARIO SLIDE PANEL
+     ======================================== -->
+<div class="slide-panel-overlay" id="edit-panel-overlay"></div>
+<aside class="slide-panel" id="edit-panel">
+  <div class="panel-header">
+    <h2>시나리오 수정</h2>
+    <button type="button" class="close-panel-btn" id="close-edit-panel" aria-label="닫기">&times;</button>
+  </div>
+  
+  <form id="edit-form" class="panel-form">
+    <input type="hidden" id="edit-scenario-id" name="scenario_id" />
+    
+    <div class="panel-body">
       <div class="form-group">
-        <label for="new-title">제목 *</label>
+        <label for="edit-title">제목 <span class="required">*</span></label>
         <input
           type="text"
-          id="new-title"
+          id="edit-title"
           name="title"
           required
           minlength="3"
           maxlength="200"
-          placeholder="시나리오 제목 입력 (3-200자)"
         />
       </div>
 
       <div class="form-group">
-        <label for="new-framework">프레임워크 *</label>
-        <select id="new-framework" name="framework_id" required>
-          <option value="">프레임워크 선택</option>
+        <label for="edit-framework">프레임워크 <span class="required">*</span></label>
+        <select id="edit-framework" name="framework_id" required>
           {% for framework in frameworks %}
-          <option value="{{ framework.id }}">
-            {{ framework.name }}
-          </option>
+          <option value="{{ framework.id }}">{{ framework.name }}</option>
           {% endfor %}
         </select>
       </div>
 
       <div class="form-group">
-        <label for="new-prompt">시나리오 프롬프트 *</label>
+        <label for="edit-prompt">시나리오 프롬프트 <span class="required">*</span></label>
         <textarea
-          id="new-prompt"
+          id="edit-prompt"
           name="prompt"
-          rows="4"
+          rows="5"
           required
           minlength="10"
           maxlength="10000"
-          placeholder="시나리오 맥락 설명 (10-10000자)"
         ></textarea>
       </div>
 
       <div class="form-group">
-        <label for="new-profile">학생 프로필 *</label>
+        <label for="edit-profile">학생 프로필 <span class="required">*</span></label>
         <textarea
-          id="new-profile"
+          id="edit-profile"
           name="student_profile"
-          rows="3"
+          rows="4"
           required
           minlength="3"
           maxlength="5000"
-          placeholder="학생의 특성 설명 (3-5000자)"
         ></textarea>
       </div>
 
-      <!-- Phase 2: Bot Configuration Override Section -->
-      <div class="form-section">
-        <h3>🤖 챗봇 설정 (선택적 오버라이드)</h3>
-        <p class="section-description">
-          이 시나리오에 대해 전역 챗봇 설정을 오버라이드합니다.
-          필드를 비워두면 전역 기본값을 사용합니다.
-        </p>
-
-        <div class="form-group">
-          <label>
-            <input
-              type="checkbox"
-              id="new-override-bot-config"
-              name="override_bot_config"
-            >
-            이 시나리오에 맞춤 챗봇 설정 사용
-          </label>
-        </div>
-
-        <!-- Bot override fields (hidden by default) -->
-        <div id="new-bot-override-fields" class="bot-override-fields"
-             style="display: none;">
-
-          <!-- StudentBot Model Selection -->
+      <!-- Video Settings -->
+      <details class="advanced-settings" id="edit-video-settings">
+        <summary>영상 설정</summary>
+        <div class="settings-content">
           <div class="form-group">
-            <label for="new-chat-model">학생봇 모델</label>
-            <select id="new-chat-model" name="chat_model"
-                    class="form-control">
-              <option value="">🌍 전역 설정 사용</option>
-              <option value="gpt-5">GPT-5 (권장, Aug 2025)</option>
-              <option value="gpt-5.1">
-                GPT-5.1 Thinking (적응형 추론)
-              </option>
-              <option value="gpt-5.1-chat-latest">
-                GPT-5.1 Instant (빠름, 대화형)
-              </option>
-              <option value="gpt-4-turbo">
-                GPT-4 Turbo (GPT-5 불가 시 대체)
-              </option>
-            </select>
-            <span class="help-text">
-              Responses API 지원 모델만 사용 가능 (GPT-3.5 미지원)
-            </span>
-          </div>
-
-          <!-- Temperature Slider -->
-          <div class="form-group">
-            <label for="new-chat-temperature">
-              Temperature:
-              <span id="new-chat-temp-display">전역 기본값</span>
-            </label>
+            <label for="edit-video-url">영상 URL</label>
             <input
-              type="range"
-              id="new-chat-temperature"
-              name="chat_temperature"
-              min="0"
-              max="2"
-              step="0.1"
-              class="form-range"
-            >
-            <button
-              type="button"
-              id="new-reset-temperature"
-              class="btn-reset-field"
-            >
-              ↺ 전역으로 재설정
-            </button>
-            <span class="help-text">
-              높을수록 창의적, 낮을수록 일관적
-            </span>
-          </div>
-
-          <!-- TutorBot Enabled Checkbox -->
-          <div class="form-group">
-            <label>
-              <input
-                type="checkbox"
-                id="new-tutor-enabled"
-                name="tutor_enabled"
-                checked
-              >
-              이 시나리오에 튜터봇 피드백 활성화
-            </label>
-            <span class="help-text">
-              체크 해제 시 교육적 피드백 완전 비활성화
-            </span>
-          </div>
-
-          <!-- TutorBot Intervention Threshold -->
-          <div class="form-group" id="new-tutor-threshold-group">
-            <label for="new-tutor-threshold">
-              튜터봇 개입 임계값
-            </label>
-            <input
-              type="number"
-              id="new-tutor-threshold"
-              name="tutor_intervention_threshold"
-              min="1"
-              max="10"
-              class="form-control"
-              placeholder="전역 기본값 (3)"
-            >
-            <span class="help-text">
-              교사 질문 10개당 개입 횟수 (1-10)
-            </span>
-          </div>
-
-        </div>
-      </div>
-
-      <button type="submit" class="btn btn-primary">
-        ➕ 시나리오 생성
-      </button>
-    </form>
-  </section>
-
-  <!-- Existing Scenarios List -->
-  <section class="scenarios-list">
-    <h2>기존 시나리오 ({{ scenarios|length }}개)</h2>
-
-    {% if scenarios %}
-    <div class="scenarios-table">
-      {% for scenario in scenarios %}
-      <div class="scenario-card" data-scenario-id="{{ scenario.id }}">
-        <div class="scenario-header">
-          <h3>{{ scenario.title }}</h3>
-          <div class="scenario-status">
-            <label class="toggle-switch">
-              <input
-                type="checkbox"
-                class="status-toggle"
-                data-id="{{ scenario.id }}"
-                {% if scenario.is_active == 1 %}checked{% endif %}
-              />
-              <span class="toggle-slider"></span>
-              <span class="toggle-label">
-                {% if scenario.is_active == 1 %}활성{% else %}비활성{%
-                endif %}
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <div class="scenario-meta">
-          <span class="meta-item">
-            📋 ID: {{ scenario.id }}
-          </span>
-          <span class="meta-item">
-            🏷️ 프레임워크: {{ scenario.framework.name }}
-          </span>
-          <span class="meta-item {% if session_counts[scenario.id] > 0 %}has-sessions{% endif %}">
-            💬 세션: {{ session_counts[scenario.id] }}개
-            {% if session_counts[scenario.id] > 0 %}
-            <span class="session-warning">(강제 삭제 가능)</span>
-            {% endif %}
-          </span>
-        </div>
-
-        <div class="scenario-content">
-          <div class="content-section">
-            <strong>프롬프트:</strong>
-            <p>{{ scenario.prompt[:200] }}{% if scenario.prompt|length > 200
-              %}...{% endif %}</p>
-          </div>
-          <div class="content-section">
-            <strong>학생 프로필:</strong>
-            <p>{{ scenario.student_profile[:150] }}{% if
-              scenario.student_profile|length > 150 %}...{% endif %}</p>
-          </div>
-        </div>
-
-        <div class="scenario-actions">
-          <button
-            class="btn btn-small btn-secondary edit-btn"
-            data-id="{{ scenario.id }}"
-          >
-            ✏️ 수정
-          </button>
-          <button
-            class="btn btn-small btn-danger delete-btn"
-            data-id="{{ scenario.id }}"
-            data-title="{{ scenario.title }}"
-            data-session-count="{{ session_counts[scenario.id] }}"
-          >
-            🗑️ 삭제
-          </button>
-        </div>
-
-        <!-- Edit Form (Hidden by default) -->
-        <form
-          class="edit-form"
-          id="edit-form-{{ scenario.id }}"
-          style="display: none"
-        >
-          <div class="form-group">
-            <label>제목</label>
-            <input
-              type="text"
-              name="title"
-              value="{{ scenario.title }}"
-              minlength="3"
-              maxlength="200"
+              type="url"
+              id="edit-video-url"
+              name="video_url"
+              maxlength="500"
+              placeholder="https://www.youtube.com/..."
             />
+            <small class="form-help">YouTube, Vimeo 등 영상 URL을 입력하세요</small>
           </div>
 
           <div class="form-group">
-            <label>프레임워크</label>
-            <select name="framework_id">
-              {% for framework in frameworks %}
-              <option
-                value="{{ framework.id }}"
-                {% if framework.id == scenario.framework_id %}selected{%
-                endif %}
-              >
-                {{ framework.name }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>프롬프트</label>
+            <label for="edit-video-transcript">영상 대본</label>
             <textarea
-              name="prompt"
+              id="edit-video-transcript"
+              name="video_transcript"
               rows="4"
-              minlength="10"
-              maxlength="10000"
-            >{{ scenario.prompt }}</textarea>
+              placeholder="영상에서 나오는 대사/대본을 입력하세요..."
+            ></textarea>
           </div>
-
-          <div class="form-group">
-            <label>학생 프로필</label>
-            <textarea
-              name="student_profile"
-              rows="3"
-              minlength="3"
-              maxlength="5000"
-            >{{ scenario.student_profile }}</textarea>
-          </div>
-
-          <!-- Phase 2: Bot Configuration Override Section -->
-          <div class="form-section">
-            <h3>🤖 챗봇 설정 (선택적 오버라이드)</h3>
-            <p class="section-description">
-              이 시나리오에 대해 전역 챗봇 설정을 오버라이드합니다.
-              필드를 비워두면 전역 기본값을 사용합니다.
-            </p>
-
-            <div class="form-group">
-              <label>
-                <input
-                  type="checkbox"
-                  id="edit-override-bot-config-{{ scenario.id }}"
-                  class="edit-override-bot-config"
-                  name="override_bot_config"
-                  {% if scenario.chat_model or
-                     scenario.chat_temperature is not none or
-                     scenario.tutor_intervention_threshold is not none or
-                     scenario.tutor_enabled == 0 %}checked{% endif %}
-                >
-                이 시나리오에 맞춤 챗봇 설정 사용
-              </label>
-            </div>
-
-            <!-- Bot override fields -->
-            <div id="edit-bot-override-fields-{{ scenario.id }}"
-                 class="bot-override-fields"
-                 style="display: {% if scenario.chat_model or
-                        scenario.chat_temperature is not none or
-                        scenario.tutor_intervention_threshold is not none or
-                        scenario.tutor_enabled == 0 %}block{% else %}none{%
-                        endif %};">
-
-              <!-- StudentBot Model Selection -->
-              <div class="form-group">
-                <label for="edit-chat-model-{{ scenario.id }}">
-                  학생봇 모델
-                </label>
-                <select id="edit-chat-model-{{ scenario.id }}"
-                        name="chat_model"
-                        class="form-control">
-                  <option value="">🌍 전역 설정 사용</option>
-                  <option value="gpt-5"
-                          {% if scenario.chat_model == 'gpt-5' %}selected{%
-                          endif %}>
-                    GPT-5 (권장, Aug 2025)
-                  </option>
-                  <option value="gpt-5.1"
-                          {% if scenario.chat_model == 'gpt-5.1' %}
-                          selected{% endif %}>
-                    GPT-5.1 Thinking (적응형 추론)
-                  </option>
-                  <option value="gpt-5.1-chat-latest"
-                          {% if scenario.chat_model == 'gpt-5.1-chat-latest'
-                          %}selected{% endif %}>
-                    GPT-5.1 Instant (빠름, 대화형)
-                  </option>
-                  <option value="gpt-4-turbo"
-                          {% if scenario.chat_model == 'gpt-4-turbo' %}
-                          selected{% endif %}>
-                    GPT-4 Turbo (GPT-5 불가 시 대체)
-                  </option>
-                </select>
-                <span class="help-text">
-                  Responses API 지원 모델만 사용 가능 (GPT-3.5 미지원)
-                </span>
-              </div>
-
-              <!-- Temperature Slider -->
-              <div class="form-group">
-                <label for="edit-chat-temperature-{{ scenario.id }}">
-                  Temperature:
-                  <span id="edit-chat-temp-display-{{ scenario.id }}">
-                    {% if scenario.chat_temperature is not none %}
-                    {{ "%.1f"|format(scenario.chat_temperature) }}
-                    {% else %}전역 기본값{% endif %}
-                  </span>
-                </label>
-                <input
-                  type="range"
-                  id="edit-chat-temperature-{{ scenario.id }}"
-                  name="chat_temperature"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  class="form-range edit-chat-temperature"
-                  {% if scenario.chat_temperature is not none %}
-                  value="{{ scenario.chat_temperature }}"
-                  {% endif %}
-                >
-                <button
-                  type="button"
-                  id="edit-reset-temperature-{{ scenario.id }}"
-                  class="btn-reset-field edit-reset-temperature"
-                >
-                  ↺ 전역으로 재설정
-                </button>
-                <span class="help-text">
-                  높을수록 창의적, 낮을수록 일관적
-                </span>
-              </div>
-
-              <!-- TutorBot Enabled Checkbox -->
-              <div class="form-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    id="edit-tutor-enabled-{{ scenario.id }}"
-                    class="edit-tutor-enabled"
-                    name="tutor_enabled"
-                    {% if scenario.tutor_enabled != 0 %}checked{% endif %}
-                  >
-                  이 시나리오에 튜터봇 피드백 활성화
-                </label>
-                <span class="help-text">
-                  체크 해제 시 교육적 피드백 완전 비활성화
-                </span>
-              </div>
-
-              <!-- TutorBot Intervention Threshold -->
-              <div class="form-group"
-                   id="edit-tutor-threshold-group-{{ scenario.id }}"
-                   style="display: {% if scenario.tutor_enabled != 0 %}block{%
-                          else %}none{% endif %};">
-                <label for="edit-tutor-threshold-{{ scenario.id }}">
-                  튜터봇 개입 임계값
-                </label>
-                <input
-                  type="number"
-                  id="edit-tutor-threshold-{{ scenario.id }}"
-                  name="tutor_intervention_threshold"
-                  min="1"
-                  max="10"
-                  class="form-control"
-                  placeholder="전역 기본값 (3)"
-                  {% if scenario.tutor_intervention_threshold is not none %}
-                  value="{{ scenario.tutor_intervention_threshold }}"
-                  {% endif %}
-                >
-                <span class="help-text">
-                  교사 질문 10개당 개입 횟수 (1-10)
-                </span>
-              </div>
-
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">
-              💾 변경사항 저장
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary cancel-btn"
-              data-id="{{ scenario.id }}"
-            >
-              ❌ 취소
-            </button>
-          </div>
-        </form>
-      </div>
-      {% endfor %}
+        </div>
+      </details>
     </div>
-    {% else %}
-    <p class="empty-state">시나리오를 찾을 수 없습니다. 위에서 첫 번째 시나리오를 생성하세요!</p>
-    {% endif %}
-  </section>
-</div>
 
-<style>
-  .create-section,
-  .scenarios-list {
-    margin: 2rem 0;
-  }
+    <div class="panel-footer">
+      <button type="button" class="btn btn-secondary" id="cancel-edit">취소</button>
+      <button type="submit" class="btn btn-primary">변경사항 저장</button>
+    </div>
+  </form>
+</aside>
 
-  .scenario-form {
-    background: white;
-    padding: 1.5rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-  }
-
-  .form-group {
-    margin-bottom: 1rem;
-  }
-
-  .form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    color: #374151;
-  }
-
-  .form-group input,
-  .form-group select,
-  .form-group textarea {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: 1rem;
-  }
-
-  .scenario-card {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .scenario-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
-
-  .scenario-header h3 {
-    margin: 0;
-    color: #1f2937;
-  }
-
-  .toggle-switch {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-  }
-
-  .toggle-switch input[type="checkbox"] {
-    display: none;
-  }
-
-  .toggle-slider {
-    position: relative;
-    width: 50px;
-    height: 24px;
-    background: #d1d5db;
-    border-radius: 12px;
-    transition: background 0.3s;
-  }
-
-  .toggle-slider::before {
-    content: "";
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: white;
-    top: 2px;
-    left: 2px;
-    transition: transform 0.3s;
-  }
-
-  .toggle-switch input:checked + .toggle-slider {
-    background: #10b981;
-  }
-
-  .toggle-switch input:checked + .toggle-slider::before {
-    transform: translateX(26px);
-  }
-
-  .scenario-meta {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1rem;
-    font-size: 0.875rem;
-    color: #6b7280;
-  }
-
-  .scenario-content {
-    margin: 1rem 0;
-    padding: 1rem;
-    background: #f9fafb;
-    border-radius: 4px;
-  }
-
-  .content-section {
-    margin-bottom: 0.75rem;
-  }
-
-  .content-section:last-child {
-    margin-bottom: 0;
-  }
-
-  .content-section strong {
-    display: block;
-    margin-bottom: 0.25rem;
-    color: #374151;
-  }
-
-  .content-section p {
-    margin: 0;
-    color: #6b7280;
-    font-size: 0.875rem;
-  }
-
-  .scenario-actions {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .btn-danger {
-    background: #dc2626;
-    color: white;
-  }
-
-  .btn-danger:hover {
-    background: #b91c1c;
-  }
-
-  .edit-form {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid #e5e7eb;
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 1rem;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 2rem;
-    color: #6b7280;
-  }
-
-  /* Bot Configuration Section */
-  .form-section {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .form-section h3 {
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-    color: #1f2937;
-    font-size: 1.125rem;
-  }
-
-  .section-description {
-    color: #6b7280;
-    font-size: 0.875rem;
-    margin-bottom: 1rem;
-  }
-
-  .bot-override-fields {
-    margin-top: 1rem;
-    padding-left: 1.5rem;
-    border-left: 3px solid #3b82f6;
-  }
-
-  .form-range {
-    width: 100%;
-    accent-color: #3b82f6;
-  }
-
-  .btn-reset-field {
-    background: #e5e7eb;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-    cursor: pointer;
-    margin-left: 0.5rem;
-  }
-
-  .btn-reset-field:hover {
-    background: #d1d5db;
-  }
-
-  .help-text {
-    display: block;
-    font-size: 0.875rem;
-    color: #6b7280;
-    margin-top: 0.25rem;
-  }
-
-  #new-tutor-threshold-group,
-  [id^="edit-tutor-threshold-group-"] {
-    padding-left: 1.5rem;
-    border-left: 2px solid #10b981;
-    margin-top: 0.5rem;
-  }
-</style>
 
 <script>
-  // Toggle bot override fields visibility (Create form)
-  document.getElementById('new-override-bot-config').addEventListener('change', (e) => {
-    const fieldsDiv = document.getElementById('new-bot-override-fields');
-    fieldsDiv.style.display = e.target.checked ? 'block' : 'none';
+// ========================================
+// SCENARIOS ADMIN JAVASCRIPT
+// ========================================
 
-    // Clear fields when unchecking
-    if (!e.target.checked) {
-      document.getElementById('new-chat-model').value = '';
-      document.getElementById('new-chat-temperature').value = '';
-      document.getElementById('new-chat-temp-display').textContent = '전역 기본값';
-      document.getElementById('new-tutor-enabled').checked = true;
-      document.getElementById('new-tutor-threshold').value = '';
-      document.getElementById('new-tutor-threshold-group').style.display = 'block';
+// Store scenario data for editing
+const scenariosData = {
+  {% for scenario in scenarios %}
+  "{{ scenario.id }}": {
+    id: {{ scenario.id }},
+    title: "{{ scenario.title|e }}",
+    framework_id: {{ scenario.framework_id }},
+    prompt: `{{ scenario.prompt|replace('\n', '\\n')|replace('\r', '')|e }}`,
+    student_profile: `{{ scenario.student_profile|replace('\n', '\\n')|replace('\r', '')|e }}`,
+    video_url: "{{ scenario.video_url or '' }}",
+    video_transcript: `{{ (scenario.video_transcript|replace('\n', '\\n')|replace('\r', '')|e) if scenario.video_transcript else '' }}`
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+
+// ========================================
+// MODAL FUNCTIONS
+// ========================================
+function openModal(modalId) {
+  document.getElementById(modalId).classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(modalId) {
+  document.getElementById(modalId).classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// Open Create Modal
+document.getElementById('open-create-modal').addEventListener('click', () => {
+  openModal('create-modal');
+});
+
+// Empty state button
+const emptyBtn = document.getElementById('open-create-modal-empty');
+if (emptyBtn) {
+  emptyBtn.addEventListener('click', () => openModal('create-modal'));
+}
+
+// Close modal buttons
+document.querySelectorAll('[data-modal]').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    closeModal(e.target.dataset.modal);
+  });
+});
+
+// Close modal on overlay click
+document.getElementById('create-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'create-modal') {
+    closeModal('create-modal');
+  }
+});
+
+// ========================================
+// SLIDE PANEL FUNCTIONS
+// ========================================
+const editPanel = document.getElementById('edit-panel');
+const editPanelOverlay = document.getElementById('edit-panel-overlay');
+
+function openEditPanel(scenarioId) {
+  const data = scenariosData[scenarioId];
+  if (!data) return;
+
+  // Populate form
+  document.getElementById('edit-scenario-id').value = data.id;
+  document.getElementById('edit-title').value = data.title;
+  document.getElementById('edit-framework').value = data.framework_id;
+  document.getElementById('edit-prompt').value = data.prompt;
+  document.getElementById('edit-profile').value = data.student_profile;
+  document.getElementById('edit-video-url').value = data.video_url || '';
+  document.getElementById('edit-video-transcript').value = data.video_transcript || '';
+
+  // If any video setting is set, open the video details
+  if (data.video_url || data.video_transcript) {
+    document.getElementById('edit-video-settings').open = true;
+  }
+
+  // Show panel
+  editPanel.classList.add('active');
+  editPanelOverlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeEditPanel() {
+  editPanel.classList.remove('active');
+  editPanelOverlay.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// Edit buttons
+document.querySelectorAll('.edit-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    openEditPanel(btn.dataset.id);
+  });
+});
+
+// Close panel
+document.getElementById('close-edit-panel').addEventListener('click', closeEditPanel);
+document.getElementById('cancel-edit').addEventListener('click', closeEditPanel);
+editPanelOverlay.addEventListener('click', closeEditPanel);
+
+// ========================================
+// FORM SUBMISSIONS
+// ========================================
+
+// Create scenario
+document.getElementById('create-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+
+  const data = {
+    title: formData.get('title'),
+    prompt: formData.get('prompt'),
+    student_profile: formData.get('student_profile'),
+    framework_id: parseInt(formData.get('framework_id')),
+    video_url: formData.get('video_url') || null,
+    video_transcript: formData.get('video_transcript') || null
+  };
+
+  try {
+    const response = await fetch('/admin/scenarios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (response.ok) {
+      alert('시나리오가 성공적으로 생성되었습니다!');
+      window.location.reload();
+    } else {
+      const error = await response.json();
+      alert(`오류: ${error.detail}`);
     }
-  });
+  } catch (err) {
+    alert('시나리오 생성에 실패했습니다');
+  }
+});
 
-  // Temperature slider real-time update (Create form)
-  document.getElementById('new-chat-temperature').addEventListener('input', (e) => {
-    const value = parseFloat(e.target.value);
-    document.getElementById('new-chat-temp-display').textContent = value.toFixed(1);
-  });
+// Edit scenario
+document.getElementById('edit-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('edit-scenario-id').value;
+  const formData = new FormData(e.target);
 
-  // Reset temperature to global (Create form)
-  document.getElementById('new-reset-temperature').addEventListener('click', () => {
-      document.getElementById('new-chat-temperature').value = '';
-      document.getElementById('new-chat-temp-display').textContent = '전역 기본값';
-  });
+  const data = {
+    title: formData.get('title'),
+    prompt: formData.get('prompt'),
+    student_profile: formData.get('student_profile'),
+    framework_id: parseInt(formData.get('framework_id')),
+    video_url: formData.get('video_url') || null,
+    video_transcript: formData.get('video_transcript') || null
+  };
 
-  // Toggle tutor threshold field based on tutor_enabled (Create form)
-  document.getElementById('new-tutor-enabled').addEventListener('change', (e) => {
-    const thresholdGroup = document.getElementById('new-tutor-threshold-group');
-    thresholdGroup.style.display = e.target.checked ? 'block' : 'none';
-  });
+  try {
+    const response = await fetch(`/admin/scenarios/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
 
-  // Toggle bot override fields visibility (Edit forms)
-  document.addEventListener('change', (e) => {
-    if (e.target.classList.contains('edit-override-bot-config')) {
-      const scenarioId = e.target.id.replace('edit-override-bot-config-', '');
-      const fieldsDiv = document.getElementById(`edit-bot-override-fields-${scenarioId}`);
-      fieldsDiv.style.display = e.target.checked ? 'block' : 'none';
-
-      // Clear fields when unchecking
-      if (!e.target.checked) {
-        document.getElementById(`edit-chat-model-${scenarioId}`).value = '';
-        const tempInput = document.getElementById(`edit-chat-temperature-${scenarioId}`);
-        tempInput.value = '';
-        document.getElementById(`edit-chat-temp-display-${scenarioId}`).textContent = '전역 기본값';
-        document.getElementById(`edit-tutor-enabled-${scenarioId}`).checked = true;
-        document.getElementById(`edit-tutor-threshold-${scenarioId}`).value = '';
-        document.getElementById(`edit-tutor-threshold-group-${scenarioId}`).style.display = 'block';
-      }
+    if (response.ok) {
+      alert('시나리오가 성공적으로 업데이트되었습니다!');
+      window.location.reload();
+    } else {
+      const error = await response.json();
+      alert(`오류: ${error.detail}`);
     }
-  });
+  } catch (err) {
+    alert('시나리오 업데이트에 실패했습니다');
+  }
+});
 
-  // Temperature slider real-time update (Edit forms)
-  document.addEventListener('input', (e) => {
-    if (e.target.classList.contains('edit-chat-temperature')) {
-      const scenarioId = e.target.id.replace('edit-chat-temperature-', '');
-      const value = parseFloat(e.target.value);
-      document.getElementById(`edit-chat-temp-display-${scenarioId}`).textContent = value.toFixed(1);
-    }
-  });
-
-  // Reset temperature to global (Edit forms)
-  document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('edit-reset-temperature')) {
-      const scenarioId = e.target.id.replace('edit-reset-temperature-', '');
-      const tempInput = document.getElementById(`edit-chat-temperature-${scenarioId}`);
-      tempInput.value = '';
-      document.getElementById(`edit-chat-temp-display-${scenarioId}`).textContent = '전역 기본값';
-    }
-  });
-
-  // Toggle tutor threshold field based on tutor_enabled (Edit forms)
-  document.addEventListener('change', (e) => {
-    if (e.target.classList.contains('edit-tutor-enabled')) {
-      const scenarioId = e.target.id.replace('edit-tutor-enabled-', '');
-      const thresholdGroup = document.getElementById(`edit-tutor-threshold-group-${scenarioId}`);
-      thresholdGroup.style.display = e.target.checked ? 'block' : 'none';
-    }
-  });
-
-  // Create scenario
-  document.getElementById("create-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-
-    // Convert empty strings to null for optional fields
-    const data = {
-      title: formData.get("title"),
-      prompt: formData.get("prompt"),
-      student_profile: formData.get("student_profile"),
-      framework_id: parseInt(formData.get("framework_id")),
-
-      // Bot configuration (empty = null)
-      chat_model: formData.get("chat_model") || null,
-      chat_temperature: formData.get("chat_temperature") ?
-                        parseFloat(formData.get("chat_temperature")) : null,
-      tutor_enabled: formData.get("tutor_enabled") === "on",
-      tutor_intervention_threshold: formData.get("tutor_intervention_threshold") ?
-                                      parseInt(formData.get("tutor_intervention_threshold")) : null,
-    };
+// ========================================
+// STATUS TOGGLE
+// ========================================
+document.querySelectorAll('.status-toggle').forEach(toggle => {
+  toggle.addEventListener('change', async (e) => {
+    const id = e.target.dataset.id;
+    const isActive = e.target.checked ? 1 : 0;
+    const card = e.target.closest('.scenario-card');
+    const badge = e.target.closest('.status-badge');
+    const badgeText = badge.querySelector('.badge-text');
 
     try {
-      const response = await fetch("/admin/scenarios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+      const response = await fetch(`/admin/scenarios/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: isActive }),
       });
 
       if (response.ok) {
-        alert("시나리오가 성공적으로 생성되었습니다!");
+        if (isActive) {
+          card.classList.remove('inactive');
+          badge.classList.add('active');
+          badgeText.textContent = '활성';
+        } else {
+          card.classList.add('inactive');
+          badge.classList.remove('active');
+          badgeText.textContent = '비활성';
+        }
+      } else {
+        const error = await response.json();
+        alert(`오류: ${error.detail}`);
+        e.target.checked = !e.target.checked;
+      }
+    } catch (err) {
+      alert('상태 업데이트에 실패했습니다');
+      e.target.checked = !e.target.checked;
+    }
+  });
+});
+
+// ========================================
+// DELETE SCENARIO
+// ========================================
+document.querySelectorAll('.delete-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    const title = btn.dataset.title;
+    const sessionCount = parseInt(btn.dataset.sessionCount || '0');
+
+    let confirmMessage;
+    if (sessionCount > 0) {
+      confirmMessage =
+        `"${title}" 시나리오를 삭제하시겠습니까?\n\n` +
+        `이 시나리오에는 ${sessionCount}개의 세션이 있습니다.\n` +
+        `삭제하면 모든 관련 세션도 함께 삭제됩니다.`;
+    } else {
+      confirmMessage = `"${title}" 시나리오를 삭제하시겠습니까?`;
+    }
+
+    if (!window.confirm(confirmMessage)) return;
+
+    btn.disabled = true;
+    btn.textContent = '삭제 중...';
+
+    try {
+      const response = await fetch(`/admin/scenarios/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        alert('시나리오가 성공적으로 삭제되었습니다!');
         window.location.reload();
       } else {
         const error = await response.json();
         alert(`오류: ${error.detail}`);
+        btn.disabled = false;
+        btn.textContent = '삭제';
       }
     } catch (err) {
-      alert("시나리오 생성에 실패했습니다");
+      alert('시나리오 삭제에 실패했습니다');
+      btn.disabled = false;
+      btn.textContent = '삭제';
     }
   });
+});
 
-  // Toggle active status
-  document.querySelectorAll(".status-toggle").forEach((toggle) => {
-    toggle.addEventListener("change", async (e) => {
-      const id = e.target.dataset.id;
-      const isActive = e.target.checked ? 1 : 0;
+// ========================================
+// SEARCH AND FILTER
+// ========================================
+const searchInput = document.getElementById('search-input');
+const filterFramework = document.getElementById('filter-framework');
+const filterStatus = document.getElementById('filter-status');
+const scenariosGrid = document.getElementById('scenarios-grid');
 
-      try {
-        const response = await fetch(`/admin/scenarios/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ is_active: isActive }),
-        });
+function filterScenarios() {
+  if (!scenariosGrid) return;
+  
+  const searchTerm = searchInput.value.toLowerCase();
+  const frameworkId = filterFramework.value;
+  const status = filterStatus.value;
 
-        if (response.ok) {
-          const label = e.target.parentElement.querySelector(".toggle-label");
-          label.textContent = isActive ? "활성" : "비활성";
-        } else {
-          const error = await response.json();
-          alert(`오류: ${error.detail}`);
-          e.target.checked = !e.target.checked; // Revert
-        }
-      } catch (err) {
-        alert("상태 업데이트에 실패했습니다");
-        e.target.checked = !e.target.checked; // Revert
-      }
-    });
+  const cards = scenariosGrid.querySelectorAll('.scenario-card');
+  
+  cards.forEach(card => {
+    const title = card.dataset.title.toLowerCase();
+    const cardFrameworkId = card.dataset.frameworkId;
+    const isInactive = card.classList.contains('inactive');
+    
+    let show = true;
+    
+    // Search filter
+    if (searchTerm && !title.includes(searchTerm)) {
+      show = false;
+    }
+    
+    // Framework filter
+    if (frameworkId && cardFrameworkId !== frameworkId) {
+      show = false;
+    }
+    
+    // Status filter
+    if (status === 'active' && isInactive) {
+      show = false;
+    }
+    if (status === 'inactive' && !isInactive) {
+      show = false;
+    }
+    
+    card.style.display = show ? '' : 'none';
   });
+}
 
-  // Show edit form
-  document.querySelectorAll(".edit-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const id = e.target.dataset.id;
-      const form = document.getElementById(`edit-form-${id}`);
-      form.style.display = form.style.display === "none" ? "block" : "none";
-    });
-  });
+searchInput.addEventListener('input', filterScenarios);
+filterFramework.addEventListener('change', filterScenarios);
+filterStatus.addEventListener('change', filterScenarios);
 
-  // Cancel edit
-  document.querySelectorAll(".cancel-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const id = e.target.dataset.id;
-      const form = document.getElementById(`edit-form-${id}`);
-      form.style.display = "none";
-    });
-  });
-
-  // Submit edit
-  document.querySelectorAll(".edit-form").forEach((form) => {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const id = form.id.replace("edit-form-", "");
-      const formData = new FormData(e.target);
-
-      // Convert empty strings to null for optional fields
-      const data = {
-        title: formData.get("title"),
-        prompt: formData.get("prompt"),
-        student_profile: formData.get("student_profile"),
-        framework_id: parseInt(formData.get("framework_id")),
-
-        // Bot configuration (empty = null)
-        chat_model: formData.get("chat_model") || null,
-        chat_temperature: formData.get("chat_temperature") ?
-                          parseFloat(formData.get("chat_temperature")) : null,
-        tutor_enabled: formData.get("tutor_enabled") === "on",
-        tutor_intervention_threshold: formData.get("tutor_intervention_threshold") ?
-                                        parseInt(formData.get("tutor_intervention_threshold")) : null,
-      };
-
-      try {
-        const response = await fetch(`/admin/scenarios/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
-
-        if (response.ok) {
-          alert("시나리오가 성공적으로 업데이트되었습니다!");
-          window.location.reload();
-        } else {
-          const error = await response.json();
-          alert(`오류: ${error.detail}`);
-        }
-      } catch (err) {
-        alert("시나리오 업데이트에 실패했습니다");
-      }
-    });
-  });
-
-  // Delete scenario (Force Delete)
-  document.querySelectorAll(".delete-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const id = e.target.dataset.id;
-      const title = e.target.dataset.title;
-      const sessionCount = parseInt(e.target.dataset.sessionCount || "0");
-
-      // Build confirmation message
-      let confirmMessage;
-      if (sessionCount > 0) {
-        confirmMessage =
-          `⚠️ 강제 삭제 확인\n\n` +
-          `"${title}" 시나리오를 삭제하시겠습니까?\n\n` +
-          `이 시나리오에는 ${sessionCount}개의 세션이 있습니다.\n` +
-          `삭제하면 모든 관련 세션도 함께 영구적으로 삭제됩니다.\n\n` +
-          `정말로 ${sessionCount}개의 세션을 강제 종료하고 삭제하시겠습니까?`;
-      } else {
-        confirmMessage =
-          `"${title}" 시나리오를 삭제하시겠습니까?\n\n` +
-          `이 시나리오는 세션이 없어 안전하게 삭제할 수 있습니다.`;
-      }
-
-      // Confirm deletion
-      const confirmed = window.confirm(confirmMessage);
-      if (!confirmed) return;
-
-      // Disable button during request
-      btn.disabled = true;
-      btn.textContent = "삭제 중...";
-
-      try {
-        const response = await fetch(`/admin/scenarios/${id}`, {
-          method: "DELETE",
-        });
-
-        if (response.ok) {
-          const successMessage = sessionCount > 0
-            ? `시나리오와 ${sessionCount}개의 세션이 성공적으로 삭제되었습니다!`
-            : "시나리오가 성공적으로 삭제되었습니다!";
-          alert(successMessage);
-          window.location.reload();
-        } else {
-          const error = await response.json();
-          alert(`오류: ${error.detail}`);
-          // Restore button state
-          btn.disabled = false;
-          btn.textContent = "🗑️ 삭제";
-        }
-      } catch (err) {
-        alert("시나리오 삭제에 실패했습니다");
-        // Restore button state
-        btn.disabled = false;
-        btn.textContent = "🗑️ 삭제";
-      }
-    });
-  });
+// ========================================
+// KEYBOARD SHORTCUTS
+// ========================================
+document.addEventListener('keydown', (e) => {
+  // Escape to close modals/panels
+  if (e.key === 'Escape') {
+    closeModal('create-modal');
+    closeEditPanel();
+  }
+});
 </script>
 {% endblock %}

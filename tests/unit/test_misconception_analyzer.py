@@ -35,7 +35,7 @@ def create_responses_api_mock(content: str) -> Mock:
 @pytest.fixture
 async def analyzer(db_session):
     """Create analyzer instance with mocked OpenAI client."""
-    with patch("src.services.misconception_analyzer.AsyncOpenAI") as mock_client:
+    with patch("src.services.base.AsyncOpenAI") as mock_client:
         analyzer = MisconceptionAnalyzer(db_session=db_session)
         analyzer.client = mock_client.return_value
         return analyzer

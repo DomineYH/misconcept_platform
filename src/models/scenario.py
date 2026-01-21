@@ -37,6 +37,14 @@ class Scenario(Base):
         Text, nullable=True
     )
 
+    # Video fields
+    video_url: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+    video_transcript: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+
     # Status
     is_active: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1

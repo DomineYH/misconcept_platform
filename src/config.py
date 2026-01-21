@@ -24,10 +24,12 @@ class Config:
     TUTOR_REASONING: str = os.getenv("TUTOR_REASONING", "low")
 
     # ===== Bot Token Limits =====
+    # Note: GPT-5 reasoning consumes tokens from max_output_tokens
+    # Minimum recommended: 300 (reasoning) + 200 (actual output) = 500
     STUDENT_MAX_TOKENS: int = int(
-        os.getenv("STUDENT_MAX_TOKENS", "150")
+        os.getenv("STUDENT_MAX_TOKENS", "750")
     )
-    TUTOR_MAX_TOKENS: int = int(os.getenv("TUTOR_MAX_TOKENS", "100"))
+    TUTOR_MAX_TOKENS: int = int(os.getenv("TUTOR_MAX_TOKENS", "750"))
     TUTOR_INTERVENTION_THRESHOLD: int = int(
         os.getenv("TUTOR_INTERVENTION_THRESHOLD", "3")
     )

@@ -142,9 +142,11 @@
       {% endfor %}
     </div>
     {% else %}
-    <p class="empty-state">
-      프레임워크를 찾을 수 없습니다. 위에서 첫 번째 프레임워크를 생성하세요.
-    </p>
+    <div class="empty-state">
+      <span class="empty-state-icon">📊</span>
+      <h3 class="empty-state-title">프레임워크가 없습니다</h3>
+      <p>프레임워크를 찾을 수 없습니다. 위에서 첫 번째 프레임워크를 생성하세요.</p>
+    </div>
     {% endif %}
   </section>
 </div>
@@ -304,12 +306,6 @@
     padding: 0.25rem 0.75rem;
     border-radius: 12px;
     font-size: 0.9rem;
-  }
-
-  .empty-state {
-    text-align: center;
-    color: #999;
-    padding: 2rem;
   }
 
   .framework-meta {

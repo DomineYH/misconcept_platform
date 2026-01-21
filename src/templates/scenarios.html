@@ -16,24 +16,19 @@
     {% if scenarios %}
       {% for scenario in scenarios %}
       <div class="scenario-card">
-        <h3>{{ scenario.title }}</h3>
-
-        {% if scenario.student_profile %}
-        <p class="student-profile">
-          <strong>학생:</strong> {{ scenario.student_profile }}
+        <h3 class="scenario-title">{{ scenario.title }}</h3>
+        <p class="scenario-description">
+          {{ scenario.prompt[:100] }}{% if scenario.prompt|length > 100 %}...{% endif %}
         </p>
-        {% endif %}
-
-        <a
-          href="/scenarios/{{ scenario.id }}"
-          class="btn-primary"
-        >
+        <a href="/scenarios/{{ scenario.id }}" class="btn-primary">
           대화 시작
         </a>
       </div>
       {% endfor %}
     {% else %}
       <div class="empty-state">
+        <span class="empty-state-icon">📋</span>
+        <h3 class="empty-state-title">시나리오가 없습니다</h3>
         <p>활성화된 시나리오가 없습니다.</p>
         <p>시나리오 생성을 위해 관리자에게 문의하세요.</p>
       </div>

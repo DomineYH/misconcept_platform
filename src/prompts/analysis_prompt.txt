@@ -19,28 +19,12 @@ and student context when classifying.
 
 Labels: {framework_labels}
 
+**IMPORTANT**: You MUST use ONLY the labels listed above.
+Do NOT use any other labels.
+
 ## Few-Shot Examples
 
-Example 1: High-Leverage Question
-Teacher: "What happens to the moon's shadow during a solar eclipse?"
-Classification: Pressing (high-leverage)
-Confidence: 0.92
-Reasoning: Encourages student to articulate their mental model
-and reasoning
-
-Example 2: Low-Leverage Question
-Teacher: "Is the Earth bigger than the moon?"
-Classification: Recall (low-leverage)
-Confidence: 0.88
-Reasoning: Requires simple factual recall without deeper thinking
-
-Example 3: High-Leverage Question
-Teacher: "How does your explanation about tides connect to what
-you said earlier about gravity?"
-Classification: Linking (high-leverage)
-Confidence: 0.95
-Reasoning: Prompts student to connect ideas and build coherent
-understanding
+{few_shot_examples}
 
 ## Instructions
 
@@ -52,13 +36,35 @@ understanding
 
 ## Response Format
 
-Return your analysis as JSON:
+모든 분석 내용은 한국어로 작성하세요.
+
+Return your analysis as JSON with structured reasoning:
 
 {{
   "label": "selected_label",
   "confidence": 0.XX,
-  "reasoning": "Brief explanation of classification choice"
+  "reasoning": {{
+    "summary": "분류 선택에 대한 간단한 1-2문장 요약",
+    "pedagogical": {{
+      "educational_principle": "이 질문이 반영하는 교육 원리 (예: 구성주의, 소크라테스식 문답법, 근접발달영역)",
+      "effectiveness": "이 질문 유형이 학생 학습에 효과적인 이유 또는 비효과적인 이유",
+      "improvement_suggestion": "교육학적으로 질문을 개선할 수 있는 방법 (선택적, null 가능)"
+    }},
+    "cognitive": {{
+      "cognitive_demand": "Bloom's Taxonomy 수준: 기억/이해/적용/분석/평가/창조",
+      "student_response_prediction": "학생이 이 질문에 어떻게 생각하고 반응할 것으로 예상되는지",
+      "misconception_addressing": "이 질문이 목표 오개념을 어떻게 다루거나 다루지 못하는지"
+    }},
+    "contextual": {{
+      "dialogue_role": "전체 대화 흐름에서 이 질문의 역할",
+      "timing_appropriateness": "이전 교환을 고려할 때 타이밍이 적절한지 평가",
+      "connection_to_prior": "이전 학생 응답을 어떻게 기반으로 하거나 연결하는지"
+    }}
+  }}
 }}
+
+IMPORTANT: 각 관점에 대해 구체적이고 사려 깊은 분석을 제공하세요.
+일반적인 응답을 피하고, 해당 질문과 맥락에 맞는 분석을 하세요.
 
 ## Question to Classify
 

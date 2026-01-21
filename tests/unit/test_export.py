@@ -3,6 +3,7 @@ Unit tests for CSVExporter service (T065).
 
 Tests CSV format, anonymization, and summary row inclusion.
 """
+
 import csv
 import io
 import pytest
@@ -57,9 +58,7 @@ async def test_export_session_csv_format(
     session = sample_session_with_messages
 
     # Export session
-    csv_content = await exporter.export_session(
-        session.id, async_db_session
-    )
+    csv_content = await exporter.export_session(session.id, async_db_session)
 
     # Parse CSV
     reader = csv.DictReader(io.StringIO(csv_content))
@@ -92,9 +91,7 @@ async def test_export_session_anonymization(
     session = sample_session_with_messages
 
     # Export session
-    csv_content = await exporter.export_session(
-        session.id, async_db_session
-    )
+    csv_content = await exporter.export_session(session.id, async_db_session)
 
     # Parse CSV
     reader = csv.DictReader(io.StringIO(csv_content))
@@ -115,9 +112,7 @@ async def test_export_session_with_analysis(
     session = sample_session_with_analysis
 
     # Export session
-    csv_content = await exporter.export_session(
-        session.id, async_db_session
-    )
+    csv_content = await exporter.export_session(session.id, async_db_session)
 
     # Parse CSV
     reader = csv.DictReader(io.StringIO(csv_content))
@@ -150,9 +145,7 @@ async def test_export_session_with_summary(
     session = sample_session_with_summary
 
     # Export session
-    csv_content = await exporter.export_session(
-        session.id, async_db_session
-    )
+    csv_content = await exporter.export_session(session.id, async_db_session)
 
     # Parse CSV
     reader = csv.DictReader(io.StringIO(csv_content))
@@ -177,9 +170,7 @@ async def test_export_session_timestamp_format(
     session = sample_session_with_messages
 
     # Export session
-    csv_content = await exporter.export_session(
-        session.id, async_db_session
-    )
+    csv_content = await exporter.export_session(session.id, async_db_session)
 
     # Parse CSV
     reader = csv.DictReader(io.StringIO(csv_content))
@@ -202,9 +193,7 @@ async def test_export_session_not_found(async_db_session):
 
 
 @pytest.mark.asyncio
-async def test_export_multiple_sessions(
-    async_db_session, multiple_sessions
-):
+async def test_export_multiple_sessions(async_db_session, multiple_sessions):
     """Test exporting multiple sessions combines into one CSV."""
     exporter = CSVExporter()
     session_ids = [s.id for s in multiple_sessions]
@@ -231,14 +220,106 @@ async def test_export_multiple_sessions_single_header(
     exporter = CSVExporter()
     session_ids = [s.id for s in multiple_sessions]
 
-    # Export multiple sessions
     csv_content = await exporter.export_multiple_sessions(
         session_ids, async_db_session
     )
 
-    # Count header rows (should be exactly 1)
     lines = csv_content.strip().split("\n")
-    header_count = sum(
-        1 for line in lines if line.startswith("session_id,")
-    )
+    header_count = sum(1 for line in lines if line.startswith("session_id,"))
     assert header_count == 1
+
+
+class TestAdminExport:
+    """Admin CSV export with teacher info and meta_json."""
+
+    ADMIN_HEADERS = [
+        "session_id",
+        "scenario_id",
+        "scenario_title",
+        "teacher_id",
+        "teacher_student_uid",
+        "teacher_nickname",
+        "session_started_at",
+        "session_ended_at",
+        "message_id",
+        "message_created_at",
+        "role",
+        "content",
+        "label",
+        "confidence",
+        "meta_json",
+        "feedback",
+    ]
+
+    @pytest.mark.asyncio
+    async def test_export_session_admin_headers(
+        self, async_db_session, sample_session_with_messages
+    ):
+        """Verify admin export has all required columns."""
+        exporter = CSVExporter()
+        session = sample_session_with_messages
+
+        csv_content = await exporter.export_session_admin(
+            session.id, async_db_session
+        )
+
+        reader = csv.DictReader(io.StringIO(csv_content))
+        assert list(reader.fieldnames) == self.ADMIN_HEADERS
+
+    @pytest.mark.asyncio
+    async def test_export_session_admin_teacher_info(
+        self, async_db_session, sample_session_with_messages
+    ):
+        """Verify admin export includes raw teacher info (not hashed)."""
+        exporter = CSVExporter()
+        session = sample_session_with_messages
+
+        csv_content = await exporter.export_session_admin(
+            session.id, async_db_session
+        )
+
+        reader = csv.DictReader(io.StringIO(csv_content))
+        rows = list(reader)
+        assert len(rows) > 0
+
+        row = rows[0]
+        assert row["teacher_student_uid"] == "teacher_001"
+        assert row["teacher_nickname"] == "테스트교사"
+        assert row["teacher_id"] == str(session.teacher_id)
+
+    @pytest.mark.asyncio
+    async def test_export_session_admin_meta_json(
+        self, async_db_session, sample_session_with_analysis
+    ):
+        """Verify admin export includes meta_json for teacher messages."""
+        exporter = CSVExporter()
+        session = sample_session_with_analysis
+
+        csv_content = await exporter.export_session_admin(
+            session.id, async_db_session
+        )
+
+        reader = csv.DictReader(io.StringIO(csv_content))
+        rows = list(reader)
+        teacher_rows = [r for r in rows if r["role"] == "teacher"]
+        assert len(teacher_rows) > 0
+
+        assert teacher_rows[0]["meta_json"] != ""
+        assert "summary" in teacher_rows[0]["meta_json"]
+
+    @pytest.mark.asyncio
+    async def test_export_multiple_sessions_admin(
+        self, async_db_session, multiple_sessions
+    ):
+        """Verify admin bulk export works with multiple sessions."""
+        exporter = CSVExporter()
+        session_ids = [s.id for s in multiple_sessions]
+
+        csv_content = await exporter.export_multiple_sessions_admin(
+            session_ids, async_db_session
+        )
+
+        reader = csv.DictReader(io.StringIO(csv_content))
+        rows = list(reader)
+        unique_sessions = set(r["session_id"] for r in rows)
+        assert len(unique_sessions) == len(session_ids)

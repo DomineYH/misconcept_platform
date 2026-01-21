@@ -1,5 +1,6 @@
 """SessionManager service for orchestrating dialogue flow."""
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -117,35 +118,46 @@ class SessionManager:
         await self.db.flush()  # Get ID without commit
         new_messages.append(teacher_msg)
 
-        # 3. Generate student response
+        # 3. Generate student response (must be sequential - needed by others)
         (
             student_content,
             student_usage,
         ) = await self.student_bot.generate_response(teacher_content, history)
 
-        # 3.1. Analyze misconception adherence in student response
-        misconception_data = None
-        try:
-            misconception_analysis = (
-                await self.misconception_analyzer.analyze_student_response(
-                    student_message=student_content,
-                    scenario_prompt=self.scenario.prompt,
-                    student_profile=self.scenario.student_profile
-                    or "Grade 5 student",
-                    scenario_title=self.scenario.title,
+        # 3.1. Run MisconceptionAnalyzer and TutorBot in PARALLEL
+        # Both depend on student_content but NOT on each other
+        # Performance: saves ~2 seconds by avoiding sequential API calls
+        analysis_coro = self.misconception_analyzer.analyze_student_response(
+            student_message=student_content,
+            scenario_prompt=self.scenario.prompt,
+            student_profile=self.scenario.student_profile or "Grade 5 student",
+            scenario_title=self.scenario.title,
+        )
+
+        parallel_tasks: list = [analysis_coro]
+        tutor_task_idx: int | None = None
+        if self.tutor_bot:
+            parallel_tasks.append(
+                self.tutor_bot.generate_feedback(
+                    teacher_content, student_content, history
                 )
             )
-            misconception_data = json.dumps(misconception_analysis)
-        except Exception as e:
-            logger.warning(f"Misconception analysis failed: {e}")
-            # Continue without analysis data
+            tutor_task_idx = 1
+
+        results = await asyncio.gather(*parallel_tasks, return_exceptions=True)
+
+        misconception_data = None
+        if not isinstance(results[0], Exception) and results[0] is not None:
+            misconception_data = json.dumps(results[0])
+        elif isinstance(results[0], Exception):
+            logger.warning(f"Misconception analysis failed: {results[0]}")
 
         # 3.2. Save student message with metadata
         student_msg = Message(
             session_id=self.session_id,
             role="student",
             content=student_content,
-            analysis_metadata=misconception_data,  # Store analysis result
+            analysis_metadata=misconception_data,
         )
         self.db.add(student_msg)
         await self.db.flush()
@@ -158,31 +170,29 @@ class SessionManager:
             usage_dict=student_usage,
         )
 
-        # 4. Check if tutor should intervene (only if enabled)
-        if self.tutor_bot:
-            (
-                tutor_feedback,
-                tutor_usage,
-            ) = await self.tutor_bot.generate_feedback(
-                teacher_content, student_content, history
-            )
+        # 4. Process TutorBot result (from parallel execution)
+        if tutor_task_idx is not None:
+            tutor_result = results[tutor_task_idx]
+            if not isinstance(tutor_result, Exception):
+                tutor_feedback, tutor_usage = tutor_result
+                if tutor_feedback:
+                    tutor_msg = Message(
+                        session_id=self.session_id,
+                        role="tutor",
+                        content=tutor_feedback,
+                    )
+                    self.db.add(tutor_msg)
+                    await self.db.flush()
+                    new_messages.append(tutor_msg)
 
-            if tutor_feedback:
-                tutor_msg = Message(
-                    session_id=self.session_id,
-                    role="tutor",
-                    content=tutor_feedback,
-                )
-                self.db.add(tutor_msg)
-                await self.db.flush()
-                new_messages.append(tutor_msg)
-
-                # Log TutorBot API usage (only if intervention occurred)
-                await self._log_api_usage(
-                    bot_type="tutor",
-                    model=self.tutor_bot.model,
-                    usage_dict=tutor_usage,
-                )
+                    # Log TutorBot API usage (only if intervention occurred)
+                    await self._log_api_usage(
+                        bot_type="tutor",
+                        model=self.tutor_bot.model,
+                        usage_dict=tutor_usage,
+                    )
+            else:
+                logger.warning(f"TutorBot feedback failed: {tutor_result}")
 
         # 5. Commit all messages
         await self.db.commit()
@@ -221,12 +231,12 @@ class SessionManager:
                 or "gpt-4-turbo"  # Default
             ),
             "student_reasoning": config.STUDENT_REASONING or "medium",
-            "student_max_tokens": config.STUDENT_MAX_TOKENS or 150,
+            "student_max_tokens": config.STUDENT_MAX_TOKENS or 750,
             # TutorBot configuration
             "tutor_enabled": scenario.tutor_enabled,
             "tutor_model": config.ANALYSIS_MODEL or "gpt-3.5-turbo",
             "tutor_reasoning": config.TUTOR_REASONING or "low",
-            "tutor_max_tokens": config.TUTOR_MAX_TOKENS or 100,
+            "tutor_max_tokens": config.TUTOR_MAX_TOKENS or 750,
             "tutor_intervention_threshold": (
                 scenario.tutor_intervention_threshold
                 if scenario.tutor_intervention_threshold is not None

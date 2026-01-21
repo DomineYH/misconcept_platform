@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS scenario (
   title TEXT NOT NULL,
   prompt TEXT NOT NULL,
   student_profile TEXT,
+  video_url VARCHAR(500) NULL,
+  video_transcript TEXT NULL,
   is_active INTEGER NOT NULL DEFAULT 1
     CHECK(is_active IN (0, 1)),
   framework_id INTEGER NOT NULL

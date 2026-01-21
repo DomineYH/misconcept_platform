@@ -4,6 +4,7 @@ CSV export service for session data (T062-T064).
 Generates UTF-8 CSV files with anonymized student identifiers
 and session summary rows.
 """
+
 import csv
 import hashlib
 import io
@@ -196,6 +197,145 @@ class CSVExporter:
                     all_rows.extend(lines)  # Include header
                 else:
                     all_rows.extend(lines[1:])  # Skip header
+            except ValueError as e:
+                logger.warning(f"Skipping session {session_id}: {e}")
+                continue
+
+        return "\n".join(all_rows)
+
+    async def export_session_admin(
+        self, session_id: int, db: AsyncSession
+    ) -> str:
+        """Admin export with raw teacher info and meta_json."""
+        result = await db.execute(
+            select(Session).where(Session.id == session_id)
+        )
+        session = result.scalar_one_or_none()
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        teacher_result = await db.execute(
+            select(User).where(User.id == session.teacher_id)
+        )
+        teacher = teacher_result.scalar_one()
+
+        scenario_result = await db.execute(
+            select(Scenario).where(Scenario.id == session.scenario_id)
+        )
+        scenario = scenario_result.scalar_one()
+
+        messages_result = await db.execute(
+            select(Message)
+            .where(Message.session_id == session_id)
+            .order_by(Message.created_at)
+        )
+        messages = messages_result.scalars().all()
+
+        analyses_result = await db.execute(
+            select(QuestionAnalysis)
+            .join(Message)
+            .where(Message.session_id == session_id)
+        )
+        analyses = {a.message_id: a for a in analyses_result.scalars().all()}
+
+        summary_result = await db.execute(
+            select(SessionSummary).where(
+                SessionSummary.session_id == session_id
+            )
+        )
+        summary = summary_result.scalar_one_or_none()
+
+        output = io.StringIO()
+        fieldnames = [
+            "session_id",
+            "scenario_id",
+            "scenario_title",
+            "teacher_id",
+            "teacher_student_uid",
+            "teacher_nickname",
+            "session_started_at",
+            "session_ended_at",
+            "message_id",
+            "message_created_at",
+            "role",
+            "content",
+            "label",
+            "confidence",
+            "meta_json",
+            "feedback",
+        ]
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for msg in messages:
+            analysis = analyses.get(msg.id)
+            writer.writerow(
+                {
+                    "session_id": session_id,
+                    "scenario_id": scenario.id,
+                    "scenario_title": scenario.title,
+                    "teacher_id": teacher.id,
+                    "teacher_student_uid": teacher.student_uid,
+                    "teacher_nickname": teacher.nickname,
+                    "session_started_at": session.started_at.isoformat(),
+                    "session_ended_at": (
+                        session.ended_at.isoformat() if session.ended_at else ""
+                    ),
+                    "message_id": msg.id,
+                    "message_created_at": msg.created_at.isoformat(),
+                    "role": msg.role,
+                    "content": msg.content,
+                    "label": analysis.label if analysis else "",
+                    "confidence": (
+                        f"{analysis.confidence:.2f}"
+                        if analysis and analysis.confidence
+                        else ""
+                    ),
+                    "meta_json": analysis.meta_json if analysis else "",
+                    "feedback": "",
+                }
+            )
+
+        if summary:
+            writer.writerow(
+                {
+                    "session_id": session_id,
+                    "scenario_id": scenario.id,
+                    "scenario_title": scenario.title,
+                    "teacher_id": teacher.id,
+                    "teacher_student_uid": teacher.student_uid,
+                    "teacher_nickname": teacher.nickname,
+                    "session_started_at": session.started_at.isoformat(),
+                    "session_ended_at": (
+                        session.ended_at.isoformat() if session.ended_at else ""
+                    ),
+                    "message_id": "",
+                    "message_created_at": summary.created_at.isoformat(),
+                    "role": "summary",
+                    "content": "Session Summary",
+                    "label": "",
+                    "confidence": "",
+                    "meta_json": "",
+                    "feedback": summary.feedback or "",
+                }
+            )
+
+        return output.getvalue()
+
+    async def export_multiple_sessions_admin(
+        self, session_ids: List[int], db: AsyncSession
+    ) -> str:
+        """Admin bulk export with raw teacher info and meta_json."""
+        all_rows: List[str] = []
+
+        for session_id in session_ids:
+            try:
+                csv_content = await self.export_session_admin(session_id, db)
+                lines = csv_content.strip().split("\n")
+                if not all_rows:
+                    all_rows.extend(lines)
+                else:
+                    all_rows.extend(lines[1:])
             except ValueError as e:
                 logger.warning(f"Skipping session {session_id}: {e}")
                 continue
