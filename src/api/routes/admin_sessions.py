@@ -18,7 +18,6 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
-from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.user import User
 from src.services.export import CSVExporter
@@ -30,10 +29,10 @@ templates = Jinja2Templates(directory="src/templates")
 @router.get("/admin/sessions-page", response_class=HTMLResponse)
 async def sessions_page(
     request: Request,
-    scenario_id: Optional[int] = None,
     teacher_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    status_filter: Optional[str] = None,
     page: int = 1,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
@@ -48,10 +47,12 @@ async def sessions_page(
 
     base_query = select(Session).where(Session.deleted_at.is_(None))
 
-    if scenario_id:
-        base_query = base_query.where(Session.scenario_id == scenario_id)
     if teacher_id:
         base_query = base_query.where(Session.teacher_id == teacher_id)
+    if status_filter == "completed":
+        base_query = base_query.where(Session.ended_at.isnot(None))
+    elif status_filter == "active":
+        base_query = base_query.where(Session.ended_at.is_(None))
     if date_from:
         try:
             dt = datetime.fromisoformat(date_from.replace("Z", ""))
@@ -82,11 +83,6 @@ async def sessions_page(
     result = await db.execute(query)
     sessions = result.scalars().all()
 
-    scenarios_result = await db.execute(
-        select(Scenario).order_by(Scenario.title)
-    )
-    scenarios = scenarios_result.scalars().all()
-
     teachers_result = await db.execute(
         select(User)
         .where(User.id.in_(select(Session.teacher_id).distinct()))
@@ -100,12 +96,11 @@ async def sessions_page(
             "request": request,
             "user": user,
             "sessions": sessions,
-            "scenarios": scenarios,
             "teachers": teachers,
-            "current_scenario_id": scenario_id,
             "current_teacher_id": teacher_id,
             "current_date_from": date_from or "",
             "current_date_to": date_to or "",
+            "current_status": status_filter or "",
             "current_page": page,
             "total_pages": total_pages,
             "total_count": total_count,

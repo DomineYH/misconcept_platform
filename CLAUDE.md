@@ -75,10 +75,17 @@ specs/
     └── ...
 ```
 
+## Development Environment
+
+**필수**: 이 프로젝트는 반드시 `uv` 환경에서 작업합니다.
+- 모든 패키지 설치는 `uv pip install`로 수행
+- 가상환경 생성은 `uv venv`로 수행
+- pip/conda/poetry 등 다른 패키지 매니저 사용 금지
+
 ## Development Commands
 
 ```bash
-# Setup
+# Setup (uv 필수)
 uv venv                  # Create virtual environment
 source .venv/bin/activate  # Activate (Linux/Mac)
 uv pip install -e ".[dev]"  # Install dependencies

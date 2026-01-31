@@ -34,7 +34,7 @@
       class="btn btn-sm btn-warning">종료</button>
     {% else %}
     <a href="/admin/sessions/{{ session.id }}/download"
-      class="btn btn-sm btn-primary">저장</a>
+      class="btn btn-sm btn-success">📥 CSV</a>
     {% endif %}
     <button type="button"
       hx-delete="/admin/sessions/{{ session.id }}"
