@@ -4,138 +4,82 @@
 
 {% block content %}
 <div class="container">
-  <header class="page-header">
-    <h1>📝 프롬프트 템플릿 관리</h1>
-    <p class="subtitle">
-      학생봇 및 튜터봇 시스템 프롬프트 관리
-    </p>
+  <header class="page-header-admin">
+    <div class="header-content">
+      <h1>프롬프트 템플릿 관리</h1>
+      <p class="subtitle">학생봇 및 튜터봇 시스템 프롬프트 관리</p>
+    </div>
+    <button class="btn btn-primary" id="open-create-modal">
+      + 새 템플릿
+    </button>
   </header>
 
-  <!-- Bot Type Filter -->
-  <div class="filter-buttons">
-    <button class="btn active" onclick="filter('all', this)">
-      전체 ({{ prompts|length }})
-    </button>
-    <button class="btn" onclick="filter('student', this)">
-      학생봇
-    </button>
-    <button class="btn" onclick="filter('tutor', this)">튜터봇</button>
-  </div>
-
-  <!-- Create Button & Form -->
-  <button class="btn btn-primary" id="new-btn" onclick="toggleNew()">
-    ➕ 새 템플릿 생성
-  </button>
-
-  <form id="new-form" class="scenario-form card" style="display: none; margin-top: 1rem;">
-    <h3>새 템플릿 생성</h3>
-    <div class="form-group">
-      <label>봇 유형 *</label>
-      <select id="bot-type" required>
-        <option value="student">학생봇</option>
-        <option value="tutor">튜터봇</option>
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label>템플릿 이름 *</label>
-      <input
-        type="text"
-        id="name"
-        required
-        minlength="3"
-        maxlength="100"
-        placeholder="예: 기본 학생 페르소나"
-      />
-    </div>
-
-    <div class="form-group">
-      <label>프롬프트 텍스트 *</label>
-      <textarea
-        id="text"
-        rows="15"
-        required
-        minlength="10"
-        maxlength="10000"
-        class="code-editor"
-        placeholder="여기에 시스템 프롬프트를 입력하세요..."
-      ></textarea>
-    </div>
-
-    <div class="form-group">
-      <label>
-        <input type="checkbox" id="active" />
-        즉시 활성화
-      </label>
-    </div>
-
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">💾 저장</button>
-      <button
-        type="button"
-        class="btn btn-secondary"
-        onclick="toggleNew()"
-      >
-        ❌ 취소
+  <section class="filter-bar">
+    <div class="filter-buttons">
+      <button class="btn filter-btn active" data-filter="all">
+        전체 ({{ prompts|length }})
       </button>
+      <button class="btn filter-btn" data-filter="student">학생봇</button>
+      <button class="btn filter-btn" data-filter="tutor">튜터봇</button>
     </div>
-  </form>
+  </section>
 
-  <!-- Prompts List -->
-  <section class="scenarios-list">
-    <div class="list-header">
-      <h2>템플릿 목록</h2>
-    </div>
+  <section class="prompts-grid-container">
+    <h2 class="section-title">
+      템플릿 목록
+      <span class="count-badge" id="visible-count">{{ prompts|length }}개</span>
+    </h2>
 
     {% if prompts %}
-    <div class="grid-container">
+    <div class="scenarios-grid" id="prompts-grid">
       {% for p in prompts %}
       <div class="scenario-card prompt-card" data-type="{{ p.bot_type }}">
-        <div class="card-header">
-          <div class="card-title-group">
-            <h3 class="card-title">{{ p.template_name }}</h3>
-            <span class="version-badge">v{{ p.version }}</span>
-          </div>
-          <span
-            class="status-badge {% if p.is_active %}active{% else %}inactive{% endif %}"
-          >
-            {% if p.is_active %}✅ 활성{% else %}비활성{% endif %}
+        <div class="card-status">
+          <span class="status-badge {% if p.is_active %}active{% endif %}">
+            {% if p.is_active %}활성{% else %}비활성{% endif %}
           </span>
-        </div>
-        
-        <div class="card-meta">
-          <span class="meta-item">
-            {% if p.bot_type == 'student' %}👨‍🎓{% else %}👨‍🏫{% endif %}
-            {{ p.bot_type|capitalize }}
-          </span>
-          <span class="meta-item">📅 {{ p.created_at.strftime('%Y-%m-%d') }}</span>
         </div>
 
-        <div class="card-preview">
-          <div class="code-preview">{{ p.template_text }}</div>
-          <div class="fade-overlay"></div>
+        <div class="card-body">
+          <h3 class="card-title">{{ p.template_name }}</h3>
+          <span class="version-badge">v{{ p.version }}</span>
+          
+          <div class="card-meta">
+            <span class="meta-tag">
+              {% if p.bot_type == 'student' %}학생봇{% else %}튜터봇{% endif %}
+            </span>
+            <span class="meta-tag">{{ p.created_at.strftime('%Y-%m-%d') }}</span>
+          </div>
+
+          <div class="code-preview-container">
+            <pre class="code-preview">{{ p.template_text[:300] }}{% if p.template_text|length > 300 %}...{% endif %}</pre>
+          </div>
         </div>
 
         <div class="card-actions">
           <button
-            class="btn btn-small btn-secondary"
-            onclick="openEditModal({{ p.id }}, '{{ p.template_name|e }}', `{{ p.template_text|e }}`)"
+            type="button"
+            class="btn btn-sm btn-secondary edit-btn"
+            data-id="{{ p.id }}"
+            data-name="{{ p.template_name|e }}"
+            data-text="{{ p.template_text|e }}"
           >
-            ✏️ 수정
+            수정
           </button>
-          
           {% if not p.is_active %}
           <button
-            class="btn btn-small btn-primary"
-            onclick="activate({{ p.id }})"
+            type="button"
+            class="btn btn-sm btn-primary activate-btn"
+            data-id="{{ p.id }}"
           >
-            ✅ 활성화
+            활성화
           </button>
           <button
-            class="btn btn-small btn-danger"
-            onclick="deletePrompt({{ p.id }})"
+            type="button"
+            class="btn btn-sm btn-danger delete-btn"
+            data-id="{{ p.id }}"
           >
-            🗑️ 삭제
+            삭제
           </button>
           {% endif %}
         </div>
@@ -147,357 +91,334 @@
       <span class="empty-state-icon">💬</span>
       <h3 class="empty-state-title">프롬프트 템플릿이 없습니다</h3>
       <p>등록된 프롬프트 템플릿이 없습니다.</p>
-      <button class="btn btn-primary" onclick="toggleNew()">첫 번째 템플릿 생성하기</button>
+      <button class="btn btn-primary" id="open-create-modal-empty">
+        + 첫 번째 템플릿 만들기
+      </button>
     </div>
     {% endif %}
   </section>
 </div>
 
-<!-- Edit Modal -->
-<dialog id="edit-modal" class="modal">
-  <div class="modal-content">
-    <h3>템플릿 수정</h3>
-    <p class="modal-desc">
-      주의: 내용을 수정하면 버전은 유지됩니다. 중요한 변경사항은 새 템플릿 생성을 권장합니다.
-    </p>
-    
-    <form id="edit-form">
-      <input type="hidden" id="edit-id" />
-      
-      <div class="form-group">
-        <label>템플릿 이름</label>
-        <input type="text" id="edit-name" required minlength="3" maxlength="100" />
+<div class="modal-overlay" id="create-modal">
+  <div class="modal-container modal-lg">
+    <div class="modal-header">
+      <h2>새 템플릿 생성</h2>
+      <button type="button" class="close-modal-btn" data-modal="create-modal">&times;</button>
+    </div>
+    <form id="create-form" class="modal-form">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="new-bot-type">봇 유형 <span class="required">*</span></label>
+            <select id="new-bot-type" required>
+              <option value="student">학생봇</option>
+              <option value="tutor">튜터봇</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="new-name">템플릿 이름 <span class="required">*</span></label>
+            <input type="text" id="new-name" required minlength="3" maxlength="100" placeholder="예: 기본 학생 페르소나" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="new-text">프롬프트 텍스트 <span class="required">*</span></label>
+          <textarea
+            id="new-text"
+            rows="12"
+            required
+            minlength="10"
+            maxlength="10000"
+            class="code-editor"
+            placeholder="시스템 프롬프트를 입력하세요..."
+          ></textarea>
+        </div>
+
+        <div class="form-group checkbox-group">
+          <label>
+            <input type="checkbox" id="new-active" />
+            즉시 활성화
+          </label>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label>프롬프트 텍스트</label>
-        <textarea id="edit-text" rows="15" required class="code-editor"></textarea>
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">💾 변경사항 저장</button>
-        <button type="button" class="btn btn-secondary" onclick="closeEditModal()">취소</button>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal="create-modal">취소</button>
+        <button type="submit" class="btn btn-primary">템플릿 생성</button>
       </div>
     </form>
   </div>
-</dialog>
+</div>
+
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-container modal-lg">
+    <div class="modal-header">
+      <h2>템플릿 수정</h2>
+      <button type="button" class="close-modal-btn" data-modal="edit-modal">&times;</button>
+    </div>
+    <form id="edit-form" class="modal-form">
+      <input type="hidden" id="edit-id" />
+      <div class="modal-body">
+        <p class="form-warning">내용을 수정하면 버전은 유지됩니다. 중요한 변경은 새 템플릿 생성을 권장합니다.</p>
+        
+        <div class="form-group">
+          <label for="edit-name">템플릿 이름 <span class="required">*</span></label>
+          <input type="text" id="edit-name" required minlength="3" maxlength="100" />
+        </div>
+
+        <div class="form-group">
+          <label for="edit-text">프롬프트 텍스트 <span class="required">*</span></label>
+          <textarea id="edit-text" rows="12" required class="code-editor"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal="edit-modal">취소</button>
+        <button type="submit" class="btn btn-primary">변경사항 저장</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <style>
-  /* Grid Layout */
-  .grid-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 1.5rem;
-    margin-top: 1.5rem;
-  }
-
-  /* Card Styling */
-  .prompt-card {
+  .filter-buttons {
     display: flex;
-    flex-direction: column;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 1.25rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    transition: transform 0.2s, box-shadow 0.2s;
-    height: 100%;
-  }
-
-  .prompt-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  }
-
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.75rem;
-  }
-
-  .card-title-group {
-    display: flex;
-    align-items: center;
     gap: 0.5rem;
   }
 
-  .card-title {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #111827;
+  .filter-btn {
+    background: var(--color-white);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-medium);
+  }
+
+  .filter-btn:hover {
+    background: var(--color-gray-50);
+  }
+
+  .filter-btn.active {
+    background: var(--color-black);
+    color: var(--color-white);
+    border-color: var(--color-black);
   }
 
   .version-badge {
-    background: #f3f4f6;
-    color: #4b5563;
+    display: inline-block;
+    background: var(--color-gray-100);
+    color: var(--color-text-secondary);
     font-size: 0.75rem;
-    padding: 0.125rem 0.375rem;
-    border-radius: 4px;
-    font-weight: 500;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-sm);
+    margin-left: 0.5rem;
+    vertical-align: middle;
   }
 
-  .status-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 9999px;
-    font-weight: 600;
-  }
-  .status-badge.active {
-    background: #d1fae5;
-    color: #065f46;
-  }
-  .status-badge.inactive {
-    background: #f3f4f6;
-    color: #6b7280;
-  }
-
-  .card-meta {
-    display: flex;
-    gap: 1rem;
-    font-size: 0.875rem;
-    color: #6b7280;
-    margin-bottom: 1rem;
-  }
-
-  /* Code Preview */
-  .card-preview {
-    position: relative;
-    background: #1f2937; /* Dark background for code */
-    border-radius: 6px;
+  .code-preview-container {
+    margin-top: 1rem;
+    background: var(--color-gray-900);
+    border-radius: var(--radius-md);
     padding: 1rem;
-    margin-bottom: 1rem;
-    flex-grow: 1;
+    max-height: 150px;
     overflow: hidden;
-    height: 200px; /* Fixed height for consistency */
+    position: relative;
   }
 
-  .code-preview {
-    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-    font-size: 0.85rem;
-    line-height: 1.5;
-    color: #e5e7eb;
-    white-space: pre-wrap;
-  }
-
-  .fade-overlay {
+  .code-preview-container::after {
+    content: '';
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 60px;
-    background: linear-gradient(to bottom, transparent, #1f2937);
+    height: 40px;
+    background: linear-gradient(transparent, var(--color-gray-900));
   }
 
-  /* Actions */
-  .card-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: auto;
+  .code-preview {
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--color-gray-300);
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
   }
 
-  .btn-small {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-  }
-
-  .btn-danger {
-    background: #fee2e2;
-    color: #b91c1c;
-    border: 1px solid #fecaca;
-  }
-  .btn-danger:hover {
-    background: #fecaca;
-  }
-
-  /* Editor */
   .code-editor {
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
     font-size: 0.9rem;
     line-height: 1.5;
-    background: #f9fafb;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    padding: 1rem;
-    width: 100%;
-    box-sizing: border-box;
-  }
-  
-  .code-editor:focus {
-    outline: 2px solid #3b82f6;
-    background: white;
   }
 
-  /* Modal */
-  .modal {
-    border: none;
-    border-radius: 12px;
-    padding: 0;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    width: 90%;
-    max-width: 800px;
-  }
-  
-  .modal::backdrop {
-    background: rgba(0, 0, 0, 0.5);
-  }
-
-  .modal-content {
-    padding: 2rem;
-  }
-
-  .modal-desc {
-    font-size: 0.875rem;
-    color: #d97706; /* Warning color */
-    background: #fffbeb;
-    padding: 0.75rem;
-    border-radius: 6px;
+  .form-warning {
+    font-size: 0.9rem;
+    color: var(--color-warning-text);
+    background: var(--color-warning-bg);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
     margin-bottom: 1.5rem;
+    border-left: 3px solid var(--color-warning);
+  }
+
+  .prompt-card .card-title {
+    display: inline;
   }
 </style>
 
 <script>
-  // Existing create & filter logic
-  function toggleNew() {
-    const form = document.getElementById("new-form");
-    const btn = document.getElementById("new-btn");
-    if (form.style.display === "none") {
-      form.style.display = "block";
-      btn.textContent = "❌ 취소";
-      // Scroll to form
-      form.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      form.style.display = "none";
-      btn.textContent = "➕ 새 템플릿 생성";
-      form.reset();
+function openModal(modalId) {
+  document.getElementById(modalId).classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(modalId) {
+  document.getElementById(modalId).classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('open-create-modal').addEventListener('click', () => openModal('create-modal'));
+
+const emptyBtn = document.getElementById('open-create-modal-empty');
+if (emptyBtn) {
+  emptyBtn.addEventListener('click', () => openModal('create-modal'));
+}
+
+document.querySelectorAll('[data-modal]').forEach(btn => {
+  btn.addEventListener('click', (e) => closeModal(e.target.dataset.modal));
+});
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-overlay')) {
+      closeModal(e.target.id);
     }
-  }
-
-  function filter(type, btn) {
-    document.querySelectorAll(".filter-buttons .btn").forEach((b) => {
-      b.classList.remove("active");
-    });
-    btn.classList.add("active");
-
-    document.querySelectorAll(".prompt-card").forEach((card) => {
-      card.style.display =
-        type === "all" || card.dataset.type === type ? "flex" : "none";
-    });
-  }
-
-  document.getElementById("new-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const data = {
-      bot_type: document.getElementById("bot-type").value,
-      template_name: document.getElementById("name").value,
-      template_text: document.getElementById("text").value,
-      is_active: document.getElementById("active").checked,
-    };
-
-    try {
-      const res = await fetch("/admin/prompts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
-      if (res.ok) {
-        alert("✅ 템플릿이 생성되었습니다!");
-        location.reload();
-      } else {
-        const err = await res.json();
-        alert(`❌ ${err.detail}`);
-      }
-    } catch {
-      alert("❌ 생성 실패");
-    }
-  };
-
-  async function activate(id) {
-    if (!confirm("이 템플릿을 활성화하시겠습니까?")) return;
-
-    try {
-      const res = await fetch(`/admin/prompts/${id}/activate`, {
-        method: "PUT",
-      });
-
-      if (res.ok) {
-        alert("✅ 활성화되었습니다!");
-        location.reload();
-      } else {
-        const err = await res.json();
-        alert(`❌ ${err.detail}`);
-      }
-    } catch {
-      alert("❌ 활성화 실패");
-    }
-  }
-
-  // New Edit & Delete logic
-  const editModal = document.getElementById('edit-modal');
-  
-  function openEditModal(id, name, text) {
-    document.getElementById('edit-id').value = id;
-    document.getElementById('edit-name').value = name;
-    document.getElementById('edit-text').value = text; // .replace(/\\n/g, '\n') handled by textarea
-    editModal.showModal();
-  }
-
-  function closeEditModal() {
-    editModal.close();
-  }
-
-  document.getElementById('edit-form').onsubmit = async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('edit-id').value;
-    const data = {
-      template_name: document.getElementById('edit-name').value,
-      template_text: document.getElementById('edit-text').value
-    };
-
-    try {
-      const res = await fetch(`/admin/prompts/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
-      if (res.ok) {
-        alert("✅ 수정되었습니다!");
-        location.reload();
-      } else {
-        const err = await res.json();
-        alert(`❌ ${err.detail}`);
-      }
-    } catch {
-      alert("❌ 수정 실패");
-    }
-  };
-
-  async function deletePrompt(id) {
-    if (!confirm("정말 이 템플릿을 삭제하시겠습니까?")) return;
-
-    try {
-      const res = await fetch(`/admin/prompts/${id}`, {
-        method: "DELETE"
-      });
-
-      if (res.ok) {
-        alert("✅ 삭제되었습니다!");
-        location.reload();
-      } else {
-        const err = await res.json();
-        alert(`❌ ${err.detail}`);
-      }
-    } catch {
-      alert("❌ 삭제 실패");
-    }
-  }
-  
-  // Close modal when clicking outside
-  editModal.addEventListener('click', (e) => {
-    if (e.target === editModal) editModal.close();
   });
+});
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const filter = btn.dataset.filter;
+    let visibleCount = 0;
+
+    document.querySelectorAll('.prompt-card').forEach(card => {
+      const show = filter === 'all' || card.dataset.type === filter;
+      card.style.display = show ? '' : 'none';
+      if (show) visibleCount++;
+    });
+
+    document.getElementById('visible-count').textContent = visibleCount + '개';
+  });
+});
+
+document.getElementById('create-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = {
+    bot_type: document.getElementById('new-bot-type').value,
+    template_name: document.getElementById('new-name').value,
+    template_text: document.getElementById('new-text').value,
+    is_active: document.getElementById('new-active').checked,
+  };
+
+  try {
+    const res = await fetch('/admin/prompts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (res.ok) {
+      alert('템플릿이 생성되었습니다!');
+      location.reload();
+    } else {
+      const err = await res.json();
+      alert(`오류: ${err.detail}`);
+    }
+  } catch {
+    alert('템플릿 생성에 실패했습니다');
+  }
+});
+
+document.querySelectorAll('.edit-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('edit-id').value = btn.dataset.id;
+    document.getElementById('edit-name').value = btn.dataset.name;
+    document.getElementById('edit-text').value = btn.dataset.text;
+    openModal('edit-modal');
+  });
+});
+
+document.getElementById('edit-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('edit-id').value;
+  const data = {
+    template_name: document.getElementById('edit-name').value,
+    template_text: document.getElementById('edit-text').value
+  };
+
+  try {
+    const res = await fetch(`/admin/prompts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (res.ok) {
+      alert('템플릿이 수정되었습니다!');
+      location.reload();
+    } else {
+      const err = await res.json();
+      alert(`오류: ${err.detail}`);
+    }
+  } catch {
+    alert('템플릿 수정에 실패했습니다');
+  }
+});
+
+document.querySelectorAll('.activate-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('이 템플릿을 활성화하시겠습니까?')) return;
+
+    try {
+      const res = await fetch(`/admin/prompts/${btn.dataset.id}/activate`, { method: 'PUT' });
+      if (res.ok) {
+        alert('템플릿이 활성화되었습니다!');
+        location.reload();
+      } else {
+        const err = await res.json();
+        alert(`오류: ${err.detail}`);
+      }
+    } catch {
+      alert('활성화에 실패했습니다');
+    }
+  });
+});
+
+document.querySelectorAll('.delete-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('이 템플릿을 삭제하시겠습니까?')) return;
+
+    try {
+      const res = await fetch(`/admin/prompts/${btn.dataset.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        alert('템플릿이 삭제되었습니다!');
+        location.reload();
+      } else {
+        const err = await res.json();
+        alert(`오류: ${err.detail}`);
+      }
+    } catch {
+      alert('삭제에 실패했습니다');
+    }
+  });
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeModal('create-modal');
+    closeModal('edit-modal');
+  }
+});
 </script>
 {% endblock %}

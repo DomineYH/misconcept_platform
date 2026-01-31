@@ -4,138 +4,65 @@
 
 {% block content %}
 <div class="container">
-  <header class="page-header">
-    <h1>🔬 분석 프레임워크 관리</h1>
-    <p class="subtitle">
-      질문 분류 프레임워크 설정
-    </p>
+  <header class="page-header-admin">
+    <div class="header-content">
+      <h1>프레임워크 관리</h1>
+      <p class="subtitle">질문 분류 프레임워크 설정</p>
+    </div>
+    <button type="button" class="btn btn-primary" id="open-create-modal">
+      + 새 프레임워크
+    </button>
   </header>
 
-  <!-- Create New Framework Form -->
-  <section class="create-section">
-    <h2>새 프레임워크 생성</h2>
-    <form id="create-form" class="framework-form">
-      <div class="form-group">
-        <label for="new-name">프레임워크 이름 *</label>
-        <input
-          type="text"
-          id="new-name"
-          name="name"
-          required
-          minlength="3"
-          maxlength="200"
-          placeholder="예: 높은/낮은 레버리지 질문"
-        />
-      </div>
-
-      <div class="form-group">
-        <label for="new-description">설명 *</label>
-        <textarea
-          id="new-description"
-          name="description"
-          rows="3"
-          required
-          minlength="10"
-          maxlength="1000"
-          placeholder="프레임워크와 목적 설명 (10-1000자)"
-        ></textarea>
-      </div>
-
-      <div class="form-group">
-        <label>카테고리 라벨 * (2-20개 라벨, 각 2-50자)</label>
-        <div id="labels-container" class="labels-container">
-          <div class="label-input-row">
-            <input
-              type="text"
-              class="label-input"
-              placeholder="라벨 1"
-              minlength="2"
-              maxlength="50"
-              required
-            />
-            <button
-              type="button"
-              class="btn-remove-label"
-              disabled
-            >
-              ❌
-            </button>
-          </div>
-          <div class="label-input-row">
-            <input
-              type="text"
-              class="label-input"
-              placeholder="라벨 2"
-              minlength="2"
-              maxlength="50"
-              required
-            />
-            <button type="button" class="btn-remove-label">❌</button>
-          </div>
-        </div>
-        <button
-          type="button"
-          id="btn-add-label"
-          class="btn btn-secondary"
-        >
-          ➕ 라벨 추가
-        </button>
-      </div>
-
-      <button type="submit" class="btn btn-primary">
-        ✨ 프레임워크 생성
-      </button>
-    </form>
-  </section>
-
-  <!-- Existing Frameworks List -->
-  <section class="frameworks-list">
-    <h2>기존 프레임워크 ({{ frameworks|length }}개)</h2>
+  <section class="frameworks-grid-container">
+    <h2 class="section-title">
+      프레임워크 목록
+      <span class="count-badge">{{ frameworks|length }}개</span>
+    </h2>
 
     {% if frameworks %}
-    <div class="frameworks-table">
+    <div class="scenarios-grid" id="frameworks-grid">
       {% for framework in frameworks %}
-      <div
-        class="framework-card"
-        data-framework-id="{{ framework.id }}"
-      >
-        <div class="framework-header">
-          <h3>{{ framework.name }}</h3>
-          <span class="framework-id">ID: {{ framework.id }}</span>
-        </div>
+      <div class="scenario-card" data-framework-id="{{ framework.id }}">
+        <div class="card-body">
+          <h3 class="card-title">{{ framework.name }}</h3>
+          
+          <div class="card-meta">
+            <span class="meta-tag">ID: {{ framework.id }}</span>
+            <span class="meta-tag {% if framework_usage[framework.id] > 0 %}sessions{% endif %}">
+              시나리오 {{ framework_usage[framework.id] }}개
+            </span>
+          </div>
 
-        <div class="framework-description">
-          <p>{{ framework.description }}</p>
-        </div>
+          <p class="card-description">{{ framework.description }}</p>
 
-        <div class="framework-labels">
-          <strong>카테고리:</strong>
-          <div class="labels-display">
+          <div class="framework-labels">
             {% for label in framework.labels %}
-            <span class="label-badge">{{ label }}</span>
+            <span class="label-badge label-default">{{ label }}</span>
             {% endfor %}
           </div>
         </div>
 
-        <div class="framework-meta">
-          <span class="usage-info">
-            📊 사용 중: {{ framework_usage[framework.id] }}개 시나리오
-          </span>
-        </div>
-
-        <div class="framework-actions">
+        <div class="card-actions">
           <button
-            class="btn btn-edit"
-            onclick="openEditModal({{ framework.id }}, '{{ framework.name|e }}', '{{ framework.description|e }}', {{ framework.labels|tojson }})"
+            type="button"
+            class="btn btn-sm btn-secondary edit-btn"
+            data-id="{{ framework.id }}"
+            data-name="{{ framework.name|e }}"
+            data-description="{{ framework.description|e }}"
+            data-labels='{{ framework.labels|tojson|safe }}'
           >
-            ✏️ 수정
+            수정
           </button>
           <button
-            class="btn btn-delete"
-            onclick="deleteFramework({{ framework.id }}, '{{ framework.name }}', {{ framework_usage[framework.id] }})"
+            type="button"
+            class="btn btn-sm btn-danger delete-btn"
+            data-id="{{ framework.id }}"
+            data-name="{{ framework.name }}"
+            data-usage="{{ framework_usage[framework.id] }}"
             {% if framework_usage[framework.id] > 0 %}disabled{% endif %}
           >
-            🗑️ 삭제
+            삭제
           </button>
         </div>
       </div>
@@ -145,83 +72,125 @@
     <div class="empty-state">
       <span class="empty-state-icon">📊</span>
       <h3 class="empty-state-title">프레임워크가 없습니다</h3>
-      <p>프레임워크를 찾을 수 없습니다. 위에서 첫 번째 프레임워크를 생성하세요.</p>
+      <p>등록된 프레임워크가 없습니다.</p>
+      <button type="button" class="btn btn-primary" id="open-create-modal-empty">
+        + 첫 번째 프레임워크 만들기
+      </button>
     </div>
     {% endif %}
   </section>
 </div>
 
-<!-- Edit Framework Modal -->
-<dialog id="edit-modal" class="modal">
-  <div class="modal-content">
-    <h3>프레임워크 수정</h3>
-    <form id="edit-form">
-      <input type="hidden" id="edit-id" />
+<div class="modal-overlay" id="create-modal">
+  <div class="modal-container modal-lg">
+    <div class="modal-header">
+      <h2>새 프레임워크 생성</h2>
+      <button type="button" class="close-modal-btn" data-modal="create-modal">&times;</button>
+    </div>
+    <form id="create-form" class="modal-form">
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="new-name">프레임워크 이름 <span class="required">*</span></label>
+          <input
+            type="text"
+            id="new-name"
+            name="name"
+            required
+            minlength="3"
+            maxlength="200"
+            placeholder="예: 높은/낮은 레버리지 질문"
+          />
+        </div>
 
-      <div class="form-group">
-        <label for="edit-name">프레임워크 이름 *</label>
-        <input
-          type="text"
-          id="edit-name"
-          required
-          minlength="3"
-          maxlength="200"
-          placeholder="예: 높은/낮은 레버리지 질문"
-        />
+        <div class="form-group">
+          <label for="new-description">설명 <span class="required">*</span></label>
+          <textarea
+            id="new-description"
+            name="description"
+            rows="3"
+            required
+            minlength="10"
+            maxlength="1000"
+            placeholder="프레임워크와 목적 설명 (10-1000자)"
+          ></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>카테고리 라벨 <span class="required">*</span></label>
+          <p class="form-help">2-20개 라벨, 각 2-50자</p>
+          <div id="labels-container" class="labels-container">
+            <div class="label-input-row">
+              <input type="text" class="label-input" placeholder="라벨 1" minlength="2" maxlength="50" required />
+              <button type="button" class="btn-remove-label" disabled>&times;</button>
+            </div>
+            <div class="label-input-row">
+              <input type="text" class="label-input" placeholder="라벨 2" minlength="2" maxlength="50" required />
+              <button type="button" class="btn-remove-label">&times;</button>
+            </div>
+          </div>
+          <button type="button" id="btn-add-label" class="btn btn-sm btn-secondary">+ 라벨 추가</button>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="edit-description">설명 *</label>
-        <textarea
-          id="edit-description"
-          rows="4"
-          required
-          minlength="10"
-          maxlength="1000"
-          placeholder="프레임워크와 목적 설명 (10-1000자)"
-        ></textarea>
-      </div>
-
-      <div class="form-group">
-        <label>카테고리 라벨 * (2-20개 라벨, 각 2-50자)</label>
-        <div id="edit-labels-container" class="labels-container"></div>
-        <button
-          type="button"
-          id="edit-add-label"
-          class="btn btn-secondary"
-        >
-          ➕ 라벨 추가
-        </button>
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">💾 저장</button>
-        <button
-          type="button"
-          class="btn btn-secondary"
-          onclick="closeEditModal()"
-        >
-          취소
-        </button>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal="create-modal">취소</button>
+        <button type="submit" class="btn btn-primary">프레임워크 생성</button>
       </div>
     </form>
   </div>
-</dialog>
+</div>
+
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-container modal-lg">
+    <div class="modal-header">
+      <h2>프레임워크 수정</h2>
+      <button type="button" class="close-modal-btn" data-modal="edit-modal">&times;</button>
+    </div>
+    <form id="edit-form" class="modal-form">
+      <input type="hidden" id="edit-id" />
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="edit-name">프레임워크 이름 <span class="required">*</span></label>
+          <input type="text" id="edit-name" required minlength="3" maxlength="200" />
+        </div>
+
+        <div class="form-group">
+          <label for="edit-description">설명 <span class="required">*</span></label>
+          <textarea id="edit-description" rows="3" required minlength="10" maxlength="1000"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>카테고리 라벨 <span class="required">*</span></label>
+          <p class="form-help">2-20개 라벨, 각 2-50자</p>
+          <div id="edit-labels-container" class="labels-container"></div>
+          <button type="button" id="edit-add-label" class="btn btn-sm btn-secondary">+ 라벨 추가</button>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal="edit-modal">취소</button>
+        <button type="submit" class="btn btn-primary">변경사항 저장</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <style>
-  /* Framework-specific styles */
-  .framework-form {
-    background: #f9f9f9;
-    padding: 1.5rem;
-    border-radius: 8px;
-    margin-bottom: 2rem;
+  .framework-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
   }
 
   .labels-container {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
   }
 
   .label-input-row {
@@ -230,413 +199,266 @@
     align-items: center;
   }
 
-  .label-input {
+  .label-input-row input {
     flex: 1;
-    padding: 0.5rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
   }
 
   .btn-remove-label {
-    padding: 0.25rem 0.5rem;
-    background: #f44336;
-    color: white;
-    border: none;
-    border-radius: 4px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-gray-200);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-medium);
+    border-radius: var(--radius-sm);
     cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .btn-remove-label:hover {
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
   }
 
   .btn-remove-label:disabled {
-    background: #ccc;
+    background: var(--color-gray-100);
+    color: var(--color-gray-400);
     cursor: not-allowed;
   }
 
-  .btn-secondary {
-    background: #6c757d;
-    color: white;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-
-  .framework-card {
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .framework-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
-
-  .framework-header h3 {
-    margin: 0;
-  }
-
-  .framework-id {
-    color: #666;
-    font-size: 0.9rem;
-  }
-
-  .framework-description {
-    margin-bottom: 1rem;
-    color: #555;
-  }
-
-  .framework-labels {
-    margin-top: 1rem;
-  }
-
-  .labels-display {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-  }
-
-  .label-badge {
-    background: #007bff;
-    color: white;
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
-    font-size: 0.9rem;
-  }
-
-  .framework-meta {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid #eee;
-  }
-
-  .usage-info {
-    color: #666;
-    font-size: 0.9rem;
-  }
-
-  .framework-actions {
-    margin-top: 1rem;
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .btn-edit {
-    background: #28a745;
-    color: white;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-
-  .btn-edit:hover {
-    background: #218838;
-  }
-
-  .btn-delete {
-    background: #dc3545;
-    color: white;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-
-  .btn-delete:hover {
-    background: #c82333;
-  }
-
-  .btn-delete:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-  }
-
-  /* Edit Modal Styles */
-  .modal {
-    border: none;
-    border-radius: 8px;
-    padding: 0;
-    max-width: 600px;
-    width: 90%;
-  }
-
-  .modal::backdrop {
-    background: rgba(0, 0, 0, 0.5);
-  }
-
-  .modal-content {
-    padding: 1.5rem;
-  }
-
-  .modal-content h3 {
-    margin-top: 0;
-    margin-bottom: 1.5rem;
-    color: #333;
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 1.5rem;
-    justify-content: flex-end;
+  .form-help {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    margin: 0.25rem 0 0.75rem;
   }
 </style>
 
 <script>
-  // Dynamic label input management
-  const labelsContainer = document.getElementById("labels-container");
-  const addLabelBtn = document.getElementById("btn-add-label");
-  let labelCount = 2;
+const labelsContainer = document.getElementById("labels-container");
+const addLabelBtn = document.getElementById("btn-add-label");
+let labelCount = 2;
 
-  addLabelBtn.addEventListener("click", () => {
-    if (labelCount >= 20) {
-      alert("최대 20개 라벨까지 허용됩니다");
-      return;
+function openModal(modalId) {
+  document.getElementById(modalId).classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(modalId) {
+  document.getElementById(modalId).classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('open-create-modal').addEventListener('click', () => openModal('create-modal'));
+
+const emptyBtn = document.getElementById('open-create-modal-empty');
+if (emptyBtn) {
+  emptyBtn.addEventListener('click', () => openModal('create-modal'));
+}
+
+document.querySelectorAll('[data-modal]').forEach(btn => {
+  btn.addEventListener('click', (e) => closeModal(e.target.dataset.modal));
+});
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-overlay')) {
+      closeModal(e.target.id);
     }
+  });
+});
 
-    labelCount++;
-    const row = document.createElement("div");
-    row.className = "label-input-row";
-    row.innerHTML = `
-      <input
-        type="text"
-        class="label-input"
-        placeholder="라벨 ${labelCount}"
-        minlength="2"
-        maxlength="50"
-        required
-      />
-      <button type="button" class="btn-remove-label">❌</button>
-    `;
-    labelsContainer.appendChild(row);
+addLabelBtn.addEventListener("click", () => {
+  if (labelCount >= 20) {
+    alert("최대 20개 라벨까지 허용됩니다");
+    return;
+  }
+  labelCount++;
+  const row = document.createElement("div");
+  row.className = "label-input-row";
+  row.innerHTML = `
+    <input type="text" class="label-input" placeholder="라벨 ${labelCount}" minlength="2" maxlength="50" required />
+    <button type="button" class="btn-remove-label">&times;</button>
+  `;
+  labelsContainer.appendChild(row);
+  updateRemoveButtons();
+});
+
+labelsContainer.addEventListener("click", (e) => {
+  if (e.target.classList.contains("btn-remove-label")) {
+    e.target.closest(".label-input-row").remove();
+    labelCount--;
     updateRemoveButtons();
-  });
+  }
+});
 
-  labelsContainer.addEventListener("click", (e) => {
-    if (e.target.classList.contains("btn-remove-label")) {
-      const row = e.target.closest(".label-input-row");
-      row.remove();
-      labelCount--;
-      updateRemoveButtons();
-    }
+function updateRemoveButtons() {
+  const rows = labelsContainer.querySelectorAll(".label-input-row");
+  rows.forEach(row => {
+    row.querySelector(".btn-remove-label").disabled = rows.length <= 2;
   });
+}
 
-  function updateRemoveButtons() {
-    const rows = labelsContainer.querySelectorAll(".label-input-row");
-    rows.forEach((row, index) => {
-      const btn = row.querySelector(".btn-remove-label");
-      btn.disabled = rows.length <= 2;
+document.getElementById("create-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = document.getElementById("new-name").value.trim();
+  const description = document.getElementById("new-description").value.trim();
+  const labels = Array.from(labelsContainer.querySelectorAll(".label-input"))
+    .map(input => input.value.trim())
+    .filter(label => label.length > 0);
+
+  if (labels.length < 2) {
+    alert("최소 2개 라벨이 필요합니다");
+    return;
+  }
+
+  try {
+    const response = await fetch("/admin/frameworks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, description, labels }),
     });
+
+    if (response.ok) {
+      alert("프레임워크가 생성되었습니다!");
+      window.location.reload();
+    } else {
+      const error = await response.json();
+      alert(`오류: ${error.detail}`);
+    }
+  } catch (err) {
+    alert("프레임워크 생성에 실패했습니다");
   }
+});
 
-  // Form submission
-  const createForm = document.getElementById("create-form");
-  createForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
+document.querySelectorAll('.delete-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    const name = btn.dataset.name;
+    const usage = parseInt(btn.dataset.usage || '0');
 
-    const name = document.getElementById("new-name").value.trim();
-    const description = document
-      .getElementById("new-description")
-      .value.trim();
-    const labelInputs = labelsContainer.querySelectorAll(".label-input");
-    const labels = Array.from(labelInputs)
-      .map((input) => input.value.trim())
-      .filter((label) => label.length > 0);
-
-    // Validation
-    if (labels.length < 2) {
-      alert("최소 2개 라벨이 필요합니다");
+    if (usage > 0) {
+      alert(`이 프레임워크를 삭제할 수 없습니다.\n${usage}개의 시나리오가 사용 중입니다.`);
       return;
     }
 
-    if (labels.length > 20) {
-      alert("최대 20개 라벨까지 허용됩니다");
-      return;
-    }
-
-    for (const label of labels) {
-      if (label.length < 2) {
-        alert(`라벨 "${label}"이(가) 너무 짧습니다 (최소 2자)`);
-        return;
-      }
-      if (label.length > 50) {
-        alert(`라벨 "${label}"이(가) 너무 깁니다 (최대 50자)`);
-        return;
-      }
-    }
+    if (!confirm(`"${name}" 프레임워크를 삭제하시겠습니까?`)) return;
 
     try {
-      const response = await fetch("/admin/frameworks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description, labels }),
-      });
-
-      if (response.ok) {
-        alert("✅ 프레임워크가 성공적으로 생성되었습니다!");
+      const response = await fetch(`/admin/frameworks/${id}`, { method: "DELETE" });
+      if (response.ok || response.status === 204) {
+        alert("프레임워크가 삭제되었습니다!");
         window.location.reload();
       } else {
         const error = await response.json();
-        alert(`❌ 오류: ${error.detail || "프레임워크 생성에 실패했습니다"}`);
+        alert(`오류: ${error.detail}`);
       }
     } catch (err) {
-      alert(`❌ 네트워크 오류: ${err.message}`);
+      alert("프레임워크 삭제에 실패했습니다");
     }
   });
+});
 
-  // Delete framework
-  async function deleteFramework(frameworkId, frameworkName, usageCount) {
-    if (usageCount > 0) {
-      alert(`❌ 이 프레임워크를 삭제할 수 없습니다.\n${usageCount}개의 시나리오가 사용 중입니다.`);
-      return;
-    }
+const editLabelsContainer = document.getElementById("edit-labels-container");
+const editAddLabelBtn = document.getElementById("edit-add-label");
+let editLabelCount = 0;
 
-    if (!confirm(`정말로 프레임워크 "${frameworkName}"을(를) 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
-      return;
-    }
+document.querySelectorAll('.edit-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id = btn.dataset.id;
+    const name = btn.dataset.name;
+    const description = btn.dataset.description;
+    const labels = JSON.parse(btn.dataset.labels);
 
-    try {
-      const response = await fetch(`/admin/frameworks/${frameworkId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok || response.status === 204) {
-        alert("✅ 프레임워크가 성공적으로 삭제되었습니다!");
-        window.location.reload();
-      } else {
-        const error = await response.json();
-        alert(`❌ 오류: ${error.detail || "프레임워크 삭제에 실패했습니다"}`);
-      }
-    } catch (err) {
-      alert(`❌ 네트워크 오류: ${err.message}`);
-    }
-  }
-
-  // Edit framework functionality
-  const editModal = document.getElementById("edit-modal");
-  const editLabelsContainer = document.getElementById("edit-labels-container");
-  const editAddLabelBtn = document.getElementById("edit-add-label");
-  let editLabelCount = 0;
-
-  function openEditModal(id, name, description, labels) {
-    // Fill basic fields
     document.getElementById("edit-id").value = id;
     document.getElementById("edit-name").value = name;
     document.getElementById("edit-description").value = description;
 
-    // Load existing labels
     editLabelsContainer.innerHTML = "";
     editLabelCount = 0;
+    labels.forEach(label => addEditLabelRow(label));
 
-    labels.forEach((label) => {
-      addEditLabelRow(label);
-    });
+    openModal('edit-modal');
+  });
+});
 
-    editModal.showModal();
+function addEditLabelRow(value = "") {
+  editLabelCount++;
+  const row = document.createElement("div");
+  row.className = "label-input-row";
+  row.innerHTML = `
+    <input type="text" class="edit-label-input" value="${value}" minlength="2" maxlength="50" required />
+    <button type="button" class="btn-remove-label">&times;</button>
+  `;
+  editLabelsContainer.appendChild(row);
+  updateEditRemoveButtons();
+}
+
+function updateEditRemoveButtons() {
+  const rows = editLabelsContainer.querySelectorAll(".label-input-row");
+  rows.forEach(row => {
+    row.querySelector(".btn-remove-label").disabled = rows.length <= 2;
+  });
+}
+
+editAddLabelBtn.addEventListener("click", () => {
+  if (editLabelCount >= 20) {
+    alert("최대 20개 라벨까지 허용됩니다");
+    return;
   }
+  addEditLabelRow();
+});
 
-  function closeEditModal() {
-    editModal.close();
-    document.getElementById("edit-form").reset();
-    editLabelsContainer.innerHTML = "";
-    editLabelCount = 0;
-  }
-
-  function addEditLabelRow(value = "") {
-    const row = document.createElement("div");
-    row.className = "label-input-row";
-    row.innerHTML = `
-      <input
-        type="text"
-        class="edit-label-input"
-        placeholder="예: 물리학적 오개념"
-        value="${value}"
-        minlength="2"
-        maxlength="50"
-        required
-      />
-      <button type="button" class="btn-remove-label">❌</button>
-    `;
-    editLabelsContainer.appendChild(row);
-    editLabelCount++;
+editLabelsContainer.addEventListener("click", (e) => {
+  if (e.target.classList.contains("btn-remove-label")) {
+    e.target.closest(".label-input-row").remove();
+    editLabelCount--;
     updateEditRemoveButtons();
   }
+});
 
-  function updateEditRemoveButtons() {
-    const rows = editLabelsContainer.querySelectorAll(".label-input-row");
-    rows.forEach((row) => {
-      const btn = row.querySelector(".btn-remove-label");
-      btn.disabled = rows.length <= 2;
-    });
+document.getElementById("edit-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = document.getElementById("edit-id").value;
+  const name = document.getElementById("edit-name").value.trim();
+  const description = document.getElementById("edit-description").value.trim();
+  const labels = Array.from(editLabelsContainer.querySelectorAll(".edit-label-input"))
+    .map(input => input.value.trim())
+    .filter(label => label.length > 0);
+
+  if (labels.length < 2) {
+    alert("최소 2개 라벨이 필요합니다");
+    return;
   }
 
-  // Edit label add button
-  editAddLabelBtn.addEventListener("click", () => {
-    if (editLabelCount >= 20) {
-      alert("⚠️ 라벨은 최대 20개까지만 추가할 수 있습니다.");
-      return;
+  try {
+    const response = await fetch(`/admin/frameworks/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, description, labels }),
+    });
+
+    if (response.ok) {
+      alert("프레임워크가 수정되었습니다!");
+      window.location.reload();
+    } else {
+      const error = await response.json();
+      alert(`오류: ${error.detail}`);
     }
-    addEditLabelRow();
-  });
+  } catch (err) {
+    alert("프레임워크 수정에 실패했습니다");
+  }
+});
 
-  // Edit label remove button
-  editLabelsContainer.addEventListener("click", (e) => {
-    if (e.target.classList.contains("btn-remove-label")) {
-      const row = e.target.closest(".label-input-row");
-      row.remove();
-      editLabelCount--;
-      updateEditRemoveButtons();
-    }
-  });
-
-  // Edit form submission
-  document.getElementById("edit-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const id = document.getElementById("edit-id").value;
-    const name = document.getElementById("edit-name").value.trim();
-    const description = document.getElementById("edit-description").value.trim();
-
-    // Collect labels
-    const labelInputs = document.querySelectorAll(".edit-label-input");
-    const labels = Array.from(labelInputs)
-      .map((input) => input.value.trim())
-      .filter((label) => label.length > 0);
-
-    // Client-side validation
-    if (labels.length < 2) {
-      alert("⚠️ 라벨은 최소 2개 이상 필요합니다.");
-      return;
-    }
-
-    if (labels.length > 20) {
-      alert("⚠️ 라벨은 최대 20개까지만 가능합니다.");
-      return;
-    }
-
-    // PUT request
-    try {
-      const response = await fetch(`/admin/frameworks/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description, labels }),
-      });
-
-      if (response.ok) {
-        alert("✅ 프레임워크가 수정되었습니다!");
-        window.location.reload();
-      } else {
-        const error = await response.json();
-        alert(`❌ 수정 실패: ${error.detail || "프레임워크 수정에 실패했습니다"}`);
-      }
-    } catch (err) {
-      alert(`❌ 네트워크 오류: ${err.message}`);
-    }
-  });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeModal('create-modal');
+    closeModal('edit-modal');
+  }
+});
 </script>
 {% endblock %}
