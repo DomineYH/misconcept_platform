@@ -29,7 +29,7 @@ class Config:
     STUDENT_MAX_TOKENS: int = int(
         os.getenv("STUDENT_MAX_TOKENS", "750")
     )
-    TUTOR_MAX_TOKENS: int = int(os.getenv("TUTOR_MAX_TOKENS", "750"))
+    TUTOR_MAX_TOKENS: int = int(os.getenv("TUTOR_MAX_TOKENS", "1125"))
     TUTOR_INTERVENTION_THRESHOLD: int = int(
         os.getenv("TUTOR_INTERVENTION_THRESHOLD", "3")
     )
@@ -47,6 +47,10 @@ class Config:
     # Server
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
+
+    # CORS - allowed frontend origins (comma-separated for multiple)
+    # In production, this MUST be set to your actual frontend URL
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "")
 
     # Environment (T112: Security hardening)
     ENV: str = os.getenv("ENV", "development")  # development or production

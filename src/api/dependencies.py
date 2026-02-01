@@ -2,10 +2,19 @@
 
 from typing import AsyncGenerator
 from fastapi import Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.connection import AsyncSessionLocal
+
+
+class AuthenticationRequired(Exception):
+    """Exception raised when authentication is required."""
+
+    def __init__(self, redirect_url: str = "/login"):
+        self.redirect_url = redirect_url
+        super().__init__("Authentication required")
 
 
 async def get_db_session() -> AsyncGenerator[
@@ -50,11 +59,7 @@ async def get_current_user(
     # Get user_id from session
     user_id = request.session.get("user_id")
     if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_303_SEE_OTHER,
-            detail="Not authenticated",
-            headers={"Location": "/login"},
-        )
+        raise AuthenticationRequired(redirect_url="/login")
 
     # Query user from database
     result = await db.execute(select(User).where(User.id == user_id))

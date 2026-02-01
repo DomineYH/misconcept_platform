@@ -134,8 +134,8 @@ class TestSessionEndEndpoint:
         response = test_client.post("/sessions/1/end")
         assert response.status_code == 401
 
-    def test_end_session_returns_session_summary(self, test_client: TestClient):
-        """Verify session end returns SessionSummary with distribution."""
+    def test_end_session_returns_ended_status(self, test_client: TestClient):
+        """Verify session end returns ended status (analysis is separate)."""
         # Login and create session
         login_response = test_client.post(
             "/login",
@@ -160,18 +160,15 @@ class TestSessionEndEndpoint:
             f"/sessions/{session_id}/end", cookies=cookies
         )
 
-        # Contract: 200 with SessionSummary
+        # Contract: 200 with ended status
         assert response.status_code == 200
         data = response.json()
 
-        # Verify SessionSummary structure
-        assert "session_id" in data
-        assert data["session_id"] == session_id
-        assert "distribution" in data
-        assert isinstance(data["distribution"], dict)
-        assert "feedback" in data
-        assert isinstance(data["feedback"], str)
-        assert "created_at" in data
+        # Verify ended status structure
+        assert "ended" in data
+        assert data["ended"] is True
+        assert "ended_at" in data
+        assert data["ended_at"] is not None
 
     def test_end_session_nonexistent_returns_404(self, test_client: TestClient):
         """Verify ending nonexistent session returns 404."""
@@ -210,6 +207,91 @@ class TestSessionEndEndpoint:
             f"/sessions/{session_id}/end", cookies=cookies
         )
         assert response.status_code == 400
+
+
+class TestSessionAnalyzeEndpoint:
+    """Test POST /sessions/{id}/analyze endpoint contract."""
+
+    def test_analyze_session_requires_authentication(
+        self, test_client: TestClient
+    ):
+        """Verify unauthenticated request returns 401."""
+        response = test_client.post("/sessions/1/analyze")
+        assert response.status_code == 401
+
+    def test_analyze_session_returns_summary(self, test_client: TestClient):
+        """Verify analyze returns SessionSummary with distribution."""
+        # Login and create session
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        session_response = test_client.post(
+            "/sessions", json={"scenario_id": 1}, cookies=cookies
+        )
+        session_id = session_response.json()["id"]
+
+        # Send at least one message to have content for analysis
+        test_client.post(
+            f"/sessions/{session_id}/messages",
+            data={"content": "What causes photosynthesis?"},
+            cookies=cookies,
+        )
+
+        # End session first (required before analysis)
+        test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
+
+        # Analyze session
+        response = test_client.post(
+            f"/sessions/{session_id}/analyze", cookies=cookies
+        )
+
+        # Contract: 200 with SessionSummary
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify SessionSummary structure
+        assert "distribution" in data
+        assert isinstance(data["distribution"], dict)
+        assert "feedback" in data
+        assert isinstance(data["feedback"], str)
+
+    def test_analyze_before_end_returns_400(self, test_client: TestClient):
+        """Verify analyzing session that hasn't ended returns 400."""
+        # Login and create session
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        session_response = test_client.post(
+            "/sessions", json={"scenario_id": 1}, cookies=cookies
+        )
+        session_id = session_response.json()["id"]
+
+        # Try to analyze without ending first
+        response = test_client.post(
+            f"/sessions/{session_id}/analyze", cookies=cookies
+        )
+        assert response.status_code == 400
+
+    def test_analyze_nonexistent_returns_404(self, test_client: TestClient):
+        """Verify analyzing nonexistent session returns 404."""
+        # Login
+        login_response = test_client.post(
+            "/login",
+            data={"student_uid": "student_001", "nickname": "김교사"},
+        )
+        cookies = login_response.cookies
+
+        # Try to analyze nonexistent session
+        response = test_client.post(
+            "/sessions/99999/analyze", cookies=cookies
+        )
+        assert response.status_code == 404
 
 
 class TestSessionExportEndpoint:

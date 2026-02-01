@@ -50,24 +50,6 @@ AsyncSessionLocal = async_sessionmaker(
 Base = declarative_base()
 
 
-async def get_db():
-    """
-    Dependency for FastAPI to provide database session.
-
-    Yields:
-        AsyncSession: Database session for request scope.
-    """
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
-
-
 async def init_db():
     """Initialize database by creating all tables."""
     async with engine.begin() as conn:

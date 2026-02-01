@@ -16,8 +16,10 @@ from slowapi.util import get_remote_address
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from fastapi.responses import RedirectResponse
 from src.config import config
 from src.db.connection import init_db, close_db
+from src.api.dependencies import AuthenticationRequired
 
 # Configure structured JSON logging
 logger = logging.getLogger()
@@ -156,16 +158,43 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Add CORS middleware (configure allowed origins as needed)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        config.FRONTEND_URL if hasattr(config, "FRONTEND_URL") else "*"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+# Add authentication redirect handler
+@app.exception_handler(AuthenticationRequired)
+async def auth_required_handler(
+    request: Request, exc: AuthenticationRequired
+) -> RedirectResponse:
+    """Redirect to login page when authentication is required."""
+    return RedirectResponse(url=exc.redirect_url, status_code=303)
+
+# Add CORS middleware
+# In development, allow localhost. In production, require FRONTEND_URL.
+def _get_cors_origins() -> list[str]:
+    """Get allowed CORS origins based on environment."""
+    if config.FRONTEND_URL:
+        # Support comma-separated origins
+        return [o.strip() for o in config.FRONTEND_URL.split(",") if o.strip()]
+    if config.is_production:
+        # In production without FRONTEND_URL, only allow same-origin
+        return []
+    # In development, allow common localhost ports
+    return [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
+
+cors_origins = _get_cors_origins()
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
 
 # Add security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)

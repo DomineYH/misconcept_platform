@@ -1,7 +1,8 @@
 """Admin session management routes."""
 
-from datetime import datetime
-from typing import Optional, List, Dict, Any
+import logging
+from datetime import datetime, timezone
+from typing import Optional, List, Dict, Any, Tuple
 
 from fastapi import (
     APIRouter,
@@ -22,8 +23,29 @@ from src.models.session import Session
 from src.models.user import User
 from src.services.export import CSVExporter
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="src/templates")
+
+
+def parse_date_filter(
+    date_str: Optional[str], field_name: str
+) -> Tuple[Optional[datetime], Optional[str]]:
+    """Parse date filter string to datetime.
+
+    Args:
+        date_str: ISO format date string (optional, may have Z suffix)
+        field_name: Name of field for error message
+
+    Returns:
+        Tuple of (parsed datetime or None, error message or None)
+    """
+    if not date_str:
+        return None, None
+    try:
+        return datetime.fromisoformat(date_str.replace("Z", "")), None
+    except ValueError:
+        return None, f"Invalid {field_name} format: '{date_str}'"
 
 
 @router.get("/admin/sessions-page", response_class=HTMLResponse)
@@ -53,18 +75,21 @@ async def sessions_page(
         base_query = base_query.where(Session.ended_at.isnot(None))
     elif status_filter == "active":
         base_query = base_query.where(Session.ended_at.is_(None))
+
+    # Parse date filters with validation
+    date_errors = []
     if date_from:
-        try:
-            dt = datetime.fromisoformat(date_from.replace("Z", ""))
-            base_query = base_query.where(Session.started_at >= dt)
-        except ValueError:
-            pass
+        dt_from, err = parse_date_filter(date_from, "date_from")
+        if err:
+            date_errors.append(err)
+        elif dt_from:
+            base_query = base_query.where(Session.started_at >= dt_from)
     if date_to:
-        try:
-            dt = datetime.fromisoformat(date_to.replace("Z", ""))
-            base_query = base_query.where(Session.started_at <= dt)
-        except ValueError:
-            pass
+        dt_to, err = parse_date_filter(date_to, "date_to")
+        if err:
+            date_errors.append(err)
+        elif dt_to:
+            base_query = base_query.where(Session.started_at <= dt_to)
 
     count_result = await db.execute(
         select(func.count()).select_from(base_query.subquery())
@@ -104,6 +129,7 @@ async def sessions_page(
             "current_page": page,
             "total_pages": total_pages,
             "total_count": total_count,
+            "date_errors": date_errors,
         },
     )
 
@@ -136,14 +162,13 @@ async def list_sessions_api(
         query = query.where(Session.teacher_id == teacher_id)
 
     if date_from:
-        try:
-            # Handle 'Z' suffix or standard ISO format
-            if date_from.endswith("Z"):
-                date_from = date_from[:-1]
-            dt = datetime.fromisoformat(date_from)
+        dt, err = parse_date_filter(date_from, "date_from")
+        if err:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=err
+            )
+        if dt:
             query = query.where(Session.started_at >= dt)
-        except ValueError:
-            pass  # Ignore invalid date format
 
     result = await db.execute(query)
     sessions = result.scalars().all()
@@ -193,17 +218,21 @@ async def export_sessions(
     if teacher_id:
         query = query.where(Session.teacher_id == teacher_id)
     if date_from:
-        try:
-            dt = datetime.fromisoformat(date_from.replace("Z", ""))
+        dt, err = parse_date_filter(date_from, "date_from")
+        if err:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=err
+            )
+        if dt:
             query = query.where(Session.started_at >= dt)
-        except ValueError:
-            pass
     if date_to:
-        try:
-            dt = datetime.fromisoformat(date_to.replace("Z", ""))
+        dt, err = parse_date_filter(date_to, "date_to")
+        if err:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=err
+            )
+        if dt:
             query = query.where(Session.started_at <= dt)
-        except ValueError:
-            pass
 
     result = await db.execute(query)
     session_ids = result.scalars().all()
@@ -460,7 +489,7 @@ async def end_session(
             detail="Session already ended",
         )
 
-    session.ended_at = datetime.utcnow()
+    session.ended_at = datetime.now(timezone.utc)
     await db.commit()
 
     return templates.TemplateResponse(

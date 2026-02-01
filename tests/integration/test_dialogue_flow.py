@@ -73,12 +73,21 @@ class TestFullDialogueFlow:
         )
         assert msg3_response.status_code == 200
 
-        # Step 7: End session and get summary
+        # Step 7: End session
         end_response = test_client.post(
             f"/sessions/{session_id}/end", cookies=cookies
         )
         assert end_response.status_code == 200
-        summary = end_response.json()
+        end_data = end_response.json()
+        assert end_data["ended"] is True
+        assert "ended_at" in end_data
+
+        # Step 7b: Analyze session
+        analyze_response = test_client.post(
+            f"/sessions/{session_id}/analyze", cookies=cookies
+        )
+        assert analyze_response.status_code == 200
+        summary = analyze_response.json()
 
         # Verify summary structure
         assert "distribution" in summary

@@ -52,8 +52,9 @@ class TestCSVExportWorkflow:
                 cookies=cookies,
             )
 
-        # Step 2: End session
+        # Step 2: End session and analyze
         test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
+        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
 
         # Step 3: Export CSV
         export_response = test_client.get(
@@ -117,8 +118,9 @@ class TestCSVExportWorkflow:
             cookies=cookies,
         )
 
-        # End and export
+        # End, analyze, and export
         test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
+        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
         export_response = test_client.get(
             f"/sessions/{session_id}/export.csv", cookies=cookies
         )
@@ -157,8 +159,9 @@ class TestCSVExportWorkflow:
             cookies=cookies,
         )
 
-        # End and export
+        # End, analyze, and export
         test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
+        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
         export_response = test_client.get(
             f"/sessions/{session_id}/export.csv", cookies=cookies
         )
@@ -199,8 +202,9 @@ class TestCSVExportWorkflow:
             cookies=cookies,
         )
 
-        # End and export
+        # End, analyze, and export
         test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
+        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
         export_response = test_client.get(
             f"/sessions/{session_id}/export.csv", cookies=cookies
         )
@@ -238,8 +242,9 @@ class TestCSVExportWorkflow:
             cookies=cookies,
         )
 
-        # End session to trigger analysis
+        # End session and analyze
         test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
+        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
 
         # Export CSV
         export_response = test_client.get(
@@ -292,8 +297,9 @@ class TestCSVExportWorkflow:
                 cookies=cookies,
             )
 
-        # End and export
+        # End, analyze, and export
         test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
+        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
         export_response = test_client.get(
             f"/sessions/{session_id}/export.csv", cookies=cookies
         )

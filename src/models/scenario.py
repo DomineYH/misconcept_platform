@@ -1,5 +1,5 @@
 """Scenario model for dialogue situations (T024)."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import (
     Integer,
@@ -92,7 +92,7 @@ class Scenario(Base):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, default=None
@@ -131,4 +131,4 @@ class Scenario(Base):
 
     def mark_deleted(self) -> None:
         """Mark scenario as soft-deleted with UTC timestamp."""
-        self.deleted_at = datetime.utcnow()
+        self.deleted_at = datetime.now(timezone.utc)

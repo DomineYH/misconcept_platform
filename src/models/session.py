@@ -1,6 +1,6 @@
 """Session model for dialogue instances (T025)."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -26,7 +26,7 @@ class Session(Base):
 
     # Timestamps
     started_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(
@@ -72,7 +72,7 @@ class Session(Base):
 
     def mark_deleted(self) -> None:
         """Mark session as soft-deleted with UTC timestamp."""
-        self.deleted_at = datetime.utcnow()
+        self.deleted_at = datetime.now(timezone.utc)
 
     def __repr__(self) -> str:
         if self.deleted_at:

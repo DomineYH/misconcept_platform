@@ -14,6 +14,7 @@ from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from src.models.message import Message
 from src.models.question_analysis import QuestionAnalysis
@@ -325,19 +326,155 @@ class CSVExporter:
     async def export_multiple_sessions_admin(
         self, session_ids: List[int], db: AsyncSession
     ) -> str:
-        """Admin bulk export with raw teacher info and meta_json."""
-        all_rows: List[str] = []
+        """Admin bulk export with raw teacher info and meta_json.
 
+        Optimized to batch-load all data in minimal queries to avoid N+1.
+        """
+        if not session_ids:
+            return ""
+
+        # Batch load all sessions with relationships (1 query)
+        sessions_result = await db.execute(
+            select(Session)
+            .where(Session.id.in_(session_ids))
+            .options(
+                joinedload(Session.teacher),
+                joinedload(Session.scenario),
+            )
+        )
+        sessions = {s.id: s for s in sessions_result.scalars().unique().all()}
+
+        if not sessions:
+            return ""
+
+        # Batch load all messages for these sessions (1 query)
+        messages_result = await db.execute(
+            select(Message)
+            .where(Message.session_id.in_(session_ids))
+            .order_by(Message.session_id, Message.created_at)
+        )
+        all_messages = messages_result.scalars().all()
+
+        # Group messages by session
+        messages_by_session: dict[int, List[Message]] = {}
+        for msg in all_messages:
+            messages_by_session.setdefault(msg.session_id, []).append(msg)
+
+        # Batch load all analyses (1 query)
+        message_ids = [m.id for m in all_messages]
+        if message_ids:
+            analyses_result = await db.execute(
+                select(QuestionAnalysis).where(
+                    QuestionAnalysis.message_id.in_(message_ids)
+                )
+            )
+            analyses = {
+                a.message_id: a for a in analyses_result.scalars().all()
+            }
+        else:
+            analyses = {}
+
+        # Batch load all summaries (1 query)
+        summaries_result = await db.execute(
+            select(SessionSummary).where(
+                SessionSummary.session_id.in_(session_ids)
+            )
+        )
+        summaries = {
+            s.session_id: s for s in summaries_result.scalars().all()
+        }
+
+        # Generate CSV with all pre-loaded data
+        output = io.StringIO()
+        fieldnames = [
+            "session_id",
+            "scenario_id",
+            "scenario_title",
+            "teacher_id",
+            "teacher_student_uid",
+            "teacher_nickname",
+            "session_started_at",
+            "session_ended_at",
+            "message_id",
+            "message_created_at",
+            "role",
+            "content",
+            "label",
+            "confidence",
+            "meta_json",
+            "feedback",
+        ]
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+
+        # Write rows for each session in order
         for session_id in session_ids:
-            try:
-                csv_content = await self.export_session_admin(session_id, db)
-                lines = csv_content.strip().split("\n")
-                if not all_rows:
-                    all_rows.extend(lines)
-                else:
-                    all_rows.extend(lines[1:])
-            except ValueError as e:
-                logger.warning(f"Skipping session {session_id}: {e}")
+            session = sessions.get(session_id)
+            if not session:
+                logger.warning(f"Skipping session {session_id}: not found")
                 continue
 
-        return "\n".join(all_rows)
+            teacher = session.teacher
+            scenario = session.scenario
+            session_messages = messages_by_session.get(session_id, [])
+
+            for msg in session_messages:
+                analysis = analyses.get(msg.id)
+                writer.writerow(
+                    {
+                        "session_id": session_id,
+                        "scenario_id": scenario.id,
+                        "scenario_title": scenario.title,
+                        "teacher_id": teacher.id,
+                        "teacher_student_uid": teacher.student_uid,
+                        "teacher_nickname": teacher.nickname,
+                        "session_started_at": session.started_at.isoformat(),
+                        "session_ended_at": (
+                            session.ended_at.isoformat()
+                            if session.ended_at
+                            else ""
+                        ),
+                        "message_id": msg.id,
+                        "message_created_at": msg.created_at.isoformat(),
+                        "role": msg.role,
+                        "content": msg.content,
+                        "label": analysis.label if analysis else "",
+                        "confidence": (
+                            f"{analysis.confidence:.2f}"
+                            if analysis and analysis.confidence
+                            else ""
+                        ),
+                        "meta_json": analysis.meta_json if analysis else "",
+                        "feedback": "",
+                    }
+                )
+
+            # Write summary row if exists
+            summary = summaries.get(session_id)
+            if summary:
+                writer.writerow(
+                    {
+                        "session_id": session_id,
+                        "scenario_id": scenario.id,
+                        "scenario_title": scenario.title,
+                        "teacher_id": teacher.id,
+                        "teacher_student_uid": teacher.student_uid,
+                        "teacher_nickname": teacher.nickname,
+                        "session_started_at": session.started_at.isoformat(),
+                        "session_ended_at": (
+                            session.ended_at.isoformat()
+                            if session.ended_at
+                            else ""
+                        ),
+                        "message_id": "",
+                        "message_created_at": summary.created_at.isoformat(),
+                        "role": "summary",
+                        "content": "Session Summary",
+                        "label": "",
+                        "confidence": "",
+                        "meta_json": "",
+                        "feedback": summary.feedback or "",
+                    }
+                )
+
+        return output.getvalue()

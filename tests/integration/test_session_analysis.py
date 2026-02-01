@@ -68,11 +68,20 @@ class TestSessionAnalysisWorkflow:
         messages = result.scalars().all()
         assert len(messages) == 3
 
-        # Step 4: End session
+        # Step 4: End session (no longer triggers analysis)
         end_response = test_client.post(
             f"/sessions/{session_id}/end", cookies=cookies
         )
         assert end_response.status_code == 200
+        end_data = end_response.json()
+        assert end_data["ended"] is True
+        assert "ended_at" in end_data
+
+        # Step 4b: Analyze session (separate endpoint)
+        analyze_response = test_client.post(
+            f"/sessions/{session_id}/analyze", cookies=cookies
+        )
+        assert analyze_response.status_code == 200
 
         # Step 5: Verify QuestionAnalysis records created
         result = await async_db_session.execute(
@@ -141,6 +150,12 @@ class TestSessionAnalysisWorkflow:
         )
         assert end_response.status_code == 200
 
+        # Analyze session
+        analyze_response = test_client.post(
+            f"/sessions/{session_id}/analyze", cookies=cookies
+        )
+        assert analyze_response.status_code == 200
+
         # Verify no QuestionAnalysis records
         result = await async_db_session.execute(
             select(QuestionAnalysis)
@@ -188,8 +203,9 @@ class TestSessionAnalysisWorkflow:
             cookies=cookies,
         )
 
-        # End session
+        # End session and analyze
         test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
+        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
 
         # Get session and verify framework
         result = await async_db_session.execute(
