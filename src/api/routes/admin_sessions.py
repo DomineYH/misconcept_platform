@@ -19,6 +19,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
+from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.user import User
 from src.services.export import CSVExporter
@@ -51,6 +52,7 @@ def parse_date_filter(
 @router.get("/admin/sessions-page", response_class=HTMLResponse)
 async def sessions_page(
     request: Request,
+    scenario_id: Optional[int] = None,
     teacher_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
@@ -68,6 +70,14 @@ async def sessions_page(
     offset = (page - 1) * per_page
 
     base_query = select(Session).where(Session.deleted_at.is_(None))
+
+    # Fetch scenario title if filtering by scenario
+    scenario_title = None
+    if scenario_id:
+        scenario = await db.get(Scenario, scenario_id)
+        if scenario:
+            scenario_title = scenario.title
+        base_query = base_query.where(Session.scenario_id == scenario_id)
 
     if teacher_id:
         base_query = base_query.where(Session.teacher_id == teacher_id)
@@ -122,6 +132,8 @@ async def sessions_page(
             "user": user,
             "sessions": sessions,
             "teachers": teachers,
+            "scenario_id": scenario_id,
+            "scenario_title": scenario_title,
             "current_teacher_id": teacher_id,
             "current_date_from": date_from or "",
             "current_date_to": date_to or "",

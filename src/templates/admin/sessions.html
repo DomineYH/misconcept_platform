@@ -9,8 +9,18 @@
     <p class="subtitle">세션 조회, 종료, 삭제</p>
   </header>
 
+  {% if scenario_id %}
+  <div class="active-filter-banner">
+    📋 시나리오: <strong>{{ scenario_title or '알 수 없음' }}</strong>
+    <a href="/admin/sessions-page" class="btn btn-sm btn-secondary">전체 보기</a>
+  </div>
+  {% endif %}
+
   <div class="filters">
     <form method="get" class="filter-form" id="filter-form">
+      {% if scenario_id %}
+      <input type="hidden" name="scenario_id" value="{{ scenario_id }}" />
+      {% endif %}
       <select name="teacher_id" onchange="this.form.submit()">
         <option value="">모든 교사</option>
         {% for teacher in teachers %}
@@ -120,9 +130,9 @@
     <span class="pagination-info">총 {{ total_count }}개 중 {{ current_page }}/{{ total_pages }} 페이지</span>
     <div class="pagination-buttons">
       {% if current_page > 1 %}
-      <a href="?page=1{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+      <a href="?page=1{% if scenario_id %}&scenario_id={{ scenario_id }}{% endif %}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
          class="btn btn-sm btn-secondary">처음</a>
-      <a href="?page={{ current_page - 1 }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+      <a href="?page={{ current_page - 1 }}{% if scenario_id %}&scenario_id={{ scenario_id }}{% endif %}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
          class="btn btn-sm btn-secondary">이전</a>
       {% endif %}
 
@@ -130,15 +140,15 @@
         {% if p == current_page %}
         <span class="btn btn-sm btn-primary">{{ p }}</span>
         {% elif p >= current_page - 2 and p <= current_page + 2 %}
-        <a href="?page={{ p }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+        <a href="?page={{ p }}{% if scenario_id %}&scenario_id={{ scenario_id }}{% endif %}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
            class="btn btn-sm btn-secondary">{{ p }}</a>
         {% endif %}
       {% endfor %}
 
       {% if current_page < total_pages %}
-      <a href="?page={{ current_page + 1 }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+      <a href="?page={{ current_page + 1 }}{% if scenario_id %}&scenario_id={{ scenario_id }}{% endif %}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
          class="btn btn-sm btn-secondary">다음</a>
-      <a href="?page={{ total_pages }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+      <a href="?page={{ total_pages }}{% if scenario_id %}&scenario_id={{ scenario_id }}{% endif %}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
          class="btn btn-sm btn-secondary">마지막</a>
       {% endif %}
     </div>

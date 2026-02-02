@@ -1740,6 +1740,24 @@ textarea#teacher-input {
   border: 1px solid var(--color-border-light);
 }
 
+/* Active Filter Banner */
+.active-filter-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background-color: var(--color-primary-light, #e3f2fd);
+  border: 1px solid var(--color-primary, #2196f3);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.active-filter-banner strong {
+  color: var(--color-primary-dark, #1565c0);
+}
+
 .search-box {
   flex: 1;
   min-width: 200px;
