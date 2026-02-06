@@ -85,6 +85,11 @@
             {% if scenario.tutor_template_id %}
             <span class="meta-tag tutor-active">🎓 튜터 활성</span>
             {% endif %}
+            {% for gid in scenario_group_map.get(scenario.id, []) %}
+              {% for g in groups if g.id == gid %}
+              <span class="meta-tag">{{ g.name }}</span>
+              {% endfor %}
+            {% endfor %}
           </div>
 
           <p class="card-description">
@@ -222,6 +227,22 @@
           ></textarea>
         </div>
 
+        <!-- Group Assignment -->
+        {% if groups %}
+        <div class="form-group">
+          <label>접근 그룹</label>
+          <div class="checkbox-group">
+            {% for group in groups %}
+            <label class="checkbox-label">
+              <input type="checkbox" name="group_ids" value="{{ group.id }}" />
+              {{ group.name }}
+            </label>
+            {% endfor %}
+          </div>
+          <small class="form-help">선택한 그룹의 사용자만 이 시나리오에 접근할 수 있습니다</small>
+        </div>
+        {% endif %}
+
         <!-- Video Settings (Collapsible) -->
         <details class="advanced-settings">
           <summary>영상 설정</summary>
@@ -344,6 +365,21 @@
         ></textarea>
       </div>
 
+      <!-- Group Assignment -->
+      {% if groups %}
+      <div class="form-group">
+        <label>접근 그룹</label>
+        <div class="checkbox-group" id="edit-group-checkboxes">
+          {% for group in groups %}
+          <label class="checkbox-label">
+            <input type="checkbox" name="edit_group_ids" value="{{ group.id }}" />
+            {{ group.name }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Video Settings -->
       <details class="advanced-settings" id="edit-video-settings">
         <summary>영상 설정</summary>
@@ -398,7 +434,8 @@ const scenariosData = {
     video_url: "{{ scenario.video_url or '' }}",
     video_transcript: `{{ (scenario.video_transcript|replace('\n', '\\n')|replace('\r', '')|e) if scenario.video_transcript else '' }}`,
     student_template_id: {{ scenario.student_template_id }},
-    tutor_template_id: {{ scenario.tutor_template_id|default('null', true) }}
+    tutor_template_id: {{ scenario.tutor_template_id|default('null', true) }},
+    group_ids: {{ scenario_group_map.get(scenario.id, [])|tojson }}
   }{% if not loop.last %},{% endif %}
   {% endfor %}
 };
@@ -462,6 +499,12 @@ function openEditPanel(scenarioId) {
   document.getElementById('edit-student-template').value = data.student_template_id;
   document.getElementById('edit-tutor-template').value = data.tutor_template_id || '';
 
+  // Set group checkboxes
+  const editGroupCbs = document.querySelectorAll('#edit-group-checkboxes input[type="checkbox"]');
+  editGroupCbs.forEach(cb => {
+    cb.checked = data.group_ids && data.group_ids.includes(parseInt(cb.value));
+  });
+
   // If any video setting is set, open the video details
   if (data.video_url || data.video_transcript) {
     document.getElementById('edit-video-settings').open = true;
@@ -500,6 +543,9 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
 
+  const groupCheckboxes = document.querySelectorAll('#create-form input[name="group_ids"]:checked');
+  const groupIds = Array.from(groupCheckboxes).map(cb => parseInt(cb.value));
+
   const data = {
     title: formData.get('title'),
     prompt: formData.get('prompt'),
@@ -508,7 +554,8 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
     video_url: formData.get('video_url') || null,
     video_transcript: formData.get('video_transcript') || null,
     student_template_id: parseInt(formData.get('student_template_id')),
-    tutor_template_id: formData.get('tutor_template_id') ? parseInt(formData.get('tutor_template_id')) : null
+    tutor_template_id: formData.get('tutor_template_id') ? parseInt(formData.get('tutor_template_id')) : null,
+    group_ids: groupIds.length > 0 ? groupIds : null
   };
 
   try {
@@ -536,6 +583,9 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
   const id = document.getElementById('edit-scenario-id').value;
   const formData = new FormData(e.target);
 
+  const editGroupCbs = document.querySelectorAll('#edit-group-checkboxes input[type="checkbox"]:checked');
+  const editGroupIds = Array.from(editGroupCbs).map(cb => parseInt(cb.value));
+
   const data = {
     title: formData.get('title'),
     prompt: formData.get('prompt'),
@@ -544,7 +594,8 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
     video_url: formData.get('video_url') || null,
     video_transcript: formData.get('video_transcript') || null,
     student_template_id: parseInt(formData.get('student_template_id')),
-    tutor_template_id: formData.get('tutor_template_id') ? parseInt(formData.get('tutor_template_id')) : null
+    tutor_template_id: formData.get('tutor_template_id') ? parseInt(formData.get('tutor_template_id')) : null,
+    group_ids: editGroupIds
   };
 
   try {

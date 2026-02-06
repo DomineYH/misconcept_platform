@@ -17,6 +17,7 @@ from src.db.connection import Base
 
 if TYPE_CHECKING:
     from src.models.prompt_template import PromptTemplate
+    from src.models.scenario_group import ScenarioGroup
 
 
 class Scenario(Base):
@@ -131,6 +132,13 @@ class Scenario(Base):
         "PromptTemplate",
         foreign_keys=[tutor_template_id],
         lazy="joined",
+    )
+
+    # Scenario-group access control
+    scenario_groups: Mapped[list["ScenarioGroup"]] = relationship(
+        "ScenarioGroup",
+        back_populates="scenario",
+        cascade="all, delete-orphan",
     )
 
     # Constraints

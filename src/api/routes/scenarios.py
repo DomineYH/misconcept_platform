@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import get_db_session, get_current_user
 from src.models import User, Scenario, Session
+from src.models.scenario_group import ScenarioGroup
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,9 @@ async def home():
     """Redirect home to scenarios list."""
     from fastapi.responses import RedirectResponse
 
-    return RedirectResponse(url="/scenarios", status_code=303)
+    return RedirectResponse(
+        url="/scenarios", status_code=303
+    )
 
 
 @router.get("/scenarios", response_class=HTMLResponse)
@@ -38,22 +41,47 @@ async def list_scenarios(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Display active scenarios list."""
-    # Query active scenarios (exclude deleted)
-    result = await db.execute(
+    """Display scenarios filtered by user's group."""
+    # Base query: active, non-deleted
+    query = (
         select(Scenario)
         .where(Scenario.is_active == 1)
         .where(Scenario.deleted_at.is_(None))
     )
+
+    # Admin sees all scenarios
+    if user.role != "admin":
+        if user.group_id:
+            # Filter by user's group via scenario_group
+            query = query.where(
+                Scenario.id.in_(
+                    select(ScenarioGroup.scenario_id).where(
+                        ScenarioGroup.group_id
+                        == user.group_id
+                    )
+                )
+            )
+        else:
+            # User without group sees no scenarios
+            query = query.where(Scenario.id < 0)
+
+    result = await db.execute(query)
     scenarios = result.scalars().all()
 
     return templates.TemplateResponse(
         "scenarios.html",
-        {"request": request, "user": user, "scenarios": scenarios},
+        {
+            "request": request,
+            "user": user,
+            "scenarios": scenarios,
+        },
     )
 
 
-@router.get("/scenarios/{scenario_id}", response_class=HTMLResponse)
+@router.get(
+    "/scenarios/{scenario_id}",
+    response_class=HTMLResponse,
+)
 async def get_scenario_detail(
     request: Request,
     scenario_id: int,
@@ -75,21 +103,44 @@ async def get_scenario_detail(
             status_code=404, detail="Scenario not found"
         )
 
-    # Check if scenario is active (unless user is admin)
+    # Check if scenario is active (unless admin)
     if scenario.is_active != 1 and user.role != "admin":
         raise HTTPException(
             status_code=404, detail="Scenario not found"
         )
 
-    # Auto-create session for this scenario
-    session = Session(scenario_id=scenario.id, teacher_id=user.id)
+    # Group access check (admin bypasses)
+    if user.role != "admin":
+        if not user.group_id:
+            raise HTTPException(
+                status_code=403,
+                detail="그룹이 배정되지 않았습니다.",
+            )
+        sg = await db.execute(
+            select(ScenarioGroup).where(
+                ScenarioGroup.scenario_id == scenario_id,
+                ScenarioGroup.group_id == user.group_id,
+            )
+        )
+        if not sg.scalar_one_or_none():
+            raise HTTPException(
+                status_code=403,
+                detail="이 시나리오에 대한 접근 권한이 "
+                "없습니다.",
+            )
+
+    # Auto-create session
+    session = Session(
+        scenario_id=scenario.id, teacher_id=user.id
+    )
     db.add(session)
 
     try:
         await db.commit()
         await db.refresh(session)
         logger.info(
-            f"Auto-created session {session.id} for user {user.id} "
+            f"Auto-created session {session.id} "
+            f"for user {user.id} "
             f"on scenario {scenario.id}"
         )
     except SQLAlchemyError as e:
@@ -97,7 +148,8 @@ async def get_scenario_detail(
         await db.rollback()
         raise HTTPException(
             status_code=500,
-            detail="대화 세션을 시작할 수 없습니다. 잠시 후 다시 시도해주세요.",
+            detail="대화 세션을 시작할 수 없습니다. "
+            "잠시 후 다시 시도해주세요.",
         )
 
     return templates.TemplateResponse(

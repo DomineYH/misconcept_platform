@@ -22,8 +22,10 @@ from src.api.schemas import (
 from src.models.analysis_framework import AnalysisFramework
 from src.models.prompt_template import PromptTemplate
 from src.models.scenario import Scenario
+from src.models.scenario_group import ScenarioGroup
 from src.models.session import Session
 from src.models.user import User
+from src.models.user_group import UserGroup
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,21 @@ async def list_all_scenarios(
         count = await db.scalar(count_query)
         session_counts[scenario.id] = count or 0
 
+    # Load groups for assignment checkboxes
+    groups_result = await db.execute(
+        select(UserGroup).order_by(UserGroup.name)
+    )
+    groups = groups_result.scalars().all()
+
+    # Load scenario-group assignments
+    sg_result = await db.execute(select(ScenarioGroup))
+    all_sg = sg_result.scalars().all()
+    scenario_group_map = {}
+    for sg in all_sg:
+        scenario_group_map.setdefault(
+            sg.scenario_id, []
+        ).append(sg.group_id)
+
     return templates.TemplateResponse(
         "admin/scenarios.html",
         {
@@ -97,6 +114,8 @@ async def list_all_scenarios(
             "session_counts": session_counts,
             "student_templates": student_templates,
             "tutor_templates": tutor_templates,
+            "groups": groups,
+            "scenario_group_map": scenario_group_map,
         },
     )
 
@@ -166,6 +185,16 @@ async def create_scenario(
     )
 
     db.add(scenario)
+    await db.flush()
+
+    # Handle group assignments
+    if scenario_data.group_ids:
+        for gid in scenario_data.group_ids:
+            sg = ScenarioGroup(
+                scenario_id=scenario.id, group_id=gid
+            )
+            db.add(sg)
+
     await db.commit()
     await db.refresh(scenario)
 
@@ -277,6 +306,23 @@ async def update_scenario(
         scenario.video_url = scenario_data.video_url
     if scenario_data.video_transcript is not None:
         scenario.video_transcript = scenario_data.video_transcript
+
+    # Update group assignments
+    if scenario_data.group_ids is not None:
+        # Delete old assignments
+        old_sgs = await db.execute(
+            select(ScenarioGroup).where(
+                ScenarioGroup.scenario_id == scenario_id
+            )
+        )
+        for sg in old_sgs.scalars().all():
+            await db.delete(sg)
+        # Insert new assignments
+        for gid in scenario_data.group_ids:
+            sg = ScenarioGroup(
+                scenario_id=scenario_id, group_id=gid
+            )
+            db.add(sg)
 
     await db.commit()
     await db.refresh(scenario)

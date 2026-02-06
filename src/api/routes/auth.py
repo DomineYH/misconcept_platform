@@ -4,9 +4,7 @@ from fastapi import (
     Depends,
     Form,
     Request,
-    Response,
     HTTPException,
-    status,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -21,51 +19,66 @@ from src.config import config
 
 router = APIRouter(tags=["Authentication"])
 templates = Jinja2Templates(directory="src/templates")
-limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
+limiter = Limiter(
+    key_func=get_remote_address, enabled=not config.TESTING
+)
 
 
 @router.get("/login", response_class=HTMLResponse)
 async def get_login(request: Request):
     """Display login form."""
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(
+        "login.html", {"request": request}
+    )
 
 
 @router.post("/login")
 @limiter.limit("5/minute")
 async def post_login(
     request: Request,
-    student_uid: str = Form(..., min_length=3, max_length=50),
-    nickname: str = Form(..., min_length=2, max_length=30),
+    username: str = Form(
+        ..., min_length=3, max_length=50
+    ),
+    password: str = Form(
+        ..., min_length=4, max_length=128
+    ),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Authenticate user and create session cookie."""
-    # Validate student_uid format (alphanumeric + underscore)
-    if not student_uid.replace("_", "").isalnum():
+    """Authenticate user with username/password."""
+    # Validate username format
+    if not username.replace("_", "").isalnum():
         raise HTTPException(
             status_code=400,
-            detail="student_uid must be alphanumeric with underscores",
+            detail="사용자 ID는 영문, 숫자, 언더스코어만 "
+            "사용 가능합니다.",
         )
 
-    # Find or create user
+    # Find user by username
     result = await db.execute(
-        select(User).where(
-            User.student_uid == student_uid, User.nickname == nickname
-        )
+        select(User).where(User.username == username)
     )
     user = result.scalar_one_or_none()
 
-    if not user:
-        # Create new user
-        user = User(student_uid=student_uid, nickname=nickname)
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
+    if not user or not user.verify_password(password):
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "error": "사용자 ID 또는 비밀번호가 "
+                "올바르지 않습니다.",
+            },
+            status_code=401,
+        )
 
     # Create session cookie
-    response = RedirectResponse(url="/scenarios", status_code=303)
+    response = RedirectResponse(
+        url="/scenarios", status_code=303
+    )
     request.session["user_id"] = user.id
-    request.session["student_uid"] = user.student_uid
+    request.session["username"] = user.username
     request.session["nickname"] = user.nickname
+    request.session["role"] = user.role
+    request.session["group_id"] = user.group_id
 
     return response
 

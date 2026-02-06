@@ -2,6 +2,17 @@
 from datetime import datetime
 from pydantic import BaseModel, Field, validator
 
+from src.api.schemas.user import (
+    UserCreate,
+    UserUpdate,
+    AdminUserResponse,
+)
+from src.api.schemas.group import (
+    GroupCreate,
+    GroupUpdate,
+    AdminGroupResponse,
+)
+
 # Framework Schemas
 class FrameworkCreateWeb(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
@@ -50,6 +61,9 @@ class ScenarioCreate(BaseModel):
     student_template_id: int  # Required
     tutor_template_id: int | None = None  # None = tutor disabled
 
+    # Group assignment
+    group_ids: list[int] | None = None
+
 class ScenarioUpdate(BaseModel):
     title: str | None = Field(None, min_length=3, max_length=200)
     prompt: str | None = Field(None, min_length=10, max_length=10000)
@@ -69,6 +83,9 @@ class ScenarioUpdate(BaseModel):
     # Template selection
     student_template_id: int | None = None
     tutor_template_id: int | None = None
+
+    # Group assignment
+    group_ids: list[int] | None = None
 
 class AdminScenarioResponse(BaseModel):
     id: int
@@ -102,3 +119,18 @@ class AdminScenarioResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+__all__ = [
+    "FrameworkCreateWeb",
+    "FrameworkUpdateWeb",
+    "AdminFrameworkResponse",
+    "ScenarioCreate",
+    "ScenarioUpdate",
+    "AdminScenarioResponse",
+    "UserCreate",
+    "UserUpdate",
+    "AdminUserResponse",
+    "GroupCreate",
+    "GroupUpdate",
+    "AdminGroupResponse",
+]

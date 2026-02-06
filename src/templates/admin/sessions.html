@@ -26,7 +26,7 @@
         {% for teacher in teachers %}
         <option value="{{ teacher.id }}"
           {% if current_teacher_id == teacher.id %}selected{% endif %}>
-          {{ teacher.nickname }} ({{ teacher.student_uid }})
+          {{ teacher.nickname }} ({{ teacher.username }})
         </option>
         {% endfor %}
       </select>
@@ -71,7 +71,7 @@
           <td>
             {% if session.teacher %}
             {{ session.teacher.nickname }}
-            <small>({{ session.teacher.student_uid }})</small>
+            <small>({{ session.teacher.username }})</small>
             {% else %}
             -
             {% endif %}

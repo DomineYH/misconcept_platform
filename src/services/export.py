@@ -37,18 +37,18 @@ class CSVExporter:
     """
 
     @staticmethod
-    def _anonymize_student(student_uid: str, session_salt: str) -> str:
+    def _anonymize_student(username: str, session_salt: str) -> str:
         """
         Anonymize student identifier using SHA-256 hash.
 
         Args:
-            student_uid: Original student identifier
+            username: Original student identifier
             session_salt: Session-specific salt
 
         Returns:
             Hexadecimal hash string (64 characters)
         """
-        combined = f"{student_uid}:{session_salt}"
+        combined = f"{username}:{session_salt}"
         return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
     async def export_session(self, session_id: int, db: AsyncSession) -> str:
@@ -132,7 +132,7 @@ class CSVExporter:
         # Anonymize student
         session_salt = str(session.started_at.timestamp())
         student_hash = self._anonymize_student(
-            teacher.student_uid, session_salt
+            teacher.username, session_salt
         )
 
         # Write message rows
@@ -252,7 +252,7 @@ class CSVExporter:
             "scenario_id",
             "scenario_title",
             "teacher_id",
-            "teacher_student_uid",
+            "teacher_username",
             "teacher_nickname",
             "session_started_at",
             "session_ended_at",
@@ -276,7 +276,7 @@ class CSVExporter:
                     "scenario_id": scenario.id,
                     "scenario_title": scenario.title,
                     "teacher_id": teacher.id,
-                    "teacher_student_uid": teacher.student_uid,
+                    "teacher_username": teacher.username,
                     "teacher_nickname": teacher.nickname,
                     "session_started_at": session.started_at.isoformat(),
                     "session_ended_at": (
@@ -304,7 +304,7 @@ class CSVExporter:
                     "scenario_id": scenario.id,
                     "scenario_title": scenario.title,
                     "teacher_id": teacher.id,
-                    "teacher_student_uid": teacher.student_uid,
+                    "teacher_username": teacher.username,
                     "teacher_nickname": teacher.nickname,
                     "session_started_at": session.started_at.isoformat(),
                     "session_ended_at": (
@@ -391,7 +391,7 @@ class CSVExporter:
             "scenario_id",
             "scenario_title",
             "teacher_id",
-            "teacher_student_uid",
+            "teacher_username",
             "teacher_nickname",
             "session_started_at",
             "session_ended_at",
@@ -426,7 +426,7 @@ class CSVExporter:
                         "scenario_id": scenario.id,
                         "scenario_title": scenario.title,
                         "teacher_id": teacher.id,
-                        "teacher_student_uid": teacher.student_uid,
+                        "teacher_username": teacher.username,
                         "teacher_nickname": teacher.nickname,
                         "session_started_at": session.started_at.isoformat(),
                         "session_ended_at": (
@@ -458,7 +458,7 @@ class CSVExporter:
                         "scenario_id": scenario.id,
                         "scenario_title": scenario.title,
                         "teacher_id": teacher.id,
-                        "teacher_student_uid": teacher.student_uid,
+                        "teacher_username": teacher.username,
                         "teacher_nickname": teacher.nickname,
                         "session_started_at": session.started_at.isoformat(),
                         "session_ended_at": (

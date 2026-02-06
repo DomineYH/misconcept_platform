@@ -8,7 +8,7 @@
       <dt>교사</dt>
       <dd>
         {% if session.teacher %}
-          {{ session.teacher.nickname }} ({{ session.teacher.student_uid }})
+          {{ session.teacher.nickname }} ({{ session.teacher.username }})
         {% else %}
           -
         {% endif %}

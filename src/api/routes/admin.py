@@ -14,8 +14,10 @@ from src.api.dependencies import get_current_user
 from src.models.user import User
 
 from src.api.routes.admin_frameworks import router as frameworks_router
+from src.api.routes.admin_groups import router as groups_router
 from src.api.routes.admin_scenarios import router as scenarios_router
 from src.api.routes.admin_sessions import router as sessions_router
+from src.api.routes.admin_users import router as users_router
 
 router = APIRouter(tags=["Admin"])
 templates = Jinja2Templates(directory="src/templates")
@@ -23,6 +25,8 @@ templates = Jinja2Templates(directory="src/templates")
 router.include_router(scenarios_router)
 router.include_router(frameworks_router)
 router.include_router(sessions_router)
+router.include_router(users_router)
+router.include_router(groups_router)
 
 
 @router.get("/admin", response_class=HTMLResponse)

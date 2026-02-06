@@ -11,16 +11,29 @@ SCHEMA_SQL = """
 -- Enable WAL mode for better concurrent performance
 PRAGMA journal_mode=WAL;
 
+-- User Group table
+CREATE TABLE IF NOT EXISTS user_group (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- User table
 CREATE TABLE IF NOT EXISTS user (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  student_uid TEXT NOT NULL,
+  username TEXT NOT NULL UNIQUE,
   nickname TEXT NOT NULL,
+  password_hash TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL CHECK(role IN
     ('teacher','student','admin')) DEFAULT 'teacher',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(student_uid, nickname)
+  group_id INTEGER REFERENCES user_group(id)
+    ON DELETE SET NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS ix_user_group_id
+  ON user(group_id);
 
 -- Analysis Framework table
 CREATE TABLE IF NOT EXISTS analysis_framework (
@@ -193,6 +206,22 @@ CREATE INDEX IF NOT EXISTS ix_prompt_bot_type
   ON prompt_template(bot_type);
 CREATE INDEX IF NOT EXISTS ix_prompt_created_at
   ON prompt_template(created_at);
+
+-- Scenario Group join table (access control)
+CREATE TABLE IF NOT EXISTS scenario_group (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scenario_id INTEGER NOT NULL
+    REFERENCES scenario(id) ON DELETE CASCADE,
+  group_id INTEGER NOT NULL
+    REFERENCES user_group(id) ON DELETE CASCADE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(scenario_id, group_id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_sg_scenario
+  ON scenario_group(scenario_id);
+CREATE INDEX IF NOT EXISTS ix_sg_group
+  ON scenario_group(group_id);
 """
 
 

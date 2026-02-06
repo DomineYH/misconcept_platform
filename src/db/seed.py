@@ -2,8 +2,10 @@
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
+import bcrypt
 from sqlalchemy import text
 
 from src.db.connection import AsyncSessionLocal
@@ -26,6 +28,29 @@ async def seed_database():
             print("Database already seeded, skipping")
             return
 
+        # Seed default user group
+        await session.execute(
+            text(
+                """
+                INSERT INTO user_group (name, description)
+                VALUES (:name, :desc)
+                """
+            ),
+            {
+                "name": "default",
+                "desc": "기본 그룹",
+            },
+        )
+
+        # Get default group id
+        group_result = await session.execute(
+            text(
+                "SELECT id FROM user_group "
+                "WHERE name = 'default'"
+            )
+        )
+        default_group_id = group_result.scalar()
+
         # Seed default analysis framework
         framework_labels = json.dumps(
             ["Pressing", "Linking", "Directing", "Recall"]
@@ -43,39 +68,58 @@ async def seed_database():
                 "name": "High/Low Leverage",
                 "desc": (
                     "Pedagogical move classification framework "
-                    "distinguishing high-leverage (Pressing, Linking) "
-                    "from low-leverage (Directing, Recall) questions"
+                    "distinguishing high-leverage (Pressing, "
+                    "Linking) from low-leverage (Directing, "
+                    "Recall) questions"
                 ),
                 "labels": framework_labels,
             },
         )
 
-        # Seed admin user
+        # Seed admin user with bcrypt password
+        admin_password = os.getenv(
+            "ADMIN_DEFAULT_PASSWORD", "admin123"
+        )
+        admin_hash = bcrypt.hashpw(
+            admin_password.encode("utf-8"),
+            bcrypt.gensalt(),
+        ).decode("utf-8")
+
         await session.execute(
             text(
                 """
                 INSERT INTO user
-                (student_uid, nickname, role)
-                VALUES (:uid, :nickname, :role)
+                (username, nickname, password_hash,
+                 role, group_id)
+                VALUES (:username, :nickname, :pw_hash,
+                        :role, :group_id)
                 """
             ),
             {
-                "uid": "admin",
+                "username": "admin",
                 "nickname": "Administrator",
+                "pw_hash": admin_hash,
                 "role": "admin",
+                "group_id": default_group_id,
             },
         )
 
-        # Get framework_id and admin user_id for sample scenario
+        # Get framework_id and admin user_id for sample
         framework_result = await session.execute(
-            text("SELECT id FROM analysis_framework " "WHERE name = :name"),
+            text(
+                "SELECT id FROM analysis_framework "
+                "WHERE name = :name"
+            ),
             {"name": "High/Low Leverage"},
         )
         framework_id = framework_result.scalar()
 
         admin_result = await session.execute(
-            text("SELECT id FROM user WHERE student_uid = :uid"),
-            {"uid": "admin"},
+            text(
+                "SELECT id FROM user "
+                "WHERE username = :username"
+            ),
+            {"username": "admin"},
         )
         admin_id = admin_result.scalar()
 
@@ -87,12 +131,14 @@ async def seed_database():
                     title, prompt, student_profile,
                     is_active, framework_id, created_by,
                     chat_model, chat_temperature,
-                    tutor_enabled, tutor_intervention_threshold
+                    tutor_intervention_threshold
                 )
-                VALUES (:title, :prompt, :profile,
-                        :active, :fid, :created,
-                        :chat_model, :chat_temp,
-                        :tutor_enabled, :tutor_threshold)
+                VALUES (
+                    :title, :prompt, :profile,
+                    :active, :fid, :created,
+                    :chat_model, :chat_temp,
+                    :tutor_threshold
+                )
                 """
             ),
             {
@@ -113,15 +159,13 @@ async def seed_database():
                 "active": 1,
                 "fid": framework_id,
                 "created": admin_id,
-                # Bot override defaults (NULL = use .env)
                 "chat_model": None,
                 "chat_temp": None,
-                "tutor_enabled": True,
                 "tutor_threshold": None,
             },
         )
 
-        # Seed default chatbot configuration (Phase 1 - P0)
+        # Seed default chatbot configuration
         chatbot_configs = [
             {
                 "key": "student_bot.model",
@@ -172,7 +216,8 @@ async def seed_database():
                 text(
                     """
                     INSERT INTO chatbot_config
-                    (config_key, config_value, config_type, description)
+                    (config_key, config_value,
+                     config_type, description)
                     VALUES (:key, :value, :type, :desc)
                     """
                 ),
@@ -184,12 +229,7 @@ async def seed_database():
 
 
 async def seed_prompts():
-    """
-    기존 프롬프트 파일을 DB로 마이그레이션 (Task 3.2.1).
-
-    src/prompts/student_system.txt와 tutor_system.txt를
-    prompt_template 테이블로 마이그레이션합니다.
-    """
+    """Migrate prompt files to DB (Task 3.2.1)."""
     async with AsyncSessionLocal() as session:
         # Check if prompts already exist
         result = await session.execute(
@@ -203,7 +243,10 @@ async def seed_prompts():
 
         # Get admin user ID for updated_by
         admin_result = await session.execute(
-            text("SELECT id FROM user WHERE role = 'admin' LIMIT 1")
+            text(
+                "SELECT id FROM user "
+                "WHERE role = 'admin' LIMIT 1"
+            )
         )
         admin_id = admin_result.scalar()
 
@@ -248,11 +291,13 @@ async def seed_prompts():
         if not tutor_prompt_path.exists():
             print(f"Warning: {tutor_prompt_path} not found")
             tutor_prompt_text = (
-                "You are a pedagogy tutor providing feedback. "
-                "(Default fallback prompt)"
+                "You are a pedagogy tutor providing "
+                "feedback. (Default fallback prompt)"
             )
         else:
-            tutor_prompt_text = tutor_prompt_path.read_text(encoding="utf-8")
+            tutor_prompt_text = tutor_prompt_path.read_text(
+                encoding="utf-8"
+            )
 
         # Insert TutorBot template
         await session.execute(
@@ -276,8 +321,12 @@ async def seed_prompts():
 
         await session.commit()
         print("Prompt templates seeded successfully")
-        print(f"  - StudentBot: {len(student_prompt_text)} characters")
-        print(f"  - TutorBot: {len(tutor_prompt_text)} characters")
+        print(
+            f"  - StudentBot: {len(student_prompt_text)} chars"
+        )
+        print(
+            f"  - TutorBot: {len(tutor_prompt_text)} chars"
+        )
 
 
 if __name__ == "__main__":
