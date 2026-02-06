@@ -16,7 +16,7 @@ print("=" * 70)
 print("\n[1] Login...")
 login_resp = requests.post(
     f"{BASE_URL}/login",
-    data={"student_uid": "complete_test", "nickname": "Complete Tester"},
+    data={"username": "complete_test", "password": "test1234"},
     allow_redirects=False,
 )
 print(f"    ✓ Status: {login_resp.status_code}")

@@ -8,7 +8,7 @@ BASE_URL = "http://localhost:8000"
 print("1. Login...")
 login_resp = requests.post(
     f"{BASE_URL}/login",
-    data={"student_uid": "debug_test", "nickname": "Debug User"},
+    data={"username": "debug_test", "password": "test1234"},
     allow_redirects=False,
 )
 print(f"   Status: {login_resp.status_code}")

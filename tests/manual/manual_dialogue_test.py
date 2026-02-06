@@ -23,7 +23,7 @@ async def test_full_dialogue_flow():
         print("\n[1] Logging in...")
         login_response = await client.post(
             "/login",
-            data={"student_uid": "test_manual", "nickname": "Manual Tester"},
+            data={"username": "test_manual", "password": "test1234"},
             follow_redirects=False,
         )
         print(f"    Status: {login_response.status_code}")
