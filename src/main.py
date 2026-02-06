@@ -14,7 +14,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from fastapi.responses import RedirectResponse
 from src.config import config
@@ -57,49 +57,71 @@ limiter = Limiter(
 )
 
 
-class LoggingMiddleware(BaseHTTPMiddleware):
-    """Middleware for logging all requests with timing."""
+class LoggingMiddleware:
+    """Pure ASGI middleware for logging requests with timing.
 
-    async def dispatch(self, request: Request, call_next):
+    Uses pure ASGI instead of BaseHTTPMiddleware to avoid
+    ContextVar propagation issues with SessionMiddleware.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(
+        self, scope: Scope, receive: Receive, send: Send
+    ) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         start_time = time.time()
+        request = Request(scope)
         request_id = f"{time.time()}"
+        path = request.url.path
+        method = request.method
+        client = (
+            request.client.host if request.client else None
+        )
 
-        # Log request
         logger.info(
             "Request started",
             extra={
                 "request_id": request_id,
-                "method": request.method,
-                "path": request.url.path,
-                "client": request.client.host if request.client else None,
+                "method": method,
+                "path": path,
+                "client": client,
             },
         )
 
-        try:
-            response = await call_next(request)
-            duration = time.time() - start_time
+        status_code = 500
 
-            # Log response
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+            duration = time.time() - start_time
             logger.info(
                 "Request completed",
                 extra={
                     "request_id": request_id,
-                    "method": request.method,
-                    "path": request.url.path,
-                    "status_code": response.status_code,
+                    "method": method,
+                    "path": path,
+                    "status_code": status_code,
                     "duration": round(duration, 3),
                 },
             )
-            return response
-
         except Exception as e:
             duration = time.time() - start_time
             logger.error(
                 "Request failed",
                 extra={
                     "request_id": request_id,
-                    "method": request.method,
-                    "path": request.url.path,
+                    "method": method,
+                    "path": path,
                     "error": str(e),
                     "duration": round(duration, 3),
                 },
@@ -108,28 +130,57 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             raise
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Middleware for adding security headers to responses."""
+class SecurityHeadersMiddleware:
+    """Pure ASGI middleware for adding security headers.
 
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
+    Uses pure ASGI instead of BaseHTTPMiddleware to avoid
+    ContextVar propagation issues with SessionMiddleware.
+    """
 
-        # Security headers for production
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers[
-            "Strict-Transport-Security"
-        ] = "max-age=31536000; includeSubDomains"
-        response.headers[
-            "Content-Security-Policy"
-        ] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers[
-            "Permissions-Policy"
-        ] = "geolocation=(), microphone=(), camera=()"
+    HEADERS = [
+        (b"x-content-type-options", b"nosniff"),
+        (b"x-frame-options", b"DENY"),
+        (b"x-xss-protection", b"1; mode=block"),
+        (
+            b"strict-transport-security",
+            b"max-age=31536000; includeSubDomains",
+        ),
+        (
+            b"content-security-policy",
+            b"default-src 'self'; script-src 'self' "
+            b"'unsafe-inline' https://unpkg.com; "
+            b"style-src 'self' 'unsafe-inline'; "
+            b"frame-src 'self' https://www.youtube.com "
+            b"https://www.youtube-nocookie.com",
+        ),
+        (
+            b"referrer-policy",
+            b"strict-origin-when-cross-origin",
+        ),
+        (
+            b"permissions-policy",
+            b"geolocation=(), microphone=(), camera=()",
+        ),
+    ]
 
-        return response
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(
+        self, scope: Scope, receive: Receive, send: Send
+    ) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.extend(self.HEADERS)
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
 
 
 @asynccontextmanager
