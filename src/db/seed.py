@@ -13,7 +13,7 @@ from src.db.init_schema import init_schema
 
 
 async def seed_database():
-    """Populate database with default framework, admin, and sample."""
+    """Populate database with default data."""
     # First ensure schema exists
     await init_schema()
 
@@ -104,7 +104,7 @@ async def seed_database():
             },
         )
 
-        # Get framework_id and admin user_id for sample
+        # Get framework_id and admin user_id
         framework_result = await session.execute(
             text(
                 "SELECT id FROM analysis_framework "
@@ -123,19 +123,26 @@ async def seed_database():
         )
         admin_id = admin_result.scalar()
 
-        # Seed sample scenario with bot override defaults
+        # Seed prompt templates (before scenario)
+        student_template_id = await _seed_prompt_templates(
+            session, admin_id
+        )
+
+        # Seed sample scenario with student_template_id
         await session.execute(
             text(
                 """
                 INSERT INTO scenario (
                     title, prompt, student_profile,
                     is_active, framework_id, created_by,
+                    student_template_id,
                     chat_model, chat_temperature,
                     tutor_intervention_threshold
                 )
                 VALUES (
                     :title, :prompt, :profile,
                     :active, :fid, :created,
+                    :student_tid,
                     :chat_model, :chat_temp,
                     :tutor_threshold
                 )
@@ -159,6 +166,7 @@ async def seed_database():
                 "active": 1,
                 "fid": framework_id,
                 "created": admin_id,
+                "student_tid": student_template_id,
                 "chat_model": None,
                 "chat_temp": None,
                 "tutor_threshold": None,
@@ -211,7 +219,7 @@ async def seed_database():
             },
         ]
 
-        for config in chatbot_configs:
+        for cfg in chatbot_configs:
             await session.execute(
                 text(
                     """
@@ -221,17 +229,96 @@ async def seed_database():
                     VALUES (:key, :value, :type, :desc)
                     """
                 ),
-                config,
+                cfg,
             )
 
         await session.commit()
         print("Database seeded with default data successfully")
 
 
+async def _seed_prompt_templates(session, admin_id):
+    """Seed prompt templates, return student template id."""
+    prompts_dir = Path(__file__).parent.parent / "prompts"
+
+    # Load StudentBot prompt
+    student_path = prompts_dir / "student_system.txt"
+    if student_path.exists():
+        student_text = student_path.read_text(encoding="utf-8")
+    else:
+        print(f"Warning: {student_path} not found")
+        student_text = (
+            "You are a student with a misconception. "
+            "(Default fallback prompt)"
+        )
+
+    await session.execute(
+        text(
+            """
+            INSERT INTO prompt_template
+            (bot_type, template_name, template_text,
+             version, updated_by)
+            VALUES (:bot_type, :name, :text,
+                    :version, :updated_by)
+            """
+        ),
+        {
+            "bot_type": "student",
+            "name": "Default",
+            "text": student_text,
+            "version": 1,
+            "updated_by": admin_id,
+        },
+    )
+
+    # Get student template id
+    result = await session.execute(
+        text(
+            "SELECT id FROM prompt_template "
+            "WHERE bot_type = 'student' AND "
+            "template_name = 'Default'"
+        )
+    )
+    student_template_id = result.scalar()
+
+    # Load TutorBot prompt
+    tutor_path = prompts_dir / "tutor_system.txt"
+    if tutor_path.exists():
+        tutor_text = tutor_path.read_text(encoding="utf-8")
+    else:
+        print(f"Warning: {tutor_path} not found")
+        tutor_text = (
+            "You are a pedagogy tutor providing "
+            "feedback. (Default fallback prompt)"
+        )
+
+    await session.execute(
+        text(
+            """
+            INSERT INTO prompt_template
+            (bot_type, template_name, template_text,
+             version, updated_by)
+            VALUES (:bot_type, :name, :text,
+                    :version, :updated_by)
+            """
+        ),
+        {
+            "bot_type": "tutor",
+            "name": "Default",
+            "text": tutor_text,
+            "version": 1,
+            "updated_by": admin_id,
+        },
+    )
+
+    print(f"  - StudentBot prompt: {len(student_text)} chars")
+    print(f"  - TutorBot prompt: {len(tutor_text)} chars")
+
+    return student_template_id
+
+
 async def seed_prompts():
-    """Migrate prompt files to DB (Task 3.2.1)."""
+    """Migrate prompt files to DB (legacy, now in seed_database)."""
     async with AsyncSessionLocal() as session:
-        # Check if prompts already exist
         result = await session.execute(
             text("SELECT COUNT(*) FROM prompt_template")
         )
@@ -241,7 +328,6 @@ async def seed_prompts():
             print("Prompt templates already seeded, skipping")
             return
 
-        # Get admin user ID for updated_by
         admin_result = await session.execute(
             text(
                 "SELECT id FROM user "
@@ -249,84 +335,9 @@ async def seed_prompts():
             )
         )
         admin_id = admin_result.scalar()
-
-        # Load StudentBot prompt from file
-        prompts_dir = Path(__file__).parent.parent / "prompts"
-        student_prompt_path = prompts_dir / "student_system.txt"
-
-        if not student_prompt_path.exists():
-            print(f"Warning: {student_prompt_path} not found")
-            student_prompt_text = (
-                "You are a student with a misconception. "
-                "(Default fallback prompt)"
-            )
-        else:
-            student_prompt_text = student_prompt_path.read_text(
-                encoding="utf-8"
-            )
-
-        # Insert StudentBot template
-        await session.execute(
-            text(
-                """
-                INSERT INTO prompt_template
-                (bot_type, template_name, template_text,
-                 version, updated_by)
-                VALUES (:bot_type, :name, :text,
-                        :version, :updated_by)
-                """
-            ),
-            {
-                "bot_type": "student",
-                "name": "Default",
-                "text": student_prompt_text,
-                "version": 1,
-                "updated_by": admin_id,
-            },
-        )
-
-        # Load TutorBot prompt from file
-        tutor_prompt_path = prompts_dir / "tutor_system.txt"
-
-        if not tutor_prompt_path.exists():
-            print(f"Warning: {tutor_prompt_path} not found")
-            tutor_prompt_text = (
-                "You are a pedagogy tutor providing "
-                "feedback. (Default fallback prompt)"
-            )
-        else:
-            tutor_prompt_text = tutor_prompt_path.read_text(
-                encoding="utf-8"
-            )
-
-        # Insert TutorBot template
-        await session.execute(
-            text(
-                """
-                INSERT INTO prompt_template
-                (bot_type, template_name, template_text,
-                 version, updated_by)
-                VALUES (:bot_type, :name, :text,
-                        :version, :updated_by)
-                """
-            ),
-            {
-                "bot_type": "tutor",
-                "name": "Default",
-                "text": tutor_prompt_text,
-                "version": 1,
-                "updated_by": admin_id,
-            },
-        )
-
+        await _seed_prompt_templates(session, admin_id)
         await session.commit()
         print("Prompt templates seeded successfully")
-        print(
-            f"  - StudentBot: {len(student_prompt_text)} chars"
-        )
-        print(
-            f"  - TutorBot: {len(tutor_prompt_text)} chars"
-        )
 
 
 if __name__ == "__main__":
