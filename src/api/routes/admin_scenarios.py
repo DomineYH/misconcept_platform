@@ -227,7 +227,7 @@ async def update_scenario(
             detail="Scenario not found",
         )
 
-    # Check for active sessions (T080)
+    # Log warning if active sessions exist (T080)
     active_sessions_query = (
         select(func.count(Session.id))
         .where(Session.scenario_id == scenario_id)
@@ -236,16 +236,11 @@ async def update_scenario(
     active_sessions_count = await db.scalar(active_sessions_query)
 
     if active_sessions_count and active_sessions_count > 0:
-        # Only allow toggling is_active for scenarios with sessions
-        update_keys = set(
-            scenario_data.dict(exclude_unset=True).keys()
+        logger.warning(
+            "Scenario %d updated with %d active sessions",
+            scenario_id,
+            active_sessions_count,
         )
-        if update_keys != {"is_active"}:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot modify scenario with active sessions. "
-                "Only status toggle allowed.",
-            )
 
     # Update fields
     if scenario_data.title is not None:
