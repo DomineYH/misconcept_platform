@@ -16,7 +16,8 @@ from src.models.prompt_template import PromptTemplate
 @pytest.fixture
 async def admin_user(db_session: AsyncSession) -> User:
     """Create an admin user for testing."""
-    user = User(student_uid="admin_001", nickname="관리자", role="admin")
+    user = User(username="admin_001", nickname="관리자", role="admin")
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -27,8 +28,9 @@ async def admin_user(db_session: AsyncSession) -> User:
 async def teacher_user(db_session: AsyncSession) -> User:
     """Create a teacher user for testing."""
     user = User(
-        student_uid="teacher_001", nickname="김교사", role="teacher"
+        username="teacher_001", nickname="김교사", role="teacher"
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -101,8 +103,8 @@ class TestAdminDashboard:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -121,8 +123,8 @@ class TestAdminDashboard:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -159,8 +161,8 @@ class TestScenarioCreation:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -194,8 +196,8 @@ class TestScenarioCreation:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -225,8 +227,8 @@ class TestScenarioCreation:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -257,8 +259,8 @@ class TestScenarioCreation:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -292,8 +294,8 @@ class TestScenarioUpdate:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -323,8 +325,8 @@ class TestScenarioUpdate:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -353,8 +355,8 @@ class TestScenarioUpdate:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -378,8 +380,8 @@ class TestScenarioUpdate:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -407,27 +409,19 @@ class TestFrameworkManagement:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
         # Get frameworks
         response = test_client.get("/admin/frameworks")
 
-        # Contract: 200 OK with framework list
+        # Contract: 200 OK with HTML framework page
         assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-        # At least the test framework should exist
-        assert len(data) >= 1
-        # Check framework structure
-        framework = data[0]
-        assert "id" in framework
-        assert "name" in framework
-        assert "description" in framework
-        assert "labels" in framework
-        assert isinstance(framework["labels"], list)
+        assert "text/html" in response.headers["content-type"]
+        # Framework name should appear in rendered HTML
+        assert test_framework.name in response.text
 
     def test_get_frameworks_requires_admin_role(
         self, test_client: TestClient, teacher_user: User
@@ -437,8 +431,8 @@ class TestFrameworkManagement:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -468,8 +462,8 @@ class TestFrameworkManagement:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -500,8 +494,8 @@ class TestFrameworkManagement:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -527,8 +521,8 @@ class TestFrameworkManagement:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -554,8 +548,8 @@ class TestFrameworkManagement:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -582,8 +576,8 @@ class TestFrameworkManagement:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -609,8 +603,8 @@ class TestFrameworkManagement:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -637,8 +631,8 @@ class TestFrameworkManagement:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -760,8 +754,8 @@ class TestSessionLogs:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -790,8 +784,8 @@ class TestSessionLogs:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -822,8 +816,8 @@ class TestSessionLogs:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -852,8 +846,8 @@ class TestSessionLogs:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -889,8 +883,8 @@ class TestBulkExport:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -927,8 +921,8 @@ class TestBulkExport:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -955,8 +949,8 @@ class TestBulkExport:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 

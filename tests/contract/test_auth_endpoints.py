@@ -12,7 +12,7 @@ class TestLoginEndpoint:
         """Verify successful login creates session cookie and redirects."""
         response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
             follow_redirects=False,
         )
 
@@ -32,26 +32,26 @@ class TestLoginEndpoint:
     ):
         """Verify missing required fields returns 400."""
         response = test_client.post(
-            "/login", data={"student_uid": "student_001"}
+            "/login", data={"username": "student_001"}
         )
 
         assert response.status_code == 400
         assert "detail" in response.json()
 
-    def test_login_invalid_student_uid_format_returns_400(
+    def test_login_invalid_username_format_returns_400(
         self, test_client: TestClient
     ):
-        """Verify invalid student_uid format returns 400."""
+        """Verify invalid username format returns 400."""
         response = test_client.post(
             "/login",
             data={
-                "student_uid": "ab",  # Too short (min 3)
-                "nickname": "김교사",
+                "username": "ab",  # Too short (min 3)
+                "password": "test1234",
             },
         )
 
         assert response.status_code == 400
-        assert "student_uid" in response.json()["detail"].lower()
+        assert "username" in response.json()["detail"].lower()
 
     def test_login_invalid_credentials_returns_401(
         self, test_client: TestClient
@@ -60,7 +60,7 @@ class TestLoginEndpoint:
         # This will fail until we implement user authentication
         response = test_client.post(
             "/login",
-            data={"student_uid": "nonexistent", "nickname": "invalid"},
+            data={"username": "nonexistent", "password": "invalid"},
         )
 
         assert response.status_code == 401
@@ -84,7 +84,7 @@ class TestLogoutEndpoint:
         # First login to get session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         assert login_response.status_code == 303
 

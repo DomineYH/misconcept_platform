@@ -18,7 +18,8 @@ from src.models.prompt_template import PromptTemplate
 
 @pytest.fixture
 async def admin_user(db_session: AsyncSession) -> User:
-    user = User(student_uid="admin_export_001", nickname="관리자", role="admin")
+    user = User(username="admin_export_001", nickname="관리자", role="admin")
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.flush()
     return user
@@ -27,8 +28,9 @@ async def admin_user(db_session: AsyncSession) -> User:
 @pytest.fixture
 async def teacher_user(db_session: AsyncSession) -> User:
     user = User(
-        student_uid="teacher_export_001", nickname="김교사", role="teacher"
+        username="teacher_export_001", nickname="김교사", role="teacher"
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.flush()
     return user
@@ -37,8 +39,9 @@ async def teacher_user(db_session: AsyncSession) -> User:
 @pytest.fixture
 async def second_teacher(db_session: AsyncSession) -> User:
     user = User(
-        student_uid="teacher_export_002", nickname="박교사", role="teacher"
+        username="teacher_export_002", nickname="박교사", role="teacher"
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.flush()
     return user
@@ -189,8 +192,8 @@ class TestAdminExportEndedOnly:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -219,8 +222,8 @@ class TestAdminExportTeacherFilter:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -249,8 +252,8 @@ class TestAdminExportTeacherInfo:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -263,9 +266,9 @@ class TestAdminExportTeacherInfo:
 
         row = rows[0]
         assert "teacher_nickname" in reader.fieldnames
-        assert "teacher_student_uid" in reader.fieldnames
+        assert "teacher_username" in reader.fieldnames
         assert row["teacher_nickname"] == teacher_user.nickname
-        assert row["teacher_student_uid"] == teacher_user.student_uid
+        assert row["teacher_username"] == teacher_user.username
 
     def test_export_includes_meta_json(
         self,
@@ -276,8 +279,8 @@ class TestAdminExportTeacherInfo:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -306,8 +309,8 @@ class TestAdminExportSelected:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -334,8 +337,8 @@ class TestAdminExportSelected:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 

@@ -16,10 +16,11 @@ from src.models.prompt_template import PromptTemplate
 async def admin_user(db_session: AsyncSession) -> User:
     """Create an admin user for testing."""
     user = User(
-        student_uid="admin_filter_001",
+        username="admin_filter_001",
         nickname="Admin Filter",
         role="admin",
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.flush()
     return user
@@ -29,10 +30,11 @@ async def admin_user(db_session: AsyncSession) -> User:
 async def teacher_user(db_session: AsyncSession) -> User:
     """Create a teacher user for testing."""
     user = User(
-        student_uid="teacher_filter_001",
+        username="teacher_filter_001",
         nickname="Teacher Filter",
         role="teacher",
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.flush()
     return user
@@ -139,8 +141,8 @@ class TestSessionStatusFilter:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -170,8 +172,8 @@ class TestSessionStatusFilter:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -202,8 +204,8 @@ class TestSessionStatusFilter:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -234,8 +236,8 @@ class TestSessionStatusFilter:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -262,8 +264,8 @@ class TestSessionStatusFilter:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -290,8 +292,8 @@ class TestSessionStatusFilter:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 

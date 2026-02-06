@@ -22,7 +22,7 @@ class TestScenariosListEndpoint:
         # First login to get session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         assert login_response.status_code == 303
 
@@ -55,7 +55,7 @@ class TestScenarioDetailEndpoint:
         # Login first
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -73,7 +73,7 @@ class TestScenarioDetailEndpoint:
         # Login first
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 

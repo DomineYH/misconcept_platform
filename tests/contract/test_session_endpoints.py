@@ -18,7 +18,7 @@ class TestSessionCreationEndpoint:
         # Login first
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -42,7 +42,7 @@ class TestSessionCreationEndpoint:
         # Login first
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -72,7 +72,7 @@ class TestMessageCreationEndpoint:
         # Login first
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -106,7 +106,7 @@ class TestMessageCreationEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -139,7 +139,7 @@ class TestSessionEndEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -175,7 +175,7 @@ class TestSessionEndEndpoint:
         # Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -190,7 +190,7 @@ class TestSessionEndEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -224,7 +224,7 @@ class TestSessionAnalyzeEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -263,7 +263,7 @@ class TestSessionAnalyzeEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -283,7 +283,7 @@ class TestSessionAnalyzeEndpoint:
         # Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -311,7 +311,7 @@ class TestSessionExportEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -364,7 +364,7 @@ class TestSessionExportEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -380,7 +380,7 @@ class TestSessionExportEndpoint:
 
         csv_content = response.text
 
-        # Should NOT contain raw student_uid
+        # Should NOT contain raw username
         assert "student_001" not in csv_content
 
         # Should contain a hash (64 hex characters for SHA-256)
@@ -398,7 +398,7 @@ class TestSessionExportEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -438,7 +438,7 @@ class TestSessionExportEndpoint:
         # Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -462,7 +462,7 @@ class TestSessionCloseEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -488,7 +488,7 @@ class TestSessionCloseEndpoint:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -523,7 +523,7 @@ class TestSessionCloseEndpoint:
         # Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -538,7 +538,7 @@ class TestSessionCloseEndpoint:
         # Login as first user and create session
         login1 = test_client.post(
             "/login",
-            data={"student_uid": "user1", "nickname": "User 1"},
+            data={"username": "user1", "password": "test1234"},
         )
         cookies1 = login1.cookies
 
@@ -550,7 +550,7 @@ class TestSessionCloseEndpoint:
         # Login as second user
         login2 = test_client.post(
             "/login",
-            data={"student_uid": "user2", "nickname": "User 2"},
+            data={"username": "user2", "password": "test1234"},
         )
         cookies2 = login2.cookies
 
@@ -571,7 +571,7 @@ class TestEndedSessionValidation:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -602,7 +602,7 @@ class TestEndedSessionValidation:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "student_001", "nickname": "김교사"},
+            data={"username": "student_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
