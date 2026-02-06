@@ -1,4 +1,4 @@
-"""User model for teachers, students, and admins (T022)."""
+"""User model for teachers and admins (T022)."""
 from datetime import datetime
 from typing import Optional
 
@@ -70,7 +70,7 @@ class User(Base):
     # Constraints
     __table_args__ = (
         CheckConstraint(
-            "role IN ('teacher', 'student', 'admin')",
+            "role IN ('teacher', 'admin')",
             name="ck_user_role",
         ),
     )

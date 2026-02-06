@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS user (
   nickname TEXT NOT NULL,
   password_hash TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL CHECK(role IN
-    ('teacher','student','admin')) DEFAULT 'teacher',
+    ('teacher','admin')) DEFAULT 'teacher',
   group_id INTEGER REFERENCES user_group(id)
     ON DELETE SET NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP

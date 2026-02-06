@@ -24,7 +24,6 @@
         <option value="">모든 역할</option>
         <option value="admin">관리자</option>
         <option value="teacher">교사</option>
-        <option value="student">학생</option>
       </select>
       <select id="filter-group" class="filter-select">
         <option value="">모든 그룹</option>
@@ -58,10 +57,8 @@
           <td>
             {% if u.role == 'admin' %}
             <span class="badge badge-danger">관리자</span>
-            {% elif u.role == 'teacher' %}
-            <span class="badge badge-info">교사</span>
             {% else %}
-            <span class="badge badge-secondary">학생</span>
+            <span class="badge badge-info">교사</span>
             {% endif %}
           </td>
           <td>{{ u.group.name if u.group else '-' }}</td>
@@ -107,7 +104,6 @@
             <label for="new-role">역할</label>
             <select id="new-role" name="role">
               <option value="teacher">교사</option>
-              <option value="student">학생</option>
               <option value="admin">관리자</option>
             </select>
           </div>
@@ -153,7 +149,6 @@
           <label for="edit-role">역할</label>
           <select id="edit-role" name="role">
             <option value="teacher">교사</option>
-            <option value="student">학생</option>
             <option value="admin">관리자</option>
           </select>
         </div>

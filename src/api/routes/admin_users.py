@@ -106,7 +106,7 @@ async def create_user(
             )
 
     # Validate role
-    if data.role not in ("teacher", "student", "admin"):
+    if data.role not in ("teacher", "admin"):
         raise HTTPException(
             status_code=400,
             detail="유효하지 않은 역할입니다.",
@@ -161,7 +161,7 @@ async def update_user(
         target.nickname = data.nickname
     if data.role is not None:
         if data.role not in (
-            "teacher", "student", "admin"
+            "teacher", "admin"
         ):
             raise HTTPException(
                 status_code=400,
