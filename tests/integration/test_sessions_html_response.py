@@ -70,10 +70,11 @@ async def test_scenario(
 async def test_user(db_session: AsyncSession) -> User:
     """Create test user."""
     user = User(
-        student_uid="test_html_user_001",
+        username="test_html_user_001",
         nickname="HTML테스트사용자",
         role="teacher",
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -127,8 +128,8 @@ class TestSendMessageReturnsHTML:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -171,8 +172,8 @@ class TestSendMessageReturnsHTML:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -220,8 +221,8 @@ class TestSendMessageReturnsHTML:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -248,8 +249,8 @@ class TestSendMessageReturnsHTML:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -280,8 +281,8 @@ class TestSendMessageValidation:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -305,10 +306,11 @@ class TestSendMessageValidation:
         """Test that users cannot send messages to other users' sessions."""
         # Create another user
         other_user = User(
-            student_uid="other_user_001",
+            username="other_user_001",
             nickname="다른사용자",
             role="teacher",
         )
+        other_user.set_password("test1234")
         db_session.add(other_user)
         await db_session.commit()
 
@@ -316,8 +318,8 @@ class TestSendMessageValidation:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": other_user.student_uid,
-                "nickname": other_user.nickname,
+                "username": other_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -381,8 +383,8 @@ class TestMultipleMessagesHTML:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies

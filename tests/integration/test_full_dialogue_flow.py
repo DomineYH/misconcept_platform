@@ -24,10 +24,11 @@ from src.models.prompt_template import PromptTemplate
 async def test_user(db_session: AsyncSession) -> User:
     """Create test user."""
     user = User(
-        student_uid="test_teacher_001",
+        username="test_teacher_001",
         nickname="Test Teacher",
         role="teacher",
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -128,8 +129,8 @@ async def test_full_dialogue_flow(
     login_response = await async_client.post(
         "/login",
         data={
-            "student_uid": test_user.student_uid,
-            "nickname": test_user.nickname,
+            "username": test_user.username,
+            "password": "test1234",
         },
     )
     assert login_response.status_code in [200, 303]  # 303 redirect after login

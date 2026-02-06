@@ -89,6 +89,20 @@ async def inactive_scenario(
     return scenario
 
 
+@pytest.fixture(autouse=True)
+async def seed_test_teachers(db_session: AsyncSession):
+    """Create teacher users used by chat start flow tests."""
+    for i in range(1, 8):
+        user = User(
+            username=f"test_teacher_{i:03d}",
+            nickname=f"테스트교사{i}",
+            role="teacher",
+        )
+        user.set_password("test1234")
+        db_session.add(user)
+    await db_session.commit()
+
+
 class TestScenarioSelectCreatesSession:
     """Test that selecting a scenario auto-creates a session."""
 
@@ -102,7 +116,7 @@ class TestScenarioSelectCreatesSession:
         # Step 1: Login as teacher
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "test_teacher_001", "nickname": "테스트교사"},
+            data={"username": "test_teacher_001", "password": "test1234"},
             follow_redirects=False,
         )
         assert login_response.status_code == 303
@@ -110,7 +124,7 @@ class TestScenarioSelectCreatesSession:
 
         # Get user_id for verification
         result = await db_session.execute(
-            select(User).where(User.student_uid == "test_teacher_001")
+            select(User).where(User.username == "test_teacher_001")
         )
         user = result.scalar_one()
 
@@ -163,13 +177,13 @@ class TestScenarioSelectCreatesSession:
         # Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "test_teacher_002", "nickname": "테스트교사2"},
+            data={"username": "test_teacher_002", "password": "test1234"},
         )
         cookies = login_response.cookies
 
         # Get user_id
         result = await db_session.execute(
-            select(User).where(User.student_uid == "test_teacher_002")
+            select(User).where(User.username == "test_teacher_002")
         )
         user = result.scalar_one()
 
@@ -212,7 +226,7 @@ class TestChatPageHasSessionId:
         # Step 1: Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "test_teacher_003", "nickname": "테스트교사3"},
+            data={"username": "test_teacher_003", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -272,7 +286,7 @@ class TestChatPageHasSessionId:
         # Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "test_teacher_004", "nickname": "테스트교사4"},
+            data={"username": "test_teacher_004", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -305,13 +319,13 @@ class TestInactiveScenarioRejected:
         # Step 1: Login as regular user (not admin)
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "test_teacher_005", "nickname": "테스트교사5"},
+            data={"username": "test_teacher_005", "password": "test1234"},
         )
         cookies = login_response.cookies
 
         # Get user to verify it's not admin
         result = await db_session.execute(
-            select(User).where(User.student_uid == "test_teacher_005")
+            select(User).where(User.username == "test_teacher_005")
         )
         user = result.scalar_one()
         assert user.role != "admin"
@@ -349,10 +363,11 @@ class TestInactiveScenarioRejected:
         """관리자는 비활성 시나리오에 접근 가능한지 확인."""
         # Create admin user
         admin_user = User(
-            student_uid="admin_001",
+            username="admin_001",
             nickname="관리자",
             role="admin",
         )
+        admin_user.set_password("test1234")
         db_session.add(admin_user)
         await db_session.commit()
         await db_session.refresh(admin_user)
@@ -360,7 +375,7 @@ class TestInactiveScenarioRejected:
         # Login as admin
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "admin_001", "nickname": "관리자"},
+            data={"username": "admin_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -395,7 +410,7 @@ class TestSessionCreationErrorHandling:
         # Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "test_teacher_006", "nickname": "테스트교사6"},
+            data={"username": "test_teacher_006", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -422,7 +437,7 @@ class TestSessionCreationErrorHandling:
         # Check if login page by looking for login form elements
         assert (
             "login" in response.text.lower()
-            or "student_uid" in response.text
+            or "username" in response.text
         )
 
 
@@ -439,7 +454,7 @@ class TestSessionIdConsistency:
         # Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "test_teacher_007", "nickname": "테스트교사7"},
+            data={"username": "test_teacher_007", "password": "test1234"},
         )
         cookies = login_response.cookies
 

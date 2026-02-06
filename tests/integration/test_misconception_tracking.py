@@ -16,7 +16,7 @@ async def test_student_response_analyzed_for_misconception(
     # Login
     login_response = await async_client.post(
         "/login",
-        data={"student_uid": "test_teacher", "nickname": "Test Teacher"},
+        data={"username": "test_teacher", "password": "test1234"},
     )
     assert login_response.status_code == 303
 
@@ -82,7 +82,7 @@ async def test_metadata_structure_validation(async_session, async_client):
     # Login and create session
     await async_client.post(
         "/login",
-        data={"student_uid": "test_teacher", "nickname": "Test Teacher"},
+        data={"username": "test_teacher", "password": "test1234"},
     )
     session_response = await async_client.post(
         "/sessions", json={"scenario_id": 1}
@@ -153,7 +153,7 @@ async def test_misconception_analysis_failure_graceful_degradation(
     # Login and create session
     await async_client.post(
         "/login",
-        data={"student_uid": "test_teacher", "nickname": "Test Teacher"},
+        data={"username": "test_teacher", "password": "test1234"},
     )
     session_response = await async_client.post(
         "/sessions", json={"scenario_id": 1}
@@ -198,7 +198,7 @@ async def test_session_analysis_includes_scenario_context(
     # Login and create session
     await async_client.post(
         "/login",
-        data={"student_uid": "test_teacher", "nickname": "Test Teacher"},
+        data={"username": "test_teacher", "password": "test1234"},
     )
     session_response = await async_client.post(
         "/sessions", json={"scenario_id": 1}
@@ -291,7 +291,7 @@ async def test_multiple_student_responses_all_analyzed(
     # Login and create session
     await async_client.post(
         "/login",
-        data={"student_uid": "test_teacher", "nickname": "Test Teacher"},
+        data={"username": "test_teacher", "password": "test1234"},
     )
     session_response = await async_client.post(
         "/sessions", json={"scenario_id": 1}

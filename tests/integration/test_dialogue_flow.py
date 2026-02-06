@@ -13,7 +13,7 @@ class TestFullDialogueFlow:
         # Step 1: Teacher login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_001", "nickname": "김교사"},
+            data={"username": "teacher_001", "password": "test1234"},
         )
         assert login_response.status_code == 303
         cookies = login_response.cookies
@@ -108,7 +108,7 @@ class TestFullDialogueFlow:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_002", "nickname": "이교사"},
+            data={"username": "teacher_002", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -145,12 +145,12 @@ class TestFullDialogueFlow:
         # Create two different teacher sessions
         teacher1_cookies = test_client.post(
             "/login",
-            data={"student_uid": "teacher_003", "nickname": "박교사"},
+            data={"username": "teacher_003", "password": "test1234"},
         ).cookies
 
         teacher2_cookies = test_client.post(
             "/login",
-            data={"student_uid": "teacher_004", "nickname": "최교사"},
+            data={"username": "teacher_004", "password": "test1234"},
         ).cookies
 
         # Both create sessions

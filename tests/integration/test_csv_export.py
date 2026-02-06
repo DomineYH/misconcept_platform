@@ -29,7 +29,7 @@ class TestCSVExportWorkflow:
         # Step 1: Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_csv_001", "nickname": "CSV테스트"},
+            data={"username": "teacher_csv_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -97,12 +97,12 @@ class TestCSVExportWorkflow:
         assert len(rows[0]["scenario_title"]) > 0
 
     def test_csv_anonymization(self, test_client: TestClient):
-        """Verify CSV export anonymizes student_uid."""
-        # Login with specific student_uid
-        student_uid = "sensitive_student_123"
+        """Verify CSV export anonymizes username."""
+        # Login with specific username
+        username = "sensitive_student_123"
         login_response = test_client.post(
             "/login",
-            data={"student_uid": student_uid, "nickname": "익명화테스트"},
+            data={"username": username, "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -127,8 +127,8 @@ class TestCSVExportWorkflow:
 
         csv_content = export_response.text
 
-        # Verify raw student_uid is NOT in CSV
-        assert student_uid not in csv_content
+        # Verify raw username is NOT in CSV
+        assert username not in csv_content
 
         # Verify student_hash is present (SHA-256 = 64 hex chars)
         hash_pattern = re.compile(r"[a-f0-9]{64}")
@@ -143,7 +143,7 @@ class TestCSVExportWorkflow:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_ts_001", "nickname": "타임스탬프"},
+            data={"username": "teacher_ts_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -186,7 +186,7 @@ class TestCSVExportWorkflow:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_roles_001", "nickname": "역할테스트"},
+            data={"username": "teacher_roles_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -226,7 +226,7 @@ class TestCSVExportWorkflow:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_labels_001", "nickname": "라벨테스트"},
+            data={"username": "teacher_labels_001", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -278,8 +278,8 @@ class TestCSVExportWorkflow:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": "teacher_summary_001",
-                "nickname": "요약테스트",
+                "username": "teacher_summary_001",
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies

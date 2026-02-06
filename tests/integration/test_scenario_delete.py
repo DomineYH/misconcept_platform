@@ -14,8 +14,9 @@ from src.models.prompt_template import PromptTemplate
 async def admin_user(db_session: AsyncSession) -> User:
     """Create an admin user."""
     user = User(
-        student_uid="admin_001", nickname="관리자", role="admin"
+        username="admin_001", nickname="관리자", role="admin"
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -26,8 +27,9 @@ async def admin_user(db_session: AsyncSession) -> User:
 async def teacher_user(db_session: AsyncSession) -> User:
     """Create a teacher user."""
     user = User(
-        student_uid="teacher_001", nickname="김교사", role="teacher"
+        username="teacher_001", nickname="김교사", role="teacher"
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -83,8 +85,8 @@ class TestScenarioDelete:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -148,8 +150,8 @@ class TestScenarioDelete:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -205,8 +207,8 @@ class TestScenarioDelete:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -247,8 +249,8 @@ class TestScenarioDelete:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -286,8 +288,8 @@ class TestScenarioDelete:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
         admin_resp = test_client.get("/admin/scenarios")
@@ -297,8 +299,8 @@ class TestScenarioDelete:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
         teacher_resp = test_client.get("/scenarios")

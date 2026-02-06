@@ -17,7 +17,8 @@ from src.models.user import User
 @pytest.fixture
 async def admin_user(db_session: AsyncSession) -> User:
     """Create an admin user for testing."""
-    user = User(student_uid="bot_admin", nickname="Config Admin", role="admin")
+    user = User(username="bot_admin", nickname="Config Admin", role="admin")
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -80,8 +81,8 @@ class TestScenarioBotConfigAPI:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -122,8 +123,8 @@ class TestScenarioBotConfigAPI:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -158,8 +159,8 @@ class TestScenarioBotConfigAPI:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -188,8 +189,8 @@ class TestScenarioBotConfigAPI:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -218,8 +219,8 @@ class TestScenarioBotConfigAPI:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -248,8 +249,8 @@ class TestScenarioBotConfigAPI:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -297,8 +298,8 @@ class TestScenarioBotConfigAPI:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -346,8 +347,8 @@ class TestScenarioBotConfigAPI:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 

@@ -68,7 +68,8 @@ async def test_scenario(
 @pytest.fixture
 async def admin_user(db_session: AsyncSession) -> User:
     """Create an admin user for testing."""
-    user = User(student_uid="admin_001", nickname="관리자", role="admin")
+    user = User(username="admin_001", nickname="관리자", role="admin")
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -79,14 +80,17 @@ async def admin_user(db_session: AsyncSession) -> User:
 async def teacher_users(db_session: AsyncSession) -> list[User]:
     """Create multiple teacher users for testing."""
     teacher1 = User(
-        student_uid="teacher_001", nickname="김교사", role="teacher"
+        username="teacher_001", nickname="김교사", role="teacher"
     )
+    teacher1.set_password("test1234")
     teacher2 = User(
-        student_uid="teacher_002", nickname="이교사", role="teacher"
+        username="teacher_002", nickname="이교사", role="teacher"
     )
+    teacher2.set_password("test1234")
     teacher3 = User(
-        student_uid="teacher_003", nickname="박교사", role="teacher"
+        username="teacher_003", nickname="박교사", role="teacher"
     )
+    teacher3.set_password("test1234")
     db_session.add_all([teacher1, teacher2, teacher3])
     await db_session.commit()
     await db_session.refresh(teacher1)
@@ -233,8 +237,8 @@ class TestSessionFilteringWorkflow:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -281,8 +285,8 @@ class TestSessionFilteringWorkflow:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -321,8 +325,8 @@ class TestSessionFilteringWorkflow:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -368,8 +372,8 @@ class TestSessionFilteringWorkflow:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -398,8 +402,8 @@ class TestSessionFilteringWorkflow:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -445,8 +449,8 @@ class TestSessionFilteringWorkflow:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 

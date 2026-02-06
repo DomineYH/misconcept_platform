@@ -92,7 +92,7 @@ class TestTutorInterventionTriggers:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_005", "nickname": "정교사"},
+            data={"username": "teacher_005", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -144,7 +144,7 @@ class TestTutorInterventionTriggers:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_006", "nickname": "강교사"},
+            data={"username": "teacher_006", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -191,7 +191,7 @@ class TestTutorInterventionTriggers:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_007", "nickname": "윤교사"},
+            data={"username": "teacher_007", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -235,7 +235,7 @@ class TestTutorInterventionTriggers:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_008", "nickname": "서교사"},
+            data={"username": "teacher_008", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -273,7 +273,7 @@ class TestTutorInterventionTriggers:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_009", "nickname": "박교사"},
+            data={"username": "teacher_009", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -319,7 +319,7 @@ class TestTutorInterventionTriggers:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_010", "nickname": "최교사"},
+            data={"username": "teacher_010", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -366,7 +366,7 @@ class TestTutorInterventionTriggers:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_011", "nickname": "한교사"},
+            data={"username": "teacher_011", "password": "test1234"},
         )
         cookies = login_response.cookies
 

@@ -31,7 +31,7 @@ class TestSessionAnalysisWorkflow:
         # Step 1: Login
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_001", "nickname": "분석테스트"},
+            data={"username": "teacher_001", "password": "test1234"},
         )
         cookies = login_response.cookies
         assert login_response.status_code == 302
@@ -135,7 +135,7 @@ class TestSessionAnalysisWorkflow:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_002", "nickname": "빈세션"},
+            data={"username": "teacher_002", "password": "test1234"},
         )
         cookies = login_response.cookies
 
@@ -187,7 +187,7 @@ class TestSessionAnalysisWorkflow:
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"student_uid": "teacher_003", "nickname": "프레임워크"},
+            data={"username": "teacher_003", "password": "test1234"},
         )
         cookies = login_response.cookies
 

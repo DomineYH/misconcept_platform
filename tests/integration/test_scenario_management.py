@@ -13,7 +13,8 @@ from src.models.prompt_template import PromptTemplate
 @pytest.fixture
 async def admin_user(db_session: AsyncSession) -> User:
     """Create an admin user."""
-    user = User(student_uid="admin_001", nickname="관리자", role="admin")
+    user = User(username="admin_001", nickname="관리자", role="admin")
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -24,8 +25,9 @@ async def admin_user(db_session: AsyncSession) -> User:
 async def teacher_user(db_session: AsyncSession) -> User:
     """Create a teacher user."""
     user = User(
-        student_uid="teacher_001", nickname="김교사", role="teacher"
+        username="teacher_001", nickname="김교사", role="teacher"
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -83,8 +85,8 @@ class TestScenarioLifecycle:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -107,8 +109,8 @@ class TestScenarioLifecycle:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -126,8 +128,8 @@ class TestScenarioLifecycle:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -141,8 +143,8 @@ class TestScenarioLifecycle:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -160,8 +162,8 @@ class TestScenarioLifecycle:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
@@ -175,8 +177,8 @@ class TestScenarioLifecycle:
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 
@@ -199,37 +201,46 @@ class TestScenarioLifecycle:
         test_client.post(
             "/login",
             data={
-                "student_uid": admin_user.student_uid,
-                "nickname": admin_user.nickname,
+                "username": admin_user.username,
+                "password": "test1234",
             },
         )
 
         # Create 3 scenarios
+        scenario_ids = []
         for i in range(3):
-            test_client.post(
+            resp = test_client.post(
                 "/admin/scenarios",
                 json={
                     "title": f"Scenario {i+1}",
                     "prompt": f"Prompt for scenario {i+1}",
                     "student_profile": f"Profile {i+1}",
                     "framework_id": test_framework.id,
-                    "student_template_id": test_student_template.id,
+                    "student_template_id": (
+                        test_student_template.id
+                    ),
                 },
             )
+            scenario_ids.append(resp.json()["id"])
 
         # Get all scenario IDs
-        admin_scenarios_response = test_client.get("/admin/scenarios")
+        admin_scenarios_response = test_client.get(
+            "/admin/scenarios"
+        )
         assert admin_scenarios_response.status_code == 200
 
         # Deactivate scenario 2
-        test_client.put("/admin/scenarios/2", json={"is_active": 0})
+        test_client.put(
+            f"/admin/scenarios/{scenario_ids[1]}",
+            json={"is_active": 0},
+        )
 
         # Teacher logs in
         test_client.post(
             "/login",
             data={
-                "student_uid": teacher_user.student_uid,
-                "nickname": teacher_user.nickname,
+                "username": teacher_user.username,
+                "password": "test1234",
             },
         )
 

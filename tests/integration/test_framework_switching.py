@@ -1,4 +1,5 @@
 """Integration test for framework switching (T086)."""
+import json
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -16,7 +17,8 @@ from src.models.prompt_template import PromptTemplate
 @pytest.fixture
 async def admin_user(db_session: AsyncSession) -> User:
     """Create an admin user for testing."""
-    user = User(student_uid="admin_001", nickname="관리자", role="admin")
+    user = User(username="admin_001", nickname="관리자", role="admin")
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -27,8 +29,9 @@ async def admin_user(db_session: AsyncSession) -> User:
 async def teacher_user(db_session: AsyncSession) -> User:
     """Create a teacher user for testing."""
     user = User(
-        student_uid="teacher_001", nickname="김교사", role="teacher"
+        username="teacher_001", nickname="김교사", role="teacher"
     )
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -112,8 +115,8 @@ async def test_framework_switching_workflow(
     test_client.post(
         "/login",
         data={
-            "student_uid": admin_user.student_uid,
-            "nickname": admin_user.nickname,
+            "username": admin_user.username,
+            "password": "test1234",
         },
     )
 
@@ -129,7 +132,8 @@ async def test_framework_switching_workflow(
     assert new_framework_response.status_code == 201
     new_framework_data = new_framework_response.json()
     new_framework_id = new_framework_data["id"]
-    assert "HighQuality" in new_framework_data["labels"]
+    new_labels = json.loads(new_framework_data["labels_json"])
+    assert "HighQuality" in new_labels
 
     # Step 2: Switch scenario to use new framework
     update_response = test_client.put(
@@ -145,8 +149,8 @@ async def test_framework_switching_workflow(
     test_client.post(
         "/login",
         data={
-            "student_uid": teacher_user.student_uid,
-            "nickname": teacher_user.nickname,
+            "username": teacher_user.username,
+            "password": "test1234",
         },
     )
 
@@ -252,8 +256,8 @@ async def test_framework_switching_affects_new_sessions_only(
     test_client.post(
         "/login",
         data={
-            "student_uid": teacher_user.student_uid,
-            "nickname": teacher_user.nickname,
+            "username": teacher_user.username,
+            "password": "test1234",
         },
     )
 
@@ -296,8 +300,8 @@ async def test_framework_switching_affects_new_sessions_only(
     test_client.post(
         "/login",
         data={
-            "student_uid": admin_user.student_uid,
-            "nickname": admin_user.nickname,
+            "username": admin_user.username,
+            "password": "test1234",
         },
     )
 
@@ -332,8 +336,8 @@ async def test_framework_switching_affects_new_sessions_only(
     test_client.post(
         "/login",
         data={
-            "student_uid": teacher_user.student_uid,
-            "nickname": teacher_user.nickname,
+            "username": teacher_user.username,
+            "password": "test1234",
         },
     )
 
