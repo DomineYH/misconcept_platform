@@ -1,7 +1,7 @@
 """Admin 프롬프트 템플릿 관리 API (Task 3.2.4).
 
 관리자가 StudentBot과 TutorBot의 시스템 프롬프트를
-조회, 생성, 활성화할 수 있는 API를 제공합니다.
+조회, 생성, 수정, 삭제할 수 있는 API를 제공합니다.
 """
 
 import logging
@@ -30,7 +30,6 @@ class PromptCreateRequest(BaseModel):
     bot_type: str = Field(..., pattern="^(student|tutor)$")
     template_name: str = Field(..., min_length=3, max_length=100)
     template_text: str = Field(..., min_length=10, max_length=10000)
-    is_active: bool = False
 
 
 # 페이지 라우트
@@ -108,14 +107,13 @@ async def create_prompt(
             bot_type=req.bot_type,
             template_name=req.template_name,
             template_text=req.template_text,
-            is_active=req.is_active,
             updated_by=user.id,
         )
         await db.commit()
 
         logger.info(
-            f"Admin {user.username} created {req.bot_type} prompt "
-            f"v{prompt.version} (active={req.is_active})"
+            f"Admin {user.nickname} created {req.bot_type} prompt "
+            f"v{prompt.version}"
         )
 
         return {"prompt": prompt.to_dict()}
@@ -127,45 +125,6 @@ async def create_prompt(
             status_code=500, detail="Failed to create prompt"
         )
 
-
-@router.put("/prompts/{prompt_id}/activate")
-async def activate_prompt(
-    prompt_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """프롬프트 활성화.
-
-    동일 bot_type의 다른 프롬프트는 자동으로 비활성화됩니다.
-
-    Args:
-        prompt_id: 활성화할 프롬프트 ID
-
-    Returns:
-        활성화된 프롬프트 정보
-    """
-    if not user.is_admin:
-        raise HTTPException(
-            status_code=403, detail="Admin access required"
-        )
-
-    try:
-        prompt = await PromptManager.activate_prompt(db, prompt_id)
-        await db.commit()
-
-        logger.info(
-            f"Admin {user.username} activated {prompt.bot_type} "
-            f"prompt v{prompt.version}"
-        )
-
-        return {"prompt": prompt.to_dict()}
-
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"Failed to activate prompt {prompt_id}: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to activate prompt"
-        )
 
 @router.put("/prompts/{prompt_id}")
 async def update_prompt(
@@ -197,7 +156,7 @@ async def update_prompt(
         await db.commit()
 
         logger.info(
-            f"Admin {user.username} updated prompt {prompt_id} "
+            f"Admin {user.nickname} updated prompt {prompt_id} "
             f"(v{prompt.version})"
         )
         return {"prompt": prompt.to_dict()}
@@ -226,7 +185,7 @@ async def delete_prompt(
         await PromptManager.delete_prompt(db, prompt_id)
         await db.commit()
 
-        logger.info(f"Admin {user.username} deleted prompt {prompt_id}")
+        logger.info(f"Admin {user.nickname} deleted prompt {prompt_id}")
         return {"status": "success", "id": prompt_id}
 
     except Exception as e:

@@ -12,6 +12,25 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import User, AnalysisFramework, Scenario, Session
+from src.models.prompt_template import PromptTemplate
+
+
+@pytest.fixture
+async def test_student_template(db_session: AsyncSession) -> PromptTemplate:
+    """Create test student template."""
+    template = PromptTemplate(
+        bot_type="student",
+        template_name="Test Student Template",
+        version=1,
+        template_text=(
+            "You are a test student bot. Scenario: {scenario_title}. "
+            "Profile: {student_profile}. Context: {prompt}"
+        ),
+    )
+    db_session.add(template)
+    await db_session.commit()
+    await db_session.refresh(template)
+    return template
 
 
 @pytest.fixture
@@ -30,7 +49,9 @@ async def test_framework(db_session: AsyncSession) -> AnalysisFramework:
 
 @pytest.fixture
 async def test_scenario(
-    db_session: AsyncSession, test_framework: AnalysisFramework
+    db_session: AsyncSession,
+    test_framework: AnalysisFramework,
+    test_student_template: PromptTemplate,
 ) -> Scenario:
     """Create active test scenario."""
     scenario = Scenario(
@@ -38,6 +59,7 @@ async def test_scenario(
         prompt="Test system prompt for scenario",
         student_profile="Test student profile",
         framework_id=test_framework.id,
+        student_template_id=test_student_template.id,
         is_active=1,
     )
     db_session.add(scenario)
@@ -48,7 +70,9 @@ async def test_scenario(
 
 @pytest.fixture
 async def inactive_scenario(
-    db_session: AsyncSession, test_framework: AnalysisFramework
+    db_session: AsyncSession,
+    test_framework: AnalysisFramework,
+    test_student_template: PromptTemplate,
 ) -> Scenario:
     """Create inactive test scenario for rejection tests."""
     scenario = Scenario(
@@ -56,6 +80,7 @@ async def inactive_scenario(
         prompt="This scenario is inactive",
         student_profile="Should not be accessible",
         framework_id=test_framework.id,
+        student_template_id=test_student_template.id,
         is_active=0,
     )
     db_session.add(scenario)

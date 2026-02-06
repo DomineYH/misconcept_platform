@@ -48,10 +48,12 @@ CREATE TABLE IF NOT EXISTS scenario (
   chat_temperature REAL NULL
     CHECK(chat_temperature IS NULL OR
       (chat_temperature >= 0 AND chat_temperature <= 2)),
-  tutor_enabled BOOLEAN NOT NULL DEFAULT 1,
   tutor_intervention_threshold INTEGER NULL
     CHECK(tutor_intervention_threshold IS NULL OR
       (tutor_intervention_threshold BETWEEN 1 AND 10)),
+  -- Template foreign keys
+  student_template_id INTEGER NOT NULL REFERENCES prompt_template(id),
+  tutor_template_id INTEGER NULL REFERENCES prompt_template(id),
   created_by INTEGER REFERENCES user(id),
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   deleted_at DATETIME NULL
@@ -63,6 +65,10 @@ CREATE INDEX IF NOT EXISTS idx_scenario_deleted
   ON scenario(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_scenario_framework
   ON scenario(framework_id);
+CREATE INDEX IF NOT EXISTS idx_scenario_student_template
+  ON scenario(student_template_id);
+CREATE INDEX IF NOT EXISTS idx_scenario_tutor_template
+  ON scenario(tutor_template_id);
 
 -- Session table
 CREATE TABLE IF NOT EXISTS session (
@@ -178,7 +184,6 @@ CREATE TABLE IF NOT EXISTS prompt_template (
   template_text TEXT NOT NULL
     CHECK(LENGTH(template_text) >= 10 AND LENGTH(template_text) <= 10000),
   version INTEGER NOT NULL DEFAULT 1,
-  is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN (0, 1)),
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER REFERENCES user(id)
@@ -186,8 +191,6 @@ CREATE TABLE IF NOT EXISTS prompt_template (
 
 CREATE INDEX IF NOT EXISTS ix_prompt_bot_type
   ON prompt_template(bot_type);
-CREATE UNIQUE INDEX IF NOT EXISTS ix_prompt_active
-  ON prompt_template(bot_type) WHERE is_active = 1;
 CREATE INDEX IF NOT EXISTS ix_prompt_created_at
   ON prompt_template(created_at);
 """

@@ -20,6 +20,7 @@ from src.api.schemas import (
     ScenarioUpdate,
 )
 from src.models.analysis_framework import AnalysisFramework
+from src.models.prompt_template import PromptTemplate
 from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.user import User
@@ -60,6 +61,23 @@ async def list_all_scenarios(
     frameworks_result = await db.execute(frameworks_query)
     frameworks = frameworks_result.scalars().all()
 
+    # Load prompt templates for dropdowns
+    student_templates_query = (
+        select(PromptTemplate)
+        .where(PromptTemplate.bot_type == "student")
+        .order_by(PromptTemplate.template_name)
+    )
+    student_templates_result = await db.execute(student_templates_query)
+    student_templates = student_templates_result.scalars().all()
+
+    tutor_templates_query = (
+        select(PromptTemplate)
+        .where(PromptTemplate.bot_type == "tutor")
+        .order_by(PromptTemplate.template_name)
+    )
+    tutor_templates_result = await db.execute(tutor_templates_query)
+    tutor_templates = tutor_templates_result.scalars().all()
+
     # Get session counts for each scenario
     session_counts = {}
     for scenario in scenarios:
@@ -77,6 +95,8 @@ async def list_all_scenarios(
             "scenarios": scenarios,
             "frameworks": frameworks,
             "session_counts": session_counts,
+            "student_templates": student_templates,
+            "tutor_templates": tutor_templates,
         },
     )
 
@@ -107,6 +127,23 @@ async def create_scenario(
             detail="Framework not found",
         )
 
+    # Verify student template exists and is correct type
+    student_template = await db.get(PromptTemplate, scenario_data.student_template_id)
+    if not student_template or student_template.bot_type != "student":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid student template",
+        )
+
+    # Verify tutor template if provided
+    if scenario_data.tutor_template_id is not None:
+        tutor_template = await db.get(PromptTemplate, scenario_data.tutor_template_id)
+        if not tutor_template or tutor_template.bot_type != "tutor":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid tutor template",
+            )
+
     # Create scenario with bot configuration overrides
     scenario = Scenario(
         title=scenario_data.title,
@@ -117,10 +154,12 @@ async def create_scenario(
         # Phase 2: Bot configuration overrides
         chat_model=scenario_data.chat_model,
         chat_temperature=scenario_data.chat_temperature,
-        tutor_enabled=1 if scenario_data.tutor_enabled else 0,
         tutor_intervention_threshold=(
             scenario_data.tutor_intervention_threshold
         ),
+        # Template selections
+        student_template_id=scenario_data.student_template_id,
+        tutor_template_id=scenario_data.tutor_template_id,
         # Video fields
         video_url=scenario_data.video_url,
         video_transcript=scenario_data.video_transcript,
@@ -205,12 +244,33 @@ async def update_scenario(
         scenario.chat_model = scenario_data.chat_model
     if scenario_data.chat_temperature is not None:
         scenario.chat_temperature = scenario_data.chat_temperature
-    if scenario_data.tutor_enabled is not None:
-        scenario.tutor_enabled = 1 if scenario_data.tutor_enabled else 0
     if scenario_data.tutor_intervention_threshold is not None:
         scenario.tutor_intervention_threshold = (
             scenario_data.tutor_intervention_threshold
         )
+
+    # Update template selections
+    if scenario_data.student_template_id is not None:
+        student_template = await db.get(PromptTemplate, scenario_data.student_template_id)
+        if not student_template or student_template.bot_type != "student":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid student template",
+            )
+        scenario.student_template_id = scenario_data.student_template_id
+
+    if scenario_data.tutor_template_id is not None:
+        # Special value handling: if -1, set to None (disable tutor)
+        if scenario_data.tutor_template_id == -1:
+            scenario.tutor_template_id = None
+        else:
+            tutor_template = await db.get(PromptTemplate, scenario_data.tutor_template_id)
+            if not tutor_template or tutor_template.bot_type != "tutor":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid tutor template",
+                )
+            scenario.tutor_template_id = scenario_data.tutor_template_id
 
     # Update video fields
     if scenario_data.video_url is not None:

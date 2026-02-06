@@ -17,6 +17,7 @@ from src.models.message import Message
 from src.models.question_analysis import QuestionAnalysis
 from src.models.analysis_framework import AnalysisFramework
 from src.models.user import User
+from src.models.prompt_template import PromptTemplate
 
 
 @pytest.fixture
@@ -34,8 +35,47 @@ async def test_user(db_session: AsyncSession) -> User:
 
 
 @pytest.fixture
+async def test_student_template(db_session: AsyncSession) -> PromptTemplate:
+    """Create test student template."""
+    template = PromptTemplate(
+        bot_type="student",
+        template_name="Test Student Template",
+        version=1,
+        template_text=(
+            "You are a test student bot. Scenario: {scenario_title}. "
+            "Profile: {student_profile}. Context: {prompt}"
+        ),
+    )
+    db_session.add(template)
+    await db_session.commit()
+    await db_session.refresh(template)
+    return template
+
+
+@pytest.fixture
+async def test_tutor_template(db_session: AsyncSession) -> PromptTemplate:
+    """Create test tutor template."""
+    template = PromptTemplate(
+        bot_type="tutor",
+        template_name="Test Tutor Template",
+        version=1,
+        template_text=(
+            "You are a test tutor bot. Scenario: {scenario_title}. "
+            "Profile: {student_profile}. Context: {prompt}"
+        ),
+    )
+    db_session.add(template)
+    await db_session.commit()
+    await db_session.refresh(template)
+    return template
+
+
+@pytest.fixture
 async def test_scenario(
-    db_session: AsyncSession, test_user: User
+    db_session: AsyncSession,
+    test_user: User,
+    test_student_template: PromptTemplate,
+    test_tutor_template: PromptTemplate,
 ) -> Scenario:
     """Create test scenario with framework."""
     # Create framework
@@ -57,8 +97,9 @@ async def test_scenario(
         ),
         student_profile="Middle school student learning fractions",
         is_active=1,
-        tutor_enabled=True,
         framework_id=framework.id,
+        student_template_id=test_student_template.id,
+        tutor_template_id=test_tutor_template.id,
         created_by=test_user.id,
     )
     db_session.add(scenario)
@@ -176,9 +217,9 @@ async def test_dialogue_flow_with_tutor_disabled(
     # Use test scenario and disable tutor
     scenario = test_scenario
 
-    # Temporarily disable tutor
-    original_tutor_state = scenario.tutor_enabled
-    scenario.tutor_enabled = False
+    # Temporarily disable tutor by clearing template
+    original_tutor_template_id = scenario.tutor_template_id
+    scenario.tutor_template_id = None
     await db_session.commit()
 
     try:
@@ -207,7 +248,7 @@ async def test_dialogue_flow_with_tutor_disabled(
 
     finally:
         # Restore tutor state
-        scenario.tutor_enabled = original_tutor_state
+        scenario.tutor_template_id = original_tutor_template_id
         await db_session.commit()
 
 

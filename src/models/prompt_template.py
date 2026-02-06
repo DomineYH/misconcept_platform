@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
     ForeignKey,
     Index,
@@ -28,7 +27,7 @@ class PromptTemplate(Base):
     """
     프롬프트 템플릿 엔티티.
 
-    각 봇 타입('student', 'tutor')당 활성 템플릿은 1개만 허용됩니다.
+    시나리오별로 템플릿을 선택하여 사용합니다.
     버전 히스토리를 통해 이전 프롬프트로 롤백할 수 있습니다.
     """
 
@@ -69,13 +68,6 @@ class PromptTemplate(Base):
         Integer, nullable=False, default=1, comment="버전 번호"
     )
 
-    is_active: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=False,
-        comment="활성화 여부 (각 봇 타입당 1개만)",
-    )
-
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(timezone.utc),
@@ -105,13 +97,6 @@ class PromptTemplate(Base):
 
     # Table constraints and indexes
     __table_args__ = (
-        # 각 봇 타입당 활성 템플릿은 1개만 (SQLite partial index)
-        Index(
-            "ix_prompt_active",
-            "bot_type",
-            unique=True,
-            sqlite_where=(is_active == True),  # noqa: E712
-        ),
         # 조회 최적화 인덱스
         Index("ix_prompt_bot_type", "bot_type"),
         Index("ix_prompt_created_at", "created_at"),
@@ -124,8 +109,7 @@ class PromptTemplate(Base):
             f"id={self.id}, "
             f"bot_type='{self.bot_type}', "
             f"name='{self.template_name}', "
-            f"version={self.version}, "
-            f"active={self.is_active}"
+            f"version={self.version}"
             f")>"
         )
 
@@ -137,7 +121,6 @@ class PromptTemplate(Base):
             "template_name": self.template_name,
             "template_text": self.template_text,
             "version": self.version,
-            "is_active": self.is_active,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "updated_by": self.updated_by,

@@ -34,12 +34,6 @@
     <div class="scenarios-grid" id="prompts-grid">
       {% for p in prompts %}
       <div class="scenario-card prompt-card" data-type="{{ p.bot_type }}">
-        <div class="card-status">
-          <span class="status-badge {% if p.is_active %}active{% endif %}">
-            {% if p.is_active %}활성{% else %}비활성{% endif %}
-          </span>
-        </div>
-
         <div class="card-body">
           <h3 class="card-title">{{ p.template_name }}</h3>
           <span class="version-badge">v{{ p.version }}</span>
@@ -66,14 +60,6 @@
           >
             수정
           </button>
-          {% if not p.is_active %}
-          <button
-            type="button"
-            class="btn btn-sm btn-primary activate-btn"
-            data-id="{{ p.id }}"
-          >
-            활성화
-          </button>
           <button
             type="button"
             class="btn btn-sm btn-danger delete-btn"
@@ -81,7 +67,6 @@
           >
             삭제
           </button>
-          {% endif %}
         </div>
       </div>
       {% endfor %}
@@ -132,13 +117,6 @@
             class="code-editor"
             placeholder="시스템 프롬프트를 입력하세요..."
           ></textarea>
-        </div>
-
-        <div class="form-group checkbox-group">
-          <label>
-            <input type="checkbox" id="new-active" />
-            즉시 활성화
-          </label>
         </div>
       </div>
 
@@ -318,7 +296,6 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
     bot_type: document.getElementById('new-bot-type').value,
     template_name: document.getElementById('new-name').value,
     template_text: document.getElementById('new-text').value,
-    is_active: document.getElementById('new-active').checked,
   };
 
   try {
@@ -374,25 +351,6 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
   } catch {
     alert('템플릿 수정에 실패했습니다');
   }
-});
-
-document.querySelectorAll('.activate-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    if (!confirm('이 템플릿을 활성화하시겠습니까?')) return;
-
-    try {
-      const res = await fetch(`/admin/prompts/${btn.dataset.id}/activate`, { method: 'PUT' });
-      if (res.ok) {
-        alert('템플릿이 활성화되었습니다!');
-        location.reload();
-      } else {
-        const err = await res.json();
-        alert(`오류: ${err.detail}`);
-      }
-    } catch {
-      alert('활성화에 실패했습니다');
-    }
-  });
 });
 
 document.querySelectorAll('.delete-btn').forEach(btn => {

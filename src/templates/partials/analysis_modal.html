@@ -117,6 +117,14 @@
 
 <!-- Modal Footer -->
 <div class="modal-footer">
+    {% if is_admin %}
+    <button type="button" onclick="closeAnalysisModal()" class="btn-modal btn-modal-secondary">
+        닫기
+    </button>
+    <a href="/admin/sessions/{{ session_id }}/download" class="btn-modal btn-modal-primary" download>
+        CSV 다운로드
+    </a>
+    {% else %}
     <a href="/sessions/{{ session_id }}/analysis_page" class="btn-modal btn-modal-secondary">
         전체 화면으로 보기
     </a>
@@ -126,4 +134,5 @@
     <a href="/scenarios" class="btn-modal btn-modal-success">
         시나리오 목록으로
     </a>
+    {% endif %}
 </div>

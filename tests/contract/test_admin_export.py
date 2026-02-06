@@ -13,6 +13,7 @@ from src.models.session import Session
 from src.models.message import Message
 from src.models.analysis_framework import AnalysisFramework
 from src.models.question_analysis import QuestionAnalysis
+from src.models.prompt_template import PromptTemplate
 
 
 @pytest.fixture
@@ -56,14 +57,33 @@ async def test_framework(db_session: AsyncSession) -> AnalysisFramework:
 
 
 @pytest.fixture
+async def test_student_template(
+    db_session: AsyncSession,
+) -> PromptTemplate:
+    """Create test student template."""
+    template = PromptTemplate(
+        bot_type="student",
+        template_name="Test Student Template",
+        version=1,
+        template_text="You are a test student bot.",
+    )
+    db_session.add(template)
+    await db_session.flush()
+    return template
+
+
+@pytest.fixture
 async def test_scenario(
-    db_session: AsyncSession, test_framework: AnalysisFramework
+    db_session: AsyncSession,
+    test_framework: AnalysisFramework,
+    test_student_template: PromptTemplate,
 ) -> Scenario:
     scenario = Scenario(
         title="Export Test Scenario",
         prompt="Test prompt",
         student_profile="Test profile",
         framework_id=test_framework.id,
+        student_template_id=test_student_template.id,
         is_active=1,
     )
     db_session.add(scenario)

@@ -95,13 +95,22 @@
             {% if not session.ended_at %}
             <button type="button"
               hx-post="/admin/sessions/{{ session.id }}/end"
-              hx-confirm="세션을 종료하시겠습니까?"
+              hx-confirm="세션을 종료하고 분석하시겠습니까?"
               hx-target="closest tr"
               hx-swap="outerHTML"
-              class="btn btn-sm btn-warning">종료</button>
+              hx-indicator="#loading-{{ session.id }}"
+              class="btn btn-sm btn-warning">
+              <span class="htmx-indicator" id="loading-{{ session.id }}">⏳</span>
+              <span class="btn-text">종료</span>
+            </button>
             {% else %}
             <a href="/admin/sessions/{{ session.id }}/download"
               class="btn btn-sm btn-success">📥 CSV</a>
+            {% if session.summary %}
+            <button type="button"
+              class="btn btn-sm btn-info view-analysis-btn"
+              data-session-id="{{ session.id }}">📊 분석결과</button>
+            {% endif %}
             {% endif %}
             <button type="button"
               hx-delete="/admin/sessions/{{ session.id }}"
@@ -167,9 +176,30 @@
   </div>
 </div>
 
+<!-- Analysis Modal -->
+<div id="analysis-modal" class="modal-overlay hidden">
+  <div class="modal-container modal-lg">
+    <div class="modal-body" id="analysis-modal-body">
+      <!-- Content loaded via fetch -->
+    </div>
+  </div>
+</div>
+
 <script>
 const sessionDetailModal = document.getElementById('session-detail-modal');
 const modalBody = sessionDetailModal.querySelector('.modal-body');
+
+function fetchWithRetry(url, retries = 1) {
+  return fetch(url, { credentials: 'same-origin' })
+    .then(response => {
+      if (response.redirected || response.url.includes('/login')) {
+        if (retries > 0) return fetchWithRetry(url, retries - 1);
+        throw new Error('Session expired');
+      }
+      if (!response.ok) throw new Error('Request failed');
+      return response.text();
+    });
+}
 
 function showModal(id) {
   const modal = document.getElementById(id);
@@ -190,24 +220,78 @@ sessionDetailModal.addEventListener('click', function(e) {
 });
 
 document.addEventListener('click', function(e) {
-  if (e.target.classList.contains('view-detail-btn') || 
+  if (e.target.classList.contains('view-detail-btn') ||
       e.target.closest('.view-detail-btn')) {
-    const btn = e.target.classList.contains('view-detail-btn') 
-      ? e.target 
+    const btn = e.target.classList.contains('view-detail-btn')
+      ? e.target
       : e.target.closest('.view-detail-btn');
     const sessionId = btn.dataset.sessionId;
-    
+
     modalBody.innerHTML = '<div style="text-align:center;padding:2rem;"><span class="spinner spinner-md"></span> 로딩 중...</div>';
     showModal('session-detail-modal');
-    
-    fetch(`/admin/sessions/${sessionId}/detail`)
-      .then(response => response.text())
+
+    fetchWithRetry(`/admin/sessions/${sessionId}/detail`)
       .then(html => {
         modalBody.innerHTML = html;
       })
       .catch(err => {
         modalBody.innerHTML = '<p style="color:red;text-align:center;">로드 실패</p>';
       });
+  }
+});
+
+// Analysis Modal Handlers
+const analysisModal = document.getElementById('analysis-modal');
+const analysisModalBody = document.getElementById('analysis-modal-body');
+
+function showAnalysisModal(sessionId) {
+  analysisModalBody.innerHTML = '<div style="text-align:center;padding:2rem;"><span class="spinner spinner-md"></span> 분석 결과 로딩 중...</div>';
+  analysisModal.classList.remove('hidden');
+  analysisModal.classList.add('flex');
+
+  fetchWithRetry(`/admin/sessions/${sessionId}/analysis_modal`)
+    .then(html => {
+      analysisModalBody.innerHTML = html;
+    })
+    .catch(err => {
+      analysisModalBody.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--color-danger);">분석 결과를 불러올 수 없습니다.</div>';
+    });
+}
+
+function closeAnalysisModal() {
+  analysisModal.classList.add('hidden');
+  analysisModal.classList.remove('flex');
+  analysisModalBody.innerHTML = '';
+}
+
+// Close analysis modal on overlay click
+analysisModal.addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeAnalysisModal();
+  }
+});
+
+// Handle analysis button clicks (event delegation)
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('view-analysis-btn') ||
+      e.target.closest('.view-analysis-btn')) {
+    const btn = e.target.classList.contains('view-analysis-btn')
+      ? e.target
+      : e.target.closest('.view-analysis-btn');
+    const sessionId = btn.dataset.sessionId;
+    showAnalysisModal(sessionId);
+  }
+});
+
+// Close modals on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    if (!analysisModal.classList.contains('hidden')) {
+      closeAnalysisModal();
+    }
+    if (!sessionDetailModal.classList.contains('hidden')) {
+      hideModal('session-detail-modal');
+    }
   }
 });
 </script>

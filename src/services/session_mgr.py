@@ -60,15 +60,17 @@ class SessionManager:
             scenario_title=scenario.title,
             student_profile=scenario.student_profile or "Grade 5 student",
             db_session=self.db,
+            template_id=scenario.student_template_id,
             model=bot_config["student_model"],
             reasoning_effort=bot_config["student_reasoning"],
             max_tokens=bot_config["student_max_tokens"],
         )
 
         # Conditionally initialize TutorBot based on scenario setting
-        if bot_config["tutor_enabled"]:
+        if bot_config["tutor_enabled"] and scenario.tutor_template_id:
             self.tutor_bot = TutorBot(
                 db_session=self.db,
+                template_id=scenario.tutor_template_id,
                 scenario_title=scenario.title,
                 prompt=scenario.prompt,
                 student_profile=scenario.student_profile or "Grade 5 student",

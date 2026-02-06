@@ -44,8 +44,11 @@ class ScenarioCreate(BaseModel):
     # Bot overrides (Phase 2)
     chat_model: str | None = "gpt-4-turbo"
     chat_temperature: float | None = 0.7
-    tutor_enabled: bool = False
     tutor_intervention_threshold: int | None = 3
+
+    # Template selection (Phase 2.5)
+    student_template_id: int  # Required
+    tutor_template_id: int | None = None  # None = tutor disabled
 
 class ScenarioUpdate(BaseModel):
     title: str | None = Field(None, min_length=3, max_length=200)
@@ -61,8 +64,11 @@ class ScenarioUpdate(BaseModel):
     # Bot overrides
     chat_model: str | None = None
     chat_temperature: float | None = None
-    tutor_enabled: bool | None = None
     tutor_intervention_threshold: int | None = None
+
+    # Template selection
+    student_template_id: int | None = None
+    tutor_template_id: int | None = None
 
 class AdminScenarioResponse(BaseModel):
     id: int
@@ -79,11 +85,19 @@ class AdminScenarioResponse(BaseModel):
     # Bot overrides
     chat_model: str | None = None
     chat_temperature: float | None = None
-    tutor_enabled: int | None = None
     tutor_intervention_threshold: int | None = None
+
+    # Template selection
+    student_template_id: int
+    tutor_template_id: int | None = None
 
     created_at: object | None = None
     updated_at: object | None = None
+
+    @property
+    def tutor_enabled(self) -> bool:
+        """Backward compatibility: tutor enabled if template assigned."""
+        return self.tutor_template_id is not None
 
     class Config:
         from_attributes = True

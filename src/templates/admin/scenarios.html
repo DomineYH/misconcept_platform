@@ -82,6 +82,9 @@
             <span class="meta-tag {% if session_counts[scenario.id] > 0 %}sessions{% endif %}">
               세션 {{ session_counts[scenario.id] }}개
             </span>
+            {% if scenario.tutor_template_id %}
+            <span class="meta-tag tutor-active">🎓 튜터 활성</span>
+            {% endif %}
           </div>
 
           <p class="card-description">
@@ -163,6 +166,33 @@
               <option value="{{ framework.id }}">{{ framework.name }}</option>
               {% endfor %}
             </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="new-student-template">학생봇 템플릿 <span class="required">*</span></label>
+            <select id="new-student-template" name="student_template_id" required>
+              <option value="">선택하세요</option>
+              {% for template in student_templates %}
+              <option value="{{ template.id }}">
+                {{ template.template_name }} (v{{ template.version }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="new-tutor-template">튜터봇 템플릿</label>
+            <select id="new-tutor-template" name="tutor_template_id">
+              <option value="">튜터 비활성화</option>
+              {% for template in tutor_templates %}
+              <option value="{{ template.id }}">
+                {{ template.template_name }} (v{{ template.version }})
+              </option>
+              {% endfor %}
+            </select>
+            <small class="form-help">선택하지 않으면 튜터봇이 비활성화됩니다</small>
           </div>
         </div>
 
@@ -264,6 +294,32 @@
         </select>
       </div>
 
+      <div class="form-row">
+        <div class="form-group">
+          <label for="edit-student-template">학생봇 템플릿 <span class="required">*</span></label>
+          <select id="edit-student-template" name="student_template_id" required>
+            {% for template in student_templates %}
+            <option value="{{ template.id }}">
+              {{ template.template_name }} (v{{ template.version }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-tutor-template">튜터봇 템플릿</label>
+          <select id="edit-tutor-template" name="tutor_template_id">
+            <option value="">튜터 비활성화</option>
+            {% for template in tutor_templates %}
+            <option value="{{ template.id }}">
+              {{ template.template_name }} (v{{ template.version }})
+            </option>
+            {% endfor %}
+          </select>
+          <small class="form-help">선택하지 않으면 튜터봇이 비활성화됩니다</small>
+        </div>
+      </div>
+
       <div class="form-group">
         <label for="edit-prompt">시나리오 프롬프트 <span class="required">*</span></label>
         <textarea
@@ -340,7 +396,9 @@ const scenariosData = {
     prompt: `{{ scenario.prompt|replace('\n', '\\n')|replace('\r', '')|e }}`,
     student_profile: `{{ scenario.student_profile|replace('\n', '\\n')|replace('\r', '')|e }}`,
     video_url: "{{ scenario.video_url or '' }}",
-    video_transcript: `{{ (scenario.video_transcript|replace('\n', '\\n')|replace('\r', '')|e) if scenario.video_transcript else '' }}`
+    video_transcript: `{{ (scenario.video_transcript|replace('\n', '\\n')|replace('\r', '')|e) if scenario.video_transcript else '' }}`,
+    student_template_id: {{ scenario.student_template_id }},
+    tutor_template_id: {{ scenario.tutor_template_id|default('null', true) }}
   }{% if not loop.last %},{% endif %}
   {% endfor %}
 };
@@ -401,6 +459,8 @@ function openEditPanel(scenarioId) {
   document.getElementById('edit-profile').value = data.student_profile;
   document.getElementById('edit-video-url').value = data.video_url || '';
   document.getElementById('edit-video-transcript').value = data.video_transcript || '';
+  document.getElementById('edit-student-template').value = data.student_template_id;
+  document.getElementById('edit-tutor-template').value = data.tutor_template_id || '';
 
   // If any video setting is set, open the video details
   if (data.video_url || data.video_transcript) {
@@ -446,7 +506,9 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
     student_profile: formData.get('student_profile'),
     framework_id: parseInt(formData.get('framework_id')),
     video_url: formData.get('video_url') || null,
-    video_transcript: formData.get('video_transcript') || null
+    video_transcript: formData.get('video_transcript') || null,
+    student_template_id: parseInt(formData.get('student_template_id')),
+    tutor_template_id: formData.get('tutor_template_id') ? parseInt(formData.get('tutor_template_id')) : null
   };
 
   try {
@@ -480,7 +542,9 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
     student_profile: formData.get('student_profile'),
     framework_id: parseInt(formData.get('framework_id')),
     video_url: formData.get('video_url') || null,
-    video_transcript: formData.get('video_transcript') || null
+    video_transcript: formData.get('video_transcript') || null,
+    student_template_id: parseInt(formData.get('student_template_id')),
+    tutor_template_id: formData.get('tutor_template_id') ? parseInt(formData.get('tutor_template_id')) : null
   };
 
   try {

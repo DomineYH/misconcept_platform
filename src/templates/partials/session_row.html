@@ -28,13 +28,22 @@
     {% if not session.ended_at %}
     <button type="button"
       hx-post="/admin/sessions/{{ session.id }}/end"
-      hx-confirm="세션을 종료하시겠습니까?"
+      hx-confirm="세션을 종료하고 분석하시겠습니까?"
       hx-target="closest tr"
       hx-swap="outerHTML"
-      class="btn btn-sm btn-warning">종료</button>
+      hx-indicator="#loading-{{ session.id }}"
+      class="btn btn-sm btn-warning">
+      <span class="htmx-indicator" id="loading-{{ session.id }}">⏳</span>
+      <span class="btn-text">종료</span>
+    </button>
     {% else %}
     <a href="/admin/sessions/{{ session.id }}/download"
       class="btn btn-sm btn-success">📥 CSV</a>
+    {% if session.summary %}
+    <button type="button"
+      class="btn btn-sm btn-info view-analysis-btn"
+      data-session-id="{{ session.id }}">📊 분석결과</button>
+    {% endif %}
     {% endif %}
     <button type="button"
       hx-delete="/admin/sessions/{{ session.id }}"

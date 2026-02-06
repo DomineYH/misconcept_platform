@@ -14,8 +14,12 @@ class Config:
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     # Supported: gpt-5 (Responses API with reasoning)
     # Recommended: gpt-5 (latest, Aug 2025)
-    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "gpt-5")
-    ANALYSIS_MODEL: str = os.getenv("ANALYSIS_MODEL", "gpt-5")
+    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "gpt-5-mini")
+    ANALYSIS_MODEL: str = os.getenv("ANALYSIS_MODEL", "gpt-5.2")
+    # Model for dialogue similarity analysis
+    DIALOGUE_ANALYSIS_MODEL: str = os.getenv(
+        "DIALOGUE_ANALYSIS_MODEL", "gpt-5.2"
+    )
 
     # ===== GPT-5 Reasoning Effort Configuration =====
     # Valid values: minimal, low, medium, high

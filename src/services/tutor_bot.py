@@ -1,6 +1,8 @@
 """TutorBot service for pedagogical feedback and intervention."""
 
+import json
 import logging
+import re
 from typing import Optional
 
 from openai import APIConnectionError, APIError, RateLimitError
@@ -8,6 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import config
 from src.services.base import OpenAIBaseService, openai_retry
+from src.services.dialogue_analysis import (
+    check_low_leverage_patterns,
+    check_vague_patterns,
+    detect_repetitive_dialogue_simple,
+    extract_recent_pairs,
+)
 from src.services.prompt_manager import PromptManager
 from src.utils.openai_helpers import extract_response_text
 
@@ -20,6 +28,7 @@ class TutorBot(OpenAIBaseService):
     def __init__(
         self,
         db_session: AsyncSession,
+        template_id: int,
         scenario_title: str = "",
         prompt: str = "",
         student_profile: str = "",
@@ -31,46 +40,34 @@ class TutorBot(OpenAIBaseService):
         """Initialize TutorBot with scenario context and optional config.
 
         Args:
-            db_session: Database session for dynamic prompt loading
-            scenario_title: Scenario display name
-            prompt: System prompt defining misconception
-            student_profile: Student characteristics
-            model: Override default model (from config or DB)
-            reasoning_effort: Override reasoning effort (minimal, low,
-                medium, high)
-            max_tokens: Override default max tokens (50-300)
-            intervention_threshold: Interventions per 10 questions (1-10)
+            db_session: Database session for queries
+            template_id: ID of the tutor prompt template to use
+            scenario_title: Title of the scenario
+            prompt: Scenario prompt text
+            student_profile: Student profile description
+            model: OpenAI model to use (defaults to config.ANALYSIS_MODEL)
+            reasoning_effort: Reasoning effort level
+            max_tokens: Maximum tokens for response
+            intervention_threshold: Max interventions per session
         """
         super().__init__()
         self.db_session = db_session
+        self.template_id = template_id
         self.model = model or config.ANALYSIS_MODEL
         self.reasoning_effort = reasoning_effort or config.TUTOR_REASONING
         self.max_tokens = max_tokens or config.TUTOR_MAX_TOKENS
         self.intervention_threshold = (
             intervention_threshold or config.TUTOR_INTERVENTION_THRESHOLD
         )
-
-        # Store scenario context for dynamic prompt formatting
         self.scenario_title = scenario_title
         self.prompt = prompt
         self.student_profile = student_profile
-
-        # Track interventions for rate limiting
         self.intervention_count = 0
         self.question_count = 0
 
     def should_intervene(self, recent_teacher_questions: list[str]) -> bool:
-        """Determine if tutor should provide feedback.
-
-        Args:
-            recent_teacher_questions: Last N teacher questions
-
-        Returns:
-            True if intervention needed, False otherwise
-        """
+        """Determine if tutor should provide feedback (legacy method)."""
         self.question_count += 1
-
-        # Rate limiting: Max N interventions per 10 questions
         if self.question_count > 10:
             self.intervention_count = 0
             self.question_count = 0
@@ -78,42 +75,130 @@ class TutorBot(OpenAIBaseService):
         if self.intervention_count >= self.intervention_threshold:
             return False
 
-        # Heuristic checks for intervention triggers
         if len(recent_teacher_questions) < 2:
             return False
 
-        latest = recent_teacher_questions[-1].lower()
+        latest = recent_teacher_questions[-1]
 
-        # Check for low-leverage patterns
-        low_leverage_indicators = [
-            latest.endswith("?") and len(latest.split()) < 5,  # Too short
-            any(
-                phrase in latest
-                for phrase in ["yes or no", "is it", "are you", "do you"]
-            ),
-            "you should" in latest or "try this" in latest,  # Directive
+        if check_low_leverage_patterns(latest):
+            return True
+
+        if check_vague_patterns(recent_teacher_questions):
+            return True
+
+        return False
+
+    @openai_retry
+    async def analyze_conversation_with_llm(
+        self, pairs: list[tuple[str, str]]
+    ) -> dict:
+        """Analyze dialogue pairs using LLM for semantic similarity."""
+        if len(pairs) < 2:
+            return {
+                "is_repetitive": False,
+                "is_inappropriate": False,
+                "reason": "",
+            }
+
+        # Format recent pairs for analysis
+        context = ""
+        for i, (teacher, student) in enumerate(pairs, 1):
+            context += f"[대화 {i}]\n교사: {teacher}\n학생: {student}\n\n"
+
+        analysis_prompt = f"""다음 교사-학생 대화쌍들을 분석해주세요:
+
+{context}
+
+다음 기준으로 분석하세요:
+1. 반복 대화: 교사 질문이나 학생 응답이 70% 이상 유사한 내용으로 반복되는가?
+2. 부적절한 대화: 교사가 학생 응답을 무시하거나, 대화가 진전 없이 맴도는가?
+
+JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{{"is_repetitive": true/false, "is_inappropriate": true/false, "reason": "판단 근거 (한 문장)"}}"""
+
+        try:
+            response = await self.client.responses.create(
+                model=config.DIALOGUE_ANALYSIS_MODEL,
+                input=[{"role": "user", "content": analysis_prompt}],
+                max_output_tokens=200,
+            )
+
+            content = extract_response_text(response)
+
+            json_match = re.search(r"\{[^}]+\}", content)
+            if json_match:
+                result = json.loads(json_match.group())
+                return {
+                    "is_repetitive": result.get("is_repetitive", False),
+                    "is_inappropriate": result.get("is_inappropriate", False),
+                    "reason": result.get("reason", ""),
+                }
+
+        except (json.JSONDecodeError, APIError) as e:
+            logger.warning(f"LLM analysis failed, using fallback: {e}")
+
+        # Fallback to simple Jaccard similarity
+        is_repetitive = detect_repetitive_dialogue_simple(pairs)
+        return {
+            "is_repetitive": is_repetitive,
+            "is_inappropriate": False,
+            "reason": "반복적인 대화 패턴 감지" if is_repetitive else "",
+        }
+
+    async def analyze_conversation(
+        self,
+        recent_exchanges: list[dict],
+        current_teacher: str,
+        current_student: str,
+    ) -> tuple[bool, str | None]:
+        """Analyze conversation pairs to determine intervention need."""
+        # Rate limiting
+        self.question_count += 1
+        if self.question_count > 10:
+            self.intervention_count = 0
+            self.question_count = 0
+
+        if self.intervention_count >= self.intervention_threshold:
+            return False, None
+
+        # Extract recent pairs + current exchange
+        pairs = extract_recent_pairs(recent_exchanges, max_pairs=2)
+        pairs.append((current_teacher, current_student))
+
+        # Need at least 2 pairs for comparison
+        if len(pairs) < 2:
+            if check_low_leverage_patterns(current_teacher):
+                return True, "low_leverage"
+            return False, None
+
+        # First check simple Jaccard similarity (fast, no API call)
+        if detect_repetitive_dialogue_simple(pairs, threshold=0.8):
+            return True, "반복적인 대화 패턴이 감지되었습니다."
+
+        # LLM-based semantic analysis for edge cases
+        analysis = await self.analyze_conversation_with_llm(pairs)
+
+        if analysis["is_repetitive"]:
+            return True, analysis["reason"] or "반복적인 대화 패턴 감지"
+
+        if analysis["is_inappropriate"]:
+            return True, analysis["reason"] or "대화 진전 없음"
+
+        # Fallback: check vague patterns from teacher questions
+        teacher_questions = [
+            ex["content"]
+            for ex in recent_exchanges[-5:]
+            if ex["role"] == "teacher"
         ]
+        teacher_questions.append(current_teacher)
 
-        # Check for stagnation (similar questions)
-        if len(recent_teacher_questions) >= 3:
-            recent_3 = recent_teacher_questions[-3:]
-            vague_questions = [
-                q
-                for q in recent_3
-                if any(
-                    phrase in q.lower()
-                    for phrase in [
-                        "what do you think",
-                        "any thoughts",
-                        "what else",
-                    ]
-                )
-            ]
-            if len(vague_questions) >= 2:
-                return True
+        if check_vague_patterns(teacher_questions):
+            return True, "모호한 질문 패턴 감지"
 
-        # Intervene if low-leverage detected
-        return any(low_leverage_indicators)
+        if check_low_leverage_patterns(current_teacher):
+            return True, "low_leverage"
+
+        return False, None
 
     @openai_retry
     async def generate_feedback(
@@ -122,54 +207,36 @@ class TutorBot(OpenAIBaseService):
         student_response: str,
         recent_exchanges: list[dict],
     ) -> tuple[str | None, Optional[dict]]:
-        """Generate pedagogical feedback for teacher.
+        """Generate pedagogical feedback for teacher."""
+        should_intervene, reason = await self.analyze_conversation(
+            recent_exchanges,
+            teacher_question,
+            student_response,
+        )
 
-        Args:
-            teacher_question: Latest teacher question
-            student_response: Student's response
-            recent_exchanges: Recent conversation context
-
-        Returns:
-            Tuple of (feedback_string or None, usage_dict or None)
-            usage_dict contains: prompt_tokens, completion_tokens,
-            total_tokens
-
-        Raises:
-            APIError: If OpenAI API fails after retries
-        """
-        # Extract recent teacher questions
-        teacher_questions = [
-            ex["content"]
-            for ex in recent_exchanges[-5:]
-            if ex["role"] == "teacher"
-        ]
-        teacher_questions.append(teacher_question)
-
-        # Check if intervention needed
-        if not self.should_intervene(teacher_questions):
+        if not should_intervene:
             return None, None
 
         try:
-            # Load dynamic prompt template (5-min cache, <10ms)
-            template = await PromptManager.get_active_prompt(
-                self.db_session, "tutor"
+            template = await PromptManager.get_template_text_by_id(
+                self.db_session, self.template_id
             )
 
-            # Format with scenario context
             system_prompt = template.format(
                 scenario_title=self.scenario_title,
                 prompt=self.prompt,
                 student_profile=self.student_profile,
             )
 
-            # Build analysis context
             context = "Recent conversation:\n"
             for ex in recent_exchanges[-4:]:
                 context += f"{ex['role'].upper()}: {ex['content']}\n"
             context += f"TEACHER: {teacher_question}\n"
             context += f"STUDENT: {student_response}\n"
 
-            # Build input for Responses API (developer role)
+            if reason and reason != "low_leverage":
+                context += f"\n개입 이유: {reason}\n"
+
             input_messages = [
                 {"role": "developer", "content": system_prompt},
                 {
@@ -181,7 +248,6 @@ class TutorBot(OpenAIBaseService):
                 },
             ]
 
-            # OpenAI Responses API 호출 (GPT-5 with reasoning)
             response = await self.client.responses.create(
                 model=self.model,
                 input=input_messages,
@@ -189,10 +255,8 @@ class TutorBot(OpenAIBaseService):
                 reasoning={"effort": self.reasoning_effort},
             )
 
-            # Extract content (Responses API output 처리)
             content = extract_response_text(response)
 
-            # Extract usage information if available
             usage_dict = None
             if hasattr(response, "usage") and response.usage is not None:
                 usage_dict = {

@@ -7,6 +7,7 @@ from src.models.user import User
 from src.models.analysis_framework import AnalysisFramework
 from src.models.scenario import Scenario
 from src.models.session import Session
+from src.models.prompt_template import PromptTemplate
 
 
 @pytest.fixture
@@ -49,6 +50,24 @@ async def test_framework(
     return framework
 
 
+@pytest.fixture
+async def test_student_template(db_session: AsyncSession) -> PromptTemplate:
+    """Create test student template."""
+    template = PromptTemplate(
+        bot_type="student",
+        template_name="Test Student Template",
+        version=1,
+        template_text=(
+            "You are a test student bot. Scenario: {scenario_title}. "
+            "Profile: {student_profile}. Context: {prompt}"
+        ),
+    )
+    db_session.add(template)
+    await db_session.commit()
+    await db_session.refresh(template)
+    return template
+
+
 class TestScenarioDelete:
     """Test scenario soft delete functionality."""
 
@@ -57,6 +76,7 @@ class TestScenarioDelete:
         test_client: TestClient,
         admin_user: User,
         test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
     ):
         """Admin can delete scenario with no sessions."""
         # Login as admin
@@ -76,6 +96,7 @@ class TestScenarioDelete:
                 "prompt": "This will be deleted",
                 "student_profile": "Test",
                 "framework_id": test_framework.id,
+                "student_template_id": test_student_template.id,
             },
         )
         assert create_resp.status_code == 201
@@ -99,6 +120,7 @@ class TestScenarioDelete:
         admin_user: User,
         teacher_user: User,
         test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
         db_session: AsyncSession,
     ):
         """Admin can force delete scenario with active session (soft delete)."""
@@ -108,6 +130,7 @@ class TestScenarioDelete:
             prompt="Has active session",
             student_profile="Test",
             framework_id=test_framework.id,
+            student_template_id=test_student_template.id,
         )
         db_session.add(scenario)
         await db_session.commit()
@@ -148,6 +171,7 @@ class TestScenarioDelete:
         admin_user: User,
         teacher_user: User,
         test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
         db_session: AsyncSession,
     ):
         """Admin can force delete scenario with completed session (soft delete)."""
@@ -157,6 +181,7 @@ class TestScenarioDelete:
             prompt="Has ended session",
             student_profile="Test",
             framework_id=test_framework.id,
+            student_template_id=test_student_template.id,
         )
         db_session.add(scenario)
         await db_session.commit()
@@ -202,6 +227,7 @@ class TestScenarioDelete:
         test_client: TestClient,
         teacher_user: User,
         test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
         db_session: AsyncSession,
     ):
         """Teacher role cannot delete scenarios."""
@@ -211,6 +237,7 @@ class TestScenarioDelete:
             prompt="Test",
             student_profile="Test",
             framework_id=test_framework.id,
+            student_template_id=test_student_template.id,
         )
         db_session.add(scenario)
         await db_session.commit()
@@ -236,6 +263,7 @@ class TestScenarioDelete:
         admin_user: User,
         teacher_user: User,
         test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
         db_session: AsyncSession,
     ):
         """Deleted scenarios are hidden from all lists."""
@@ -245,6 +273,7 @@ class TestScenarioDelete:
             prompt="Test",
             student_profile="Test",
             framework_id=test_framework.id,
+            student_template_id=test_student_template.id,
         )
         db_session.add(scenario)
         await db_session.commit()

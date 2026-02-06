@@ -7,6 +7,7 @@ from src.models.user import User
 from src.models.analysis_framework import AnalysisFramework
 from src.models.scenario import Scenario
 from src.models.session import Session
+from src.models.prompt_template import PromptTemplate
 
 
 @pytest.fixture
@@ -45,6 +46,26 @@ async def test_framework(db_session: AsyncSession) -> AnalysisFramework:
     return framework
 
 
+@pytest.fixture
+async def test_student_template(
+    db_session: AsyncSession,
+) -> PromptTemplate:
+    """Create test student template."""
+    template = PromptTemplate(
+        bot_type="student",
+        template_name="Test Student Template",
+        version=1,
+        template_text=(
+            "You are a test student bot. Scenario: {scenario_title}. "
+            "Profile: {student_profile}. Context: {prompt}"
+        ),
+    )
+    db_session.add(template)
+    await db_session.commit()
+    await db_session.refresh(template)
+    return template
+
+
 class TestScenarioLifecycle:
     """Test complete scenario lifecycle management."""
 
@@ -54,6 +75,7 @@ class TestScenarioLifecycle:
         admin_user: User,
         teacher_user: User,
         test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
     ):
         """Test: create → activate → visibility → deactivate → hidden."""
 
@@ -73,6 +95,7 @@ class TestScenarioLifecycle:
                 "prompt": "This is a test scenario for lifecycle testing.",
                 "student_profile": "Test student profile",
                 "framework_id": test_framework.id,
+                "student_template_id": test_student_template.id,
             },
         )
 
@@ -168,6 +191,7 @@ class TestScenarioLifecycle:
         admin_user: User,
         teacher_user: User,
         test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
     ):
         """Test that only active scenarios are visible to teachers."""
 
@@ -189,6 +213,7 @@ class TestScenarioLifecycle:
                     "prompt": f"Prompt for scenario {i+1}",
                     "student_profile": f"Profile {i+1}",
                     "framework_id": test_framework.id,
+                    "student_template_id": test_student_template.id,
                 },
             )
 

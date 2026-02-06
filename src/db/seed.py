@@ -228,9 +228,9 @@ async def seed_prompts():
                 """
                 INSERT INTO prompt_template
                 (bot_type, template_name, template_text,
-                 version, is_active, updated_by)
+                 version, updated_by)
                 VALUES (:bot_type, :name, :text,
-                        :version, :active, :updated_by)
+                        :version, :updated_by)
                 """
             ),
             {
@@ -238,7 +238,6 @@ async def seed_prompts():
                 "name": "Default",
                 "text": student_prompt_text,
                 "version": 1,
-                "active": 1,  # Set as active
                 "updated_by": admin_id,
             },
         )
@@ -261,9 +260,9 @@ async def seed_prompts():
                 """
                 INSERT INTO prompt_template
                 (bot_type, template_name, template_text,
-                 version, is_active, updated_by)
+                 version, updated_by)
                 VALUES (:bot_type, :name, :text,
-                        :version, :active, :updated_by)
+                        :version, :updated_by)
                 """
             ),
             {
@@ -271,7 +270,6 @@ async def seed_prompts():
                 "name": "Default",
                 "text": tutor_prompt_text,
                 "version": 1,
-                "active": 1,  # Set as active
                 "updated_by": admin_id,
             },
         )

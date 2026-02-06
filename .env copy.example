@@ -12,8 +12,9 @@ OPENAI_API_KEY=sk-your-api-key-here
 #
 # NOT supported: gpt-3.5 (Responses API limitation)
 #
-CHAT_MODEL=gpt-5
-ANALYSIS_MODEL=gpt-5
+CHAT_MODEL=gpt-5-mini
+ANALYSIS_MODEL=gpt-5.2
+DIALOGUE_ANALYSIS_MODEL=gpt-5.2  # Model for dialogue similarity analysis
 # Fallback example: CHAT_MODEL=gpt-4-turbo
 
 # ===== GPT-5/5.1 Reasoning Effort Configuration =====

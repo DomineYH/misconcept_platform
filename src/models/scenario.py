@@ -1,6 +1,6 @@
 """Scenario model for dialogue situations (T024)."""
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from sqlalchemy import (
     Integer,
     String,
@@ -14,6 +14,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.connection import Base
+
+if TYPE_CHECKING:
+    from src.models.prompt_template import PromptTemplate
 
 
 class Scenario(Base):
@@ -66,13 +69,6 @@ class Scenario(Base):
         comment="Override temperature 0.0-2.0 (NULL = use global)",
     )
 
-    tutor_enabled: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        nullable=False,
-        comment="Enable/disable TutorBot for this scenario",
-    )
-
     tutor_intervention_threshold: Mapped[Optional[int]] = mapped_column(
         Integer,
         nullable=True,
@@ -80,6 +76,21 @@ class Scenario(Base):
             "Override tutor interventions per 10 questions "
             "(NULL = use global)"
         ),
+    )
+
+    # Template foreign keys
+    student_template_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("prompt_template.id"),
+        nullable=False,
+        comment="StudentBot prompt template for this scenario",
+    )
+
+    tutor_template_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("prompt_template.id"),
+        nullable=True,
+        comment="TutorBot prompt template (NULL = tutor disabled)",
     )
 
     # Foreign keys
@@ -111,11 +122,26 @@ class Scenario(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    student_template: Mapped["PromptTemplate"] = relationship(
+        "PromptTemplate",
+        foreign_keys=[student_template_id],
+        lazy="joined",
+    )
+    tutor_template: Mapped[Optional["PromptTemplate"]] = relationship(
+        "PromptTemplate",
+        foreign_keys=[tutor_template_id],
+        lazy="joined",
+    )
 
     # Constraints
     __table_args__ = (
         CheckConstraint("is_active IN (0, 1)", name="ck_scenario_active"),
     )
+
+    @property
+    def tutor_enabled(self) -> bool:
+        """Backward compatibility: tutor enabled if template is assigned."""
+        return self.tutor_template_id is not None
 
     def __repr__(self) -> str:
         config = (

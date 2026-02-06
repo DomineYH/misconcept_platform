@@ -259,8 +259,9 @@ async def test_analyze_student_response_low_temperature(analyzer):
     assert "reasoning" in call_args.kwargs
     assert "effort" in call_args.kwargs["reasoning"]
     # Should use max_output_tokens not max_completion_tokens
+    # 500 = ~200 reasoning + ~300 actual output
     assert "max_output_tokens" in call_args.kwargs
-    assert call_args.kwargs["max_output_tokens"] == 300
+    assert call_args.kwargs["max_output_tokens"] == 500
 
 
 @pytest.mark.asyncio

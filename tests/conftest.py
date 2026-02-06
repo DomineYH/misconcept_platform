@@ -182,6 +182,38 @@ async def test_framework(
 
 
 @pytest.fixture(scope="function")
+async def test_student_template(async_db_session: AsyncSession):
+    """Create test student bot template."""
+    from src.models.prompt_template import PromptTemplate
+
+    template = PromptTemplate(
+        bot_type="student",
+        template_name="Test Student Template",
+        version=1,
+        template_text="You are a test student bot.",
+    )
+    async_db_session.add(template)
+    await async_db_session.flush()
+    return template
+
+
+@pytest.fixture(scope="function")
+async def test_tutor_template(async_db_session: AsyncSession):
+    """Create test tutor bot template."""
+    from src.models.prompt_template import PromptTemplate
+
+    template = PromptTemplate(
+        bot_type="tutor",
+        template_name="Test Tutor Template",
+        version=1,
+        template_text="You are a test tutor bot.",
+    )
+    async_db_session.add(template)
+    await async_db_session.flush()
+    return template
+
+
+@pytest.fixture(scope="function")
 async def test_teacher(async_db_session: AsyncSession) -> User:
     """Create test teacher user."""
     user = User(
@@ -198,6 +230,7 @@ async def test_teacher(async_db_session: AsyncSession) -> User:
 async def test_scenario(
     async_db_session: AsyncSession,
     test_framework: AnalysisFramework,
+    test_student_template,
 ) -> Scenario:
     """Create test scenario."""
     scenario = Scenario(
@@ -205,6 +238,7 @@ async def test_scenario(
         prompt="Test prompt for scenario",
         student_profile="Test student profile",
         framework_id=test_framework.id,
+        student_template_id=test_student_template.id,
         is_active=1,
     )
     async_db_session.add(scenario)

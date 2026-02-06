@@ -43,8 +43,27 @@ async def test_framework(db_session: AsyncSession) -> AnalysisFramework:
 
 
 @pytest.fixture
+async def test_student_template(db_session: AsyncSession):
+    """Create test student template."""
+    from src.models.prompt_template import PromptTemplate
+
+    template = PromptTemplate(
+        bot_type="student",
+        template_name="Test Student Template",
+        version=1,
+        template_text="You are a test student bot.",
+    )
+    db_session.add(template)
+    await db_session.commit()
+    await db_session.refresh(template)
+    return template
+
+
+@pytest.fixture
 async def test_scenario(
-    db_session: AsyncSession, test_framework: AnalysisFramework
+    db_session: AsyncSession,
+    test_framework: AnalysisFramework,
+    test_student_template,
 ) -> Scenario:
     """Create test scenario."""
     scenario = Scenario(
@@ -52,6 +71,7 @@ async def test_scenario(
         prompt="Test system prompt for scenario",
         student_profile="Test student profile",
         framework_id=test_framework.id,
+        student_template_id=test_student_template.id,
     )
     db_session.add(scenario)
     await db_session.commit()

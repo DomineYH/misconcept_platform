@@ -23,6 +23,7 @@ class StudentBot(OpenAIBaseService):
         scenario_title: str,
         student_profile: str,
         db_session: AsyncSession,
+        template_id: int,
         model: Optional[str] = None,
         reasoning_effort: Optional[str] = None,
         max_tokens: Optional[int] = None,
@@ -34,6 +35,7 @@ class StudentBot(OpenAIBaseService):
             scenario_title: Scenario display name
             student_profile: Student characteristics
             db_session: Database session for dynamic prompt loading
+            template_id: Prompt template ID for this scenario
             model: Override default model (from config or DB)
             reasoning_effort: Override reasoning effort (minimal, low,
                 medium, high)
@@ -41,6 +43,7 @@ class StudentBot(OpenAIBaseService):
         """
         super().__init__()
         self.db_session = db_session
+        self.template_id = template_id
         self.model = model or config.CHAT_MODEL
         self.reasoning_effort = reasoning_effort or config.STUDENT_REASONING
         self.max_tokens = max_tokens or config.STUDENT_MAX_TOKENS
@@ -71,8 +74,8 @@ class StudentBot(OpenAIBaseService):
         """
         try:
             # Load dynamic prompt template (5-min cache, <10ms)
-            template = await PromptManager.get_active_prompt(
-                self.db_session, "student"
+            template = await PromptManager.get_template_text_by_id(
+                self.db_session, self.template_id
             )
 
             # Format with scenario context

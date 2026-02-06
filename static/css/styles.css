@@ -1452,10 +1452,20 @@ textarea#teacher-input {
   color: var(--color-black);
 }
 
+/* Form wrapper - enables flex layout for proper scrolling */
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .modal-body {
   padding: 1.5rem;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
 }
 
 .modal-footer {
