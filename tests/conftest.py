@@ -217,10 +217,11 @@ async def test_tutor_template(async_db_session: AsyncSession):
 async def test_teacher(async_db_session: AsyncSession) -> User:
     """Create test teacher user."""
     user = User(
-        student_uid="teacher_001",
+        username="teacher_001",
         nickname="테스트교사",
         role="teacher",
     )
+    user.set_password("test1234")
     async_db_session.add(user)
     await async_db_session.flush()
     return user
