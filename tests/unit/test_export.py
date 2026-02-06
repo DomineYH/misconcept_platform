@@ -97,9 +97,9 @@ async def test_export_session_anonymization(
     reader = csv.DictReader(io.StringIO(csv_content))
     rows = list(reader)
 
-    # Check student_hash is not original student_uid
+    # Check student_hash is not original username
     for row in rows:
-        assert row["student_hash"] != session.teacher.student_uid
+        assert row["student_hash"] != session.teacher.username
         assert len(row["student_hash"]) == 64
 
 
@@ -237,7 +237,7 @@ class TestAdminExport:
         "scenario_id",
         "scenario_title",
         "teacher_id",
-        "teacher_student_uid",
+        "teacher_username",
         "teacher_nickname",
         "session_started_at",
         "session_ended_at",
@@ -283,7 +283,7 @@ class TestAdminExport:
         assert len(rows) > 0
 
         row = rows[0]
-        assert row["teacher_student_uid"] == "teacher_001"
+        assert row["teacher_username"] == "teacher_001"
         assert row["teacher_nickname"] == "테스트교사"
         assert row["teacher_id"] == str(session.teacher_id)
 

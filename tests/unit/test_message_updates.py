@@ -11,7 +11,8 @@ from src.models import User, AnalysisFramework, Scenario, Session, Message
 @pytest.fixture
 async def test_user(db_session: AsyncSession) -> User:
     """Create test user."""
-    user = User(student_uid="test_user_001", nickname="테스트교사")
+    user = User(username="test_user_001", nickname="테스트교사")
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -21,7 +22,8 @@ async def test_user(db_session: AsyncSession) -> User:
 @pytest.fixture
 async def other_user(db_session: AsyncSession) -> User:
     """Create another test user for authorization tests."""
-    user = User(student_uid="other_user_001", nickname="다른교사")
+    user = User(username="other_user_001", nickname="다른교사")
+    user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -88,8 +90,8 @@ async def authenticated_session(
     login_response = test_client.post(
         "/login",
         data={
-            "student_uid": test_user.student_uid,
-            "nickname": test_user.nickname,
+            "username": test_user.username,
+            "password": "test1234",
         },
     )
     cookies = login_response.cookies
@@ -140,8 +142,8 @@ class TestGetMessageUpdatesWithNewMessages:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -192,8 +194,8 @@ class TestGetMessageUpdatesWithNewMessages:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -233,8 +235,8 @@ class TestGetMessageUpdatesNoNewMessages:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -295,8 +297,8 @@ class TestGetMessageUpdatesWithSinceParameter:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -347,8 +349,8 @@ class TestGetMessageUpdatesWithSinceParameter:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -387,7 +389,7 @@ class TestGetMessageUpdatesUnauthorized:
         # Assertions - after redirect, should show login page
         assert response.status_code == 200
         # Check if redirected to login page by looking for login form
-        assert "login" in response.text.lower() or "student_uid" in response.text
+        assert "login" in response.text.lower() or "username" in response.text
 
     async def test_get_updates_missing_session_cookie(
         self,
@@ -412,7 +414,7 @@ class TestGetMessageUpdatesUnauthorized:
         # Assertions - after redirect, should show login page
         assert response.status_code == 200
         # Check if redirected to login page
-        assert "login" in response.text.lower() or "student_uid" in response.text
+        assert "login" in response.text.lower() or "username" in response.text
 
 
 class TestGetMessageUpdatesWrongUser:
@@ -447,8 +449,8 @@ class TestGetMessageUpdatesWrongUser:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": other_user.student_uid,
-                "nickname": other_user.nickname,
+                "username": other_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -471,8 +473,8 @@ class TestGetMessageUpdatesWrongUser:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -520,8 +522,8 @@ class TestGetMessageUpdatesEdgeCases:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies
@@ -581,8 +583,8 @@ class TestGetMessageUpdatesEdgeCases:
         login_response = test_client.post(
             "/login",
             data={
-                "student_uid": test_user.student_uid,
-                "nickname": test_user.nickname,
+                "username": test_user.username,
+                "password": "test1234",
             },
         )
         cookies = login_response.cookies

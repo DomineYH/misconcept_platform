@@ -20,26 +20,29 @@ class TestUserModel:
 
     async def test_create_user_minimal(self, db_session: AsyncSession):
         """Test creating user with minimal required fields."""
-        user = User(student_uid="student_001", nickname="김교사")
+        user = User(username="student_001", nickname="김교사")
+        user.set_password("test1234")
 
         db_session.add(user)
         await db_session.commit()
         await db_session.refresh(user)
 
         assert user.id is not None
-        assert user.student_uid == "student_001"
+        assert user.username == "student_001"
         assert user.nickname == "김교사"
         assert user.role == "teacher"  # Default
         assert isinstance(user.created_at, datetime)
 
     async def test_user_unique_constraint(self, db_session: AsyncSession):
-        """Test unique constraint on (student_uid, nickname)."""
-        user1 = User(student_uid="student_002", nickname="박교사")
+        """Test unique constraint on username."""
+        user1 = User(username="student_002", nickname="박교사")
+        user1.set_password("test1234")
         db_session.add(user1)
         await db_session.commit()
 
         # Try to create duplicate
-        user2 = User(student_uid="student_002", nickname="박교사")
+        user2 = User(username="student_002", nickname="박교사2")
+        user2.set_password("test1234")
         db_session.add(user2)
 
         with pytest.raises(Exception):  # IntegrityError
@@ -49,8 +52,9 @@ class TestUserModel:
     async def test_user_role_constraint(self, db_session: AsyncSession):
         """Test role check constraint."""
         user = User(
-            student_uid="student_003", nickname="정교사", role="invalid"
+            username="student_003", nickname="정교사", role="invalid"
         )
+        user.set_password("test1234")
         db_session.add(user)
 
         with pytest.raises(Exception):  # IntegrityError
@@ -197,7 +201,8 @@ class TestSessionAndMessageModels:
         framework = AnalysisFramework(
             name="F2", labels_json='["A", "B"]'
         )
-        user = User(student_uid="s001", nickname="김교사")
+        user = User(username="s001", nickname="김교사")
+        user.set_password("test1234")
         db_session.add_all([framework, user])
         await db_session.commit()
 
@@ -240,7 +245,8 @@ class TestSessionAndMessageModels:
         framework = AnalysisFramework(
             name="F3", labels_json='["A", "B"]'
         )
-        user = User(student_uid="s002", nickname="박교사")
+        user = User(username="s002", nickname="박교사")
+        user.set_password("test1234")
         db_session.add_all([framework, user])
         await db_session.commit()
 
@@ -296,7 +302,8 @@ class TestSessionAndMessageModels:
         framework = AnalysisFramework(
             name="F4", labels_json='["A", "B"]'
         )
-        user = User(student_uid="s003", nickname="정교사")
+        user = User(username="s003", nickname="정교사")
+        user.set_password("test1234")
         db_session.add_all([framework, user])
         await db_session.commit()
 
@@ -353,7 +360,8 @@ class TestQuestionAnalysisModel:
         framework = AnalysisFramework(
             name="F5", labels_json='["high_leverage", "low_leverage"]'
         )
-        user = User(student_uid="s004", nickname="최교사")
+        user = User(username="s004", nickname="최교사")
+        user.set_password("test1234")
         db_session.add_all([framework, user])
         await db_session.commit()
 
@@ -411,7 +419,8 @@ class TestQuestionAnalysisModel:
         framework = AnalysisFramework(
             name="F6", labels_json='["A", "B"]'
         )
-        user = User(student_uid="s005", nickname="강교사")
+        user = User(username="s005", nickname="강교사")
+        user.set_password("test1234")
         db_session.add_all([framework, user])
         await db_session.commit()
 
@@ -464,7 +473,8 @@ class TestQuestionAnalysisModel:
         framework = AnalysisFramework(
             name="F7", labels_json='["B", "C"]'
         )
-        user = User(student_uid="s006", nickname="윤교사")
+        user = User(username="s006", nickname="윤교사")
+        user.set_password("test1234")
         db_session.add_all([framework, user])
         await db_session.commit()
 
@@ -539,7 +549,8 @@ class TestSessionSummaryModel:
         framework = AnalysisFramework(
             name="F8", labels_json='["C", "D"]'
         )
-        user = User(student_uid="s007", nickname="이교사")
+        user = User(username="s007", nickname="이교사")
+        user.set_password("test1234")
         db_session.add_all([framework, user])
         await db_session.commit()
 
@@ -599,7 +610,8 @@ class TestSessionSummaryModel:
         framework = AnalysisFramework(
             name="F9", labels_json='["D", "E"]'
         )
-        user = User(student_uid="s008", nickname="조교사")
+        user = User(username="s008", nickname="조교사")
+        user.set_password("test1234")
         db_session.add_all([framework, user])
         await db_session.commit()
 
@@ -658,7 +670,8 @@ class TestSessionSummaryModel:
         framework = AnalysisFramework(
             name="F10", labels_json='["E", "F"]'
         )
-        user = User(student_uid="s009", nickname="한교사")
+        user = User(username="s009", nickname="한교사")
+        user.set_password("test1234")
         db_session.add_all([framework, user])
         await db_session.commit()
 
