@@ -17,7 +17,7 @@ from src.services.dialogue_analysis import (
     extract_recent_pairs,
 )
 from src.services.prompt_manager import PromptManager
-from src.utils.openai_helpers import extract_response_text
+from src.utils.openai_helpers import extract_response_text, extract_usage_dict
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ JSON 형식으로만 응답하세요 (다른 텍스트 없이):
                 }
 
         except (json.JSONDecodeError, APIError) as e:
-            logger.warning(f"LLM analysis failed, using fallback: {e}")
+            logger.warning("LLM analysis failed, using fallback: %s", e)
 
         # Fallback to simple Jaccard similarity
         is_repetitive = detect_repetitive_dialogue_simple(pairs)
@@ -257,22 +257,16 @@ JSON 형식으로만 응답하세요 (다른 텍스트 없이):
 
             content = extract_response_text(response)
 
-            usage_dict = None
-            if hasattr(response, "usage") and response.usage is not None:
-                usage_dict = {
-                    "prompt_tokens": response.usage.input_tokens,
-                    "completion_tokens": response.usage.output_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
+            usage_dict = extract_usage_dict(response)
 
             self.intervention_count += 1
             return content, usage_dict
 
         except (APIConnectionError, RateLimitError, APIError) as e:
-            logger.error(f"TutorBot API error: {type(e).__name__}: {str(e)}")
+            logger.error("TutorBot API error: %s: %s", type(e).__name__, str(e))
             raise
         except Exception as e:
-            logger.error(f"Unexpected error in TutorBot: {str(e)}")
+            logger.error("Unexpected error in TutorBot: %s", str(e))
             raise RuntimeError(
                 f"Tutor feedback generation failed: {str(e)}"
             ) from e

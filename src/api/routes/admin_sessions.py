@@ -1,8 +1,7 @@
-"""Admin session management routes."""
+"""Admin session listing and statistics routes."""
 
-import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
 
 from fastapi import (
@@ -11,31 +10,19 @@ from fastapi import (
     HTTPException,
     Request,
     status,
-    Form,
 )
-from fastapi.responses import HTMLResponse, Response, JSONResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy import func, select, desc
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
-from src.models import (
-    AnalysisFramework,
-    Message,
-    QuestionAnalysis,
-    SessionSummary,
-)
+from src.api.dependencies import get_current_user, get_db_session, templates
 from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.user import User
-from src.services.analysis_pipeline import analyze_session
-from src.services.export import CSVExporter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-templates = Jinja2Templates(directory="src/templates")
 
 
 def parse_date_filter(
@@ -44,21 +31,31 @@ def parse_date_filter(
     """Parse date filter string to datetime.
 
     Args:
-        date_str: ISO format date string (optional, may have Z suffix)
+        date_str: ISO format date string (optional)
         field_name: Name of field for error message
 
     Returns:
-        Tuple of (parsed datetime or None, error message or None)
+        Tuple of (parsed datetime or None, error or None)
     """
     if not date_str:
         return None, None
     try:
-        return datetime.fromisoformat(date_str.replace("Z", "")), None
+        return (
+            datetime.fromisoformat(
+                date_str.replace("Z", "")
+            ),
+            None,
+        )
     except ValueError:
-        return None, f"Invalid {field_name} format: '{date_str}'"
+        return (
+            None,
+            f"Invalid {field_name} format: '{date_str}'",
+        )
 
 
-@router.get("/admin/sessions-page", response_class=HTMLResponse)
+@router.get(
+    "/admin/sessions-page", response_class=HTMLResponse
+)
 async def sessions_page(
     request: Request,
     scenario_id: Optional[int] = None,
@@ -70,15 +67,19 @@ async def sessions_page(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
+    """Render session listing page with filtering."""
     if user.role != "admin":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
         )
 
     per_page = 10
     offset = (page - 1) * per_page
 
-    base_query = select(Session).where(Session.deleted_at.is_(None))
+    base_query = select(Session).where(
+        Session.deleted_at.is_(None)
+    )
 
     # Fetch scenario title if filtering by scenario
     scenario_title = None
@@ -86,32 +87,50 @@ async def sessions_page(
         scenario = await db.get(Scenario, scenario_id)
         if scenario:
             scenario_title = scenario.title
-        base_query = base_query.where(Session.scenario_id == scenario_id)
+        base_query = base_query.where(
+            Session.scenario_id == scenario_id
+        )
 
     if teacher_id:
-        base_query = base_query.where(Session.teacher_id == teacher_id)
+        base_query = base_query.where(
+            Session.teacher_id == teacher_id
+        )
     if status_filter == "completed":
-        base_query = base_query.where(Session.ended_at.isnot(None))
+        base_query = base_query.where(
+            Session.ended_at.isnot(None)
+        )
     elif status_filter == "active":
-        base_query = base_query.where(Session.ended_at.is_(None))
+        base_query = base_query.where(
+            Session.ended_at.is_(None)
+        )
 
     # Parse date filters with validation
     date_errors = []
     if date_from:
-        dt_from, err = parse_date_filter(date_from, "date_from")
+        dt_from, err = parse_date_filter(
+            date_from, "date_from"
+        )
         if err:
             date_errors.append(err)
         elif dt_from:
-            base_query = base_query.where(Session.started_at >= dt_from)
+            base_query = base_query.where(
+                Session.started_at >= dt_from
+            )
     if date_to:
-        dt_to, err = parse_date_filter(date_to, "date_to")
+        dt_to, err = parse_date_filter(
+            date_to, "date_to"
+        )
         if err:
             date_errors.append(err)
         elif dt_to:
-            base_query = base_query.where(Session.started_at <= dt_to)
+            base_query = base_query.where(
+                Session.started_at <= dt_to
+            )
 
     count_result = await db.execute(
-        select(func.count()).select_from(base_query.subquery())
+        select(func.count()).select_from(
+            base_query.subquery()
+        )
     )
     total_count = count_result.scalar() or 0
     total_pages = (total_count + per_page - 1) // per_page
@@ -131,7 +150,11 @@ async def sessions_page(
 
     teachers_result = await db.execute(
         select(User)
-        .where(User.id.in_(select(Session.teacher_id).distinct()))
+        .where(
+            User.id.in_(
+                select(Session.teacher_id).distinct()
+            )
+        )
         .order_by(User.nickname)
     )
     teachers = teachers_result.scalars().all()
@@ -157,41 +180,71 @@ async def sessions_page(
     )
 
 
-@router.get("/admin/sessions", response_class=JSONResponse)
+@router.get(
+    "/admin/sessions", response_class=JSONResponse
+)
 async def list_sessions_api(
     scenario_id: Optional[int] = None,
     teacher_id: Optional[int] = None,
     date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """List all sessions with optional filtering (API)."""
     if user.role != "admin":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
         )
 
     query = (
         select(Session)
-        .options(joinedload(Session.scenario), joinedload(Session.teacher))
+        .options(
+            joinedload(Session.scenario),
+            joinedload(Session.teacher),
+        )
         .where(Session.deleted_at.is_(None))
         .order_by(desc(Session.started_at))
     )
 
     if scenario_id:
-        query = query.where(Session.scenario_id == scenario_id)
+        query = query.where(
+            Session.scenario_id == scenario_id
+        )
 
     if teacher_id:
-        query = query.where(Session.teacher_id == teacher_id)
+        query = query.where(
+            Session.teacher_id == teacher_id
+        )
 
     if date_from:
-        dt, err = parse_date_filter(date_from, "date_from")
+        dt, err = parse_date_filter(
+            date_from, "date_from"
+        )
         if err:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=err
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=err,
             )
         if dt:
-            query = query.where(Session.started_at >= dt)
+            query = query.where(
+                Session.started_at >= dt
+            )
+
+    if date_to:
+        dt, err = parse_date_filter(
+            date_to, "date_to"
+        )
+        if err:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=err,
+            )
+        if dt:
+            query = query.where(
+                Session.started_at <= dt
+            )
 
     result = await db.execute(query)
     sessions = result.scalars().all()
@@ -201,526 +254,29 @@ async def list_sessions_api(
             {
                 "id": s.id,
                 "scenario_id": s.scenario_id,
-                "scenario_title": s.scenario.title if s.scenario else "Unknown",
+                "scenario_title": (
+                    s.scenario.title
+                    if s.scenario
+                    else "Unknown"
+                ),
                 "teacher_id": s.teacher_id,
-                "teacher_nickname": s.teacher.nickname
-                if s.teacher
-                else "Unknown",
+                "teacher_nickname": (
+                    s.teacher.nickname
+                    if s.teacher
+                    else "Unknown"
+                ),
                 "started_at": s.started_at.isoformat(),
-                "ended_at": s.ended_at.isoformat() if s.ended_at else None,
-                "status": "ended" if s.ended_at else "active",
+                "ended_at": (
+                    s.ended_at.isoformat()
+                    if s.ended_at
+                    else None
+                ),
+                "status": (
+                    "ended" if s.ended_at else "active"
+                ),
             }
             for s in sessions
         ]
     }
 
 
-@router.get("/admin/sessions/export")
-async def export_sessions(
-    scenario_id: Optional[int] = None,
-    teacher_id: Optional[int] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    query = (
-        select(Session.id)
-        .where(Session.deleted_at.is_(None))
-        .where(Session.ended_at.isnot(None))
-        .order_by(desc(Session.started_at))
-    )
-
-    if scenario_id:
-        query = query.where(Session.scenario_id == scenario_id)
-    if teacher_id:
-        query = query.where(Session.teacher_id == teacher_id)
-    if date_from:
-        dt, err = parse_date_filter(date_from, "date_from")
-        if err:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=err
-            )
-        if dt:
-            query = query.where(Session.started_at >= dt)
-    if date_to:
-        dt, err = parse_date_filter(date_to, "date_to")
-        if err:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=err
-            )
-        if dt:
-            query = query.where(Session.started_at <= dt)
-
-    result = await db.execute(query)
-    session_ids = result.scalars().all()
-
-    if not session_ids:
-        return Response(content="No sessions found", media_type="text/plain")
-
-    exporter = CSVExporter()
-    csv_content = await exporter.export_multiple_sessions_admin(
-        list(session_ids), db
-    )
-
-    return Response(
-        content=csv_content,
-        media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": "attachment; filename=sessions_export.csv"
-        },
-    )
-
-
-@router.post("/admin/sessions/export-selected")
-async def export_selected_sessions(
-    session_ids: List[int] = Form(...),
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    if not session_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No session_ids provided",
-        )
-
-    result = await db.execute(
-        select(Session).where(Session.id.in_(session_ids))
-    )
-    sessions = result.scalars().all()
-
-    for s in sessions:
-        if s.ended_at is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Session {s.id} is still active. Only ended allowed.",
-            )
-
-    valid_ids = [s.id for s in sessions if s.deleted_at is None]
-    if not valid_ids:
-        return Response(content="No valid sessions", media_type="text/plain")
-
-    exporter = CSVExporter()
-    csv_content = await exporter.export_multiple_sessions_admin(valid_ids, db)
-
-    return Response(
-        content=csv_content,
-        media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": "attachment; filename=selected_sessions.csv"
-        },
-    )
-
-
-@router.get("/admin/stats")
-async def get_stats(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """Get system statistics for dashboard charts."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    total_teachers_query = select(
-        func.count(func.distinct(Session.teacher_id))
-    ).where(Session.deleted_at.is_(None))
-    total_teachers = await db.scalar(total_teachers_query) or 0
-
-    total_sessions_query = select(func.count(Session.id)).where(
-        Session.deleted_at.is_(None)
-    )
-    total_sessions = await db.scalar(total_sessions_query) or 0
-
-    active_sessions_query = select(func.count(Session.id)).where(
-        Session.ended_at.is_(None), Session.deleted_at.is_(None)
-    )
-    active_sessions = await db.scalar(active_sessions_query) or 0
-
-    duration_query = select(
-        func.avg(
-            func.julianday(Session.ended_at)
-            - func.julianday(Session.started_at)
-        )
-        * 24
-        * 60
-    ).where(Session.ended_at.isnot(None), Session.deleted_at.is_(None))
-    avg_duration = await db.scalar(duration_query) or 0
-
-    return {
-        "total_teachers": total_teachers,
-        "total_sessions": total_sessions,
-        "active_sessions": active_sessions,
-        "avg_session_duration_minutes": round(avg_duration, 1),
-        "avg_questions_per_session": 0,
-    }
-
-
-@router.get("/admin/user-conversations", response_class=HTMLResponse)
-async def user_conversations_page(
-    request: Request,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """List users who have conversations with session counts."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    subq_total = (
-        select(
-            Session.teacher_id,
-            func.count(Session.id).label("session_count"),
-            func.max(Session.started_at).label("last_session"),
-        )
-        .where(Session.deleted_at.is_(None))
-        .group_by(Session.teacher_id)
-        .subquery()
-    )
-
-    subq_ended = (
-        select(
-            Session.teacher_id,
-            func.count(Session.id).label("ended_count"),
-        )
-        .where(Session.deleted_at.is_(None), Session.ended_at.isnot(None))
-        .group_by(Session.teacher_id)
-        .subquery()
-    )
-
-    query = (
-        select(
-            User,
-            subq_total.c.session_count,
-            subq_total.c.last_session,
-            func.coalesce(subq_ended.c.ended_count, 0).label("ended_count"),
-        )
-        .join(subq_total, User.id == subq_total.c.teacher_id)
-        .outerjoin(subq_ended, User.id == subq_ended.c.teacher_id)
-        .order_by(desc(subq_total.c.session_count))
-    )
-
-    result = await db.execute(query)
-    rows = result.all()
-
-    users_data = [
-        {
-            "user": row[0],
-            "session_count": row[1],
-            "last_session": row[2],
-            "ended_session_count": row[3],
-        }
-        for row in rows
-    ]
-
-    return templates.TemplateResponse(
-        "admin/user_conversations.html",
-        {"request": request, "user": user, "users": users_data},
-    )
-
-
-@router.get("/admin/user-conversations/{user_id}/export")
-async def export_user_conversations(
-    user_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """Download all conversations for a specific user as CSV."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    target_user = await db.get(User, user_id)
-    if not target_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    query = (
-        select(Session.id)
-        .where(
-            Session.teacher_id == user_id,
-            Session.deleted_at.is_(None),
-            Session.ended_at.isnot(None),
-        )
-        .order_by(desc(Session.started_at))
-    )
-    result = await db.execute(query)
-    session_ids = result.scalars().all()
-
-    if not session_ids:
-        return Response(
-            content="No completed sessions found",
-            media_type="text/plain",
-        )
-
-    exporter = CSVExporter()
-    csv_content = await exporter.export_multiple_sessions_admin(
-        list(session_ids), db
-    )
-
-    filename = f"user_{user_id}_conversations.csv"
-    return Response(
-        content=csv_content,
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
-
-
-@router.post("/admin/sessions/{session_id}/end", response_class=HTMLResponse)
-async def end_session(
-    request: Request,
-    session_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """End an active session (set ended_at)."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    query = (
-        select(Session)
-        .options(joinedload(Session.scenario), joinedload(Session.teacher))
-        .where(Session.id == session_id)
-    )
-    result = await db.execute(query)
-    session = result.scalar_one_or_none()
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
-
-    if session.ended_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session already ended",
-        )
-
-    session.ended_at = datetime.now(timezone.utc)
-    await db.commit()
-
-    # Trigger analysis
-    try:
-        scenario_result = await db.execute(
-            select(Scenario).where(Scenario.id == session.scenario_id)
-        )
-        scenario = scenario_result.scalar_one_or_none()
-        if scenario and scenario.framework_id:
-            framework_result = await db.execute(
-                select(AnalysisFramework).where(
-                    AnalysisFramework.id == scenario.framework_id
-                )
-            )
-            framework = framework_result.scalar_one_or_none()
-            if framework:
-                await analyze_session(session_id, session, scenario, framework, db)
-    except Exception as e:
-        logger.warning(f"Analysis failed for session {session_id}: {e}")
-
-    # Reload with summary
-    await db.refresh(session, ["summary"])
-
-    return templates.TemplateResponse(
-        "partials/session_row.html",
-        {"request": request, "session": session},
-    )
-
-
-@router.delete("/admin/sessions/{session_id}", response_class=HTMLResponse)
-async def delete_session(
-    session_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """Soft delete a session (set deleted_at)."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    session = await db.get(Session, session_id)
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
-
-    if session.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session already deleted",
-        )
-
-    session.mark_deleted()
-    await db.commit()
-
-    return Response(content="", status_code=200)
-
-
-@router.get("/admin/sessions/{session_id}/detail", response_class=HTMLResponse)
-async def session_detail(
-    request: Request,
-    session_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """Get session detail for viewing in modal."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    query = (
-        select(Session)
-        .options(
-            joinedload(Session.scenario),
-            joinedload(Session.teacher),
-        )
-        .where(Session.id == session_id)
-    )
-    result = await db.execute(query)
-    session = result.scalar_one_or_none()
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
-
-    return templates.TemplateResponse(
-        "partials/session_detail.html",
-        {"request": request, "session": session},
-    )
-
-
-@router.get(
-    "/admin/sessions/{session_id}/analysis_modal", response_class=HTMLResponse
-)
-async def analysis_modal(
-    request: Request,
-    session_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    """Get session analysis for admin modal view."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    query = (
-        select(Session)
-        .options(joinedload(Session.scenario))
-        .where(Session.id == session_id)
-    )
-    result = await db.execute(query)
-    session = result.scalar_one_or_none()
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
-
-    if not session.ended_at:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session must be ended before viewing analysis",
-        )
-
-    summary_result = await db.execute(
-        select(SessionSummary).where(SessionSummary.session_id == session_id)
-    )
-    summary = summary_result.scalar_one_or_none()
-
-    if not summary:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found"
-        )
-
-    messages_result = await db.execute(
-        select(Message, QuestionAnalysis)
-        .outerjoin(QuestionAnalysis, Message.id == QuestionAnalysis.message_id)
-        .where(Message.session_id == session_id)
-        .where(Message.role == "teacher")
-        .order_by(Message.created_at)
-    )
-    message_analyses = messages_result.all()
-
-    questions = []
-    for msg, analysis in message_analyses:
-        reasoning = None
-        if analysis and analysis.meta_json:
-            try:
-                reasoning = json.loads(analysis.meta_json)
-            except json.JSONDecodeError:
-                reasoning = {"summary": analysis.meta_json}
-        questions.append(
-            {
-                "content": msg.content,
-                "label": analysis.label if analysis else "Unclassified",
-                "confidence": analysis.confidence if analysis else None,
-                "reasoning": reasoning,
-            }
-        )
-
-    return templates.TemplateResponse(
-        "partials/analysis_modal.html",
-        {
-            "request": request,
-            "user": user,
-            "session_id": session_id,
-            "distribution": summary.distribution,
-            "feedback": summary.feedback,
-            "questions": questions,
-            "session_ended_at": session.ended_at.isoformat(),
-            "is_admin": True,
-        },
-    )
-
-
-@router.get("/admin/sessions/{session_id}/download")
-async def download_session(
-    session_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-):
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
-        )
-
-    session = await db.get(Session, session_id)
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
-
-    if session.ended_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot download active session",
-        )
-
-    exporter = CSVExporter()
-    csv_content = await exporter.export_session_admin(session_id, db)
-
-    filename = f"session_{session_id}.csv"
-    return Response(
-        content=csv_content,
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )

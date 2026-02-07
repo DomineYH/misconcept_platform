@@ -1,5 +1,5 @@
 """Message model for dialogue turns (T026)."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import (
     Integer,
@@ -41,7 +41,7 @@ class Message(Base):
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
 
     # Relationships

@@ -482,8 +482,11 @@ class TestFrameworkManagement:
         data = response.json()
         assert data["name"] == "New Framework"
         assert data["description"] == "Test framework description"
-        assert len(data["labels"]) == 3
-        assert "Label1" in data["labels"]
+        # API returns labels_json as raw JSON string
+        import json
+        labels = json.loads(data["labels_json"])
+        assert len(labels) == 3
+        assert "Label1" in labels
         assert "id" in data
 
     def test_create_framework_with_min_labels(
@@ -511,7 +514,10 @@ class TestFrameworkManagement:
 
         # Contract: 201 Created
         assert response.status_code == 201
-        assert len(response.json()["labels"]) == 2
+        # API returns labels_json as raw JSON string
+        import json
+        labels = json.loads(response.json()["labels_json"])
+        assert len(labels) == 2
 
     def test_create_framework_too_few_labels(
         self, test_client: TestClient, admin_user: User

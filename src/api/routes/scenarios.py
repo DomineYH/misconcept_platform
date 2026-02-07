@@ -9,20 +9,18 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.dependencies import get_db_session, get_current_user
+from src.api.dependencies import get_db_session, get_current_user, templates
 from src.models import User, Scenario, Session
 from src.models.scenario_group import ScenarioGroup
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Scenarios"])
-templates = Jinja2Templates(directory="src/templates")
 
 
 @router.get("/", response_class=HTMLResponse)

@@ -9,11 +9,10 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_admin_user, get_db_session, templates
 from src.api.schemas import (
     AdminGroupResponse,
     GroupCreate,
@@ -26,15 +25,6 @@ from src.models.user_group import UserGroup
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin Groups"])
-templates = Jinja2Templates(directory="src/templates")
-
-
-def _require_admin(user: User):
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
 
 
 @router.get(
@@ -42,11 +32,10 @@ def _require_admin(user: User):
 )
 async def list_groups(
     request: Request,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """GET /admin/groups - Group management page."""
-    _require_admin(user)
 
     result = await db.execute(
         select(UserGroup).order_by(UserGroup.name)
@@ -87,11 +76,10 @@ async def list_groups(
 @router.post("/admin/groups", status_code=201)
 async def create_group(
     data: GroupCreate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """POST /admin/groups - Create new group."""
-    _require_admin(user)
 
     # Check unique name
     existing = await db.execute(
@@ -127,11 +115,10 @@ async def create_group(
 async def update_group(
     group_id: int,
     data: GroupUpdate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """PUT /admin/groups/{id} - Update group."""
-    _require_admin(user)
 
     group = await db.get(UserGroup, group_id)
     if not group:
@@ -185,11 +172,10 @@ async def update_group(
 @router.delete("/admin/groups/{group_id}")
 async def delete_group(
     group_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """DELETE /admin/groups/{id} - Delete group."""
-    _require_admin(user)
 
     group = await db.get(UserGroup, group_id)
     if not group:

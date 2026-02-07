@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import config
 from src.services.base import OpenAIBaseService, openai_retry
 from src.services.prompt_manager import PromptManager
-from src.utils.openai_helpers import extract_response_text
+from src.utils.openai_helpers import extract_response_text, extract_usage_dict
 
 logger = logging.getLogger(__name__)
 
@@ -114,21 +114,15 @@ class StudentBot(OpenAIBaseService):
             content = extract_response_text(response)
 
             # Extract usage information if available
-            usage_dict = None
-            if hasattr(response, "usage") and response.usage is not None:
-                usage_dict = {
-                    "prompt_tokens": response.usage.input_tokens,
-                    "completion_tokens": response.usage.output_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
+            usage_dict = extract_usage_dict(response)
 
             return content, usage_dict
 
         except (APIConnectionError, RateLimitError, APIError) as e:
-            logger.error(f"StudentBot API error: {type(e).__name__}: {str(e)}")
+            logger.error("StudentBot API error: %s: %s", type(e).__name__, str(e))
             raise
         except Exception as e:
-            logger.error(f"Unexpected error in StudentBot: {str(e)}")
+            logger.error("Unexpected error in StudentBot: %s", str(e))
             raise RuntimeError(
                 f"Student response generation failed: {str(e)}"
             ) from e

@@ -17,7 +17,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_current_user, get_db_session, templates
 from src.api.routes.session_helpers import load_session
 from src.config import config
 from src.models import Message, Session, User
@@ -26,7 +26,6 @@ from src.services.session_mgr import SessionManager
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Sessions"])
-templates = Jinja2Templates(directory="src/templates")
 limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
 
 

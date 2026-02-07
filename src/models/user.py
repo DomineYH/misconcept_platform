@@ -1,5 +1,5 @@
 """User model for teachers and admins (T022)."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import bcrypt
@@ -48,7 +48,7 @@ class User(Base):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
 
     # Relationships

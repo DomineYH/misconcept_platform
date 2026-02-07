@@ -10,11 +10,14 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import (
+    get_admin_user,
+    get_db_session,
+    templates,
+)
 from src.api.schemas import (
     AdminFrameworkResponse,
     FrameworkCreateWeb,
@@ -28,31 +31,24 @@ from src.models.user import User
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin Frameworks"])
-templates = Jinja2Templates(directory="src/templates")
 
 
-@router.get("/admin/frameworks", response_class=HTMLResponse)
+@router.get(
+    "/admin/frameworks", response_class=HTMLResponse
+)
 async def list_all_frameworks_web(
     request: Request,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """GET /admin/frameworks - Framework management page (Web UI)."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+    """GET /admin/frameworks - Framework management page."""
 
-    # Get all frameworks with usage count
     query = select(AnalysisFramework).order_by(
         AnalysisFramework.id.desc()
     )
     result = await db.execute(query)
     frameworks = result.scalars().all()
 
-    # Get usage count for each framework
     framework_usage = {}
     for fw in frameworks:
         usage_query = (
@@ -81,16 +77,10 @@ async def list_all_frameworks_web(
 )
 async def create_framework_web(
     framework_data: FrameworkCreateWeb,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """POST /admin/frameworks - Create new framework (Web UI)."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+    """POST /admin/frameworks - Create new framework."""
 
     # Check for duplicate name
     existing_query = select(AnalysisFramework).where(
@@ -100,15 +90,30 @@ async def create_framework_web(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"프레임워크 '{framework_data.name}'이(가) 이미 존재합니다",
+            detail=(
+                f"프레임워크 '{framework_data.name}'"
+                "이(가) 이미 존재합니다"
+            ),
         )
 
-    # Create framework
-    new_framework = AnalysisFramework(
-        name=framework_data.name,
-        description=framework_data.description,
-        labels_json=json.dumps(framework_data.labels),
-    )
+    # Create framework with try/except for ORM validation
+    try:
+        new_framework = AnalysisFramework(
+            name=framework_data.name,
+            description=framework_data.description,
+            labels_json=json.dumps(framework_data.labels),
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=[
+                {
+                    "loc": ["body", "labels"],
+                    "msg": str(e),
+                    "type": "value_error",
+                }
+            ],
+        )
 
     db.add(new_framework)
     await db.commit()
@@ -129,19 +134,14 @@ async def create_framework_web(
 async def update_framework_web(
     framework_id: int,
     framework_data: FrameworkUpdateWeb,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """PUT /admin/frameworks/{id} - Update existing framework (Web UI)."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+    """PUT /admin/frameworks/{id} - Update framework."""
 
-    # Get framework
-    framework = await db.get(AnalysisFramework, framework_id)
+    framework = await db.get(
+        AnalysisFramework, framework_id
+    )
     if not framework:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -160,7 +160,10 @@ async def update_framework_web(
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"프레임워크 '{framework_data.name}'이(가) 이미 존재합니다",
+                detail=(
+                    f"프레임워크 '{framework_data.name}'"
+                    "이(가) 이미 존재합니다"
+                ),
             )
 
     # Update fields
@@ -169,7 +172,23 @@ async def update_framework_web(
     if framework_data.description:
         framework.description = framework_data.description
     if framework_data.labels:
-        framework.labels_json = json.dumps(framework_data.labels)
+        try:
+            framework.labels_json = json.dumps(
+                framework_data.labels
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY
+                ),
+                detail=[
+                    {
+                        "loc": ["body", "labels"],
+                        "msg": str(e),
+                        "type": "value_error",
+                    }
+                ],
+            )
 
     await db.commit()
     await db.refresh(framework)
@@ -185,26 +204,21 @@ async def update_framework_web(
 )
 async def delete_framework_web(
     framework_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """DELETE /admin/frameworks/{id} - Delete framework if not in use."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+    """DELETE /admin/frameworks/{id} - Delete framework."""
 
-    # Get framework
-    framework = await db.get(AnalysisFramework, framework_id)
+    framework = await db.get(
+        AnalysisFramework, framework_id
+    )
     if not framework:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="프레임워크를 찾을 수 없습니다",
         )
 
-    # Check if framework is in use by any scenarios
+    # Check if framework is in use
     usage_query = (
         select(func.count(Scenario.id))
         .where(Scenario.framework_id == framework_id)
@@ -215,20 +229,24 @@ async def delete_framework_web(
     if usage_count and usage_count > 0:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"삭제할 수 없습니다: {usage_count}개의 시나리오가 이 프레임워크를 사용 중입니다",
+            detail=(
+                f"삭제할 수 없습니다: {usage_count}개의 "
+                "시나리오가 이 프레임워크를 사용 중입니다"
+            ),
         )
 
-    # Hard-delete soft-deleted scenarios referencing this framework
-    # (to avoid NOT NULL constraint violation on framework_id)
+    # Hard-delete soft-deleted scenarios
     soft_deleted_query = select(Scenario).where(
         Scenario.framework_id == framework_id,
         Scenario.deleted_at.is_not(None),
     )
-    soft_deleted_result = await db.execute(soft_deleted_query)
-    soft_deleted_scenarios = soft_deleted_result.scalars().all()
+    soft_deleted_result = await db.execute(
+        soft_deleted_query
+    )
+    soft_deleted_scenarios = (
+        soft_deleted_result.scalars().all()
+    )
 
-    # For each soft-deleted scenario, delete associated sessions first
-    # (to avoid NOT NULL constraint violation on session.scenario_id)
     for scenario in soft_deleted_scenarios:
         sessions_query = select(Session).where(
             Session.scenario_id == scenario.id
@@ -240,19 +258,17 @@ async def delete_framework_web(
 
     await db.flush()
 
-    # Now delete the soft-deleted scenarios
     for scenario in soft_deleted_scenarios:
         await db.delete(scenario)
 
-    # Flush to ensure scenarios are deleted before framework
     await db.flush()
 
-    # Delete framework
     await db.delete(framework)
     await db.commit()
 
     logger.info(
-        f"Framework deleted: id={framework_id}, name={framework.name}"
+        f"Framework deleted: id={framework_id}, "
+        f"name={framework.name}"
     )
 
     return None

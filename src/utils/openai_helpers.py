@@ -72,6 +72,25 @@ def _debug_response_structure(response: Any, prefix: str = "") -> None:
         logger.debug(f"{prefix}Debug failed: {e}")
 
 
+def extract_usage_dict(response: Any) -> dict | None:
+    """Extract usage info from OpenAI response.
+
+    Args:
+        response: OpenAI API response object
+
+    Returns:
+        Dictionary with prompt_tokens, completion_tokens, total_tokens
+        or None if usage info not available
+    """
+    if hasattr(response, "usage") and response.usage is not None:
+        return {
+            "prompt_tokens": response.usage.input_tokens,
+            "completion_tokens": response.usage.output_tokens,
+            "total_tokens": response.usage.total_tokens,
+        }
+    return None
+
+
 def extract_response_text(response: Any) -> str:
     """Extract consolidated text from a Responses API response object.
 

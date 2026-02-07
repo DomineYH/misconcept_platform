@@ -1,6 +1,11 @@
 """API Pydantic schemas."""
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    ConfigDict,
+)
 
 from src.api.schemas.user import (
     UserCreate,
@@ -13,38 +18,59 @@ from src.api.schemas.group import (
     AdminGroupResponse,
 )
 
+
 # Framework Schemas
 class FrameworkCreateWeb(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     description: str = Field(..., max_length=500)
-    labels: list[str] = Field(..., min_items=1)
+    labels: list[str] = Field(..., min_length=2, max_length=20)
 
-    @validator("labels")
+    @field_validator("labels")
+    @classmethod
     def validate_labels(cls, v):
-        if len(v) < 1:
-            raise ValueError("At least one label is required")
+        if len(v) < 2:
+            raise ValueError("At least 2 labels are required")
+        if len(v) > 20:
+            raise ValueError("Maximum 20 labels allowed")
+        for label in v:
+            if len(label) < 2:
+                raise ValueError(
+                    f"Label '{label}' too short (min 2 chars)"
+                )
+            if len(label) > 50:
+                raise ValueError(
+                    f"Label too long (max 50 chars)"
+                )
         return v
 
+
 class FrameworkUpdateWeb(BaseModel):
-    name: str | None = Field(None, min_length=2, max_length=100)
+    name: str | None = Field(
+        None, min_length=2, max_length=100
+    )
     description: str | None = Field(None, max_length=500)
     labels: list[str] | None = None
 
+
 class AdminFrameworkResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     description: str | None
     labels_json: str
     created_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
 
 # Scenario Schemas
 class ScenarioCreate(BaseModel):
     title: str = Field(..., min_length=3, max_length=200)
-    prompt: str = Field(..., min_length=10, max_length=10000)
-    student_profile: str = Field(..., min_length=3, max_length=5000)
+    prompt: str = Field(
+        ..., min_length=10, max_length=10000
+    )
+    student_profile: str = Field(
+        ..., min_length=3, max_length=5000
+    )
     framework_id: int
     is_active: bool = True
 
@@ -59,17 +85,83 @@ class ScenarioCreate(BaseModel):
 
     # Template selection (Phase 2.5)
     student_template_id: int  # Required
-    tutor_template_id: int | None = None  # None = tutor disabled
+    tutor_template_id: int | None = None  # tutor disabled
 
     # Group assignment
     group_ids: list[int] | None = None
 
+    @field_validator("video_url")
+    @classmethod
+    def validate_video_url(cls, v):
+        """Validate video URL format."""
+        if v is None or v.strip() == "":
+            return v
+        if not (
+            v.startswith("http://")
+            or v.startswith("https://")
+        ):
+            raise ValueError(
+                "video_url must start with "
+                "http:// or https://"
+            )
+        return v
+
+    @field_validator("chat_model")
+    @classmethod
+    def validate_chat_model(cls, v):
+        """Validate chat model name."""
+        if v is None:
+            return v
+        # gpt-4 family: any string starting with "gpt-4"
+        if v.startswith("gpt-4"):
+            return v
+        # gpt-5 family: "gpt-5" exact or "gpt-5." prefix
+        if v == "gpt-5" or v.startswith("gpt-5."):
+            return v
+        raise ValueError(
+            f"Invalid model: {v}. "
+            "Must start with gpt-4 or gpt-5"
+        )
+
+    @field_validator("chat_temperature")
+    @classmethod
+    def validate_chat_temperature(cls, v):
+        """Validate temperature range."""
+        if v is None:
+            return v
+        if not (0.0 <= v <= 2.0):
+            raise ValueError(
+                "chat_temperature must be "
+                "between 0.0 and 2.0"
+            )
+        return v
+
+    @field_validator("tutor_intervention_threshold")
+    @classmethod
+    def validate_tutor_threshold(cls, v):
+        """Validate threshold range."""
+        if v is None:
+            return v
+        if not (1 <= v <= 10):
+            raise ValueError(
+                "tutor_intervention_threshold "
+                "must be 1-10"
+            )
+        return v
+
+
 class ScenarioUpdate(BaseModel):
-    title: str | None = Field(None, min_length=3, max_length=200)
-    prompt: str | None = Field(None, min_length=10, max_length=10000)
-    student_profile: str | None = Field(None, min_length=3, max_length=5000)
+    title: str | None = Field(
+        None, min_length=3, max_length=200
+    )
+    prompt: str | None = Field(
+        None, min_length=10, max_length=10000
+    )
+    student_profile: str | None = Field(
+        None, min_length=3, max_length=5000
+    )
     framework_id: int | None = None
-    is_active: int | None = Field(None, ge=0, le=1)  # Admin UI sends 0/1
+    is_active: int | None = Field(None, ge=0, le=1)
 
     # Video fields
     video_url: str | None = None
@@ -87,7 +179,26 @@ class ScenarioUpdate(BaseModel):
     # Group assignment
     group_ids: list[int] | None = None
 
+    @field_validator("video_url")
+    @classmethod
+    def validate_video_url(cls, v):
+        """Validate video URL format."""
+        if v is None or v.strip() == "":
+            return v
+        if not (
+            v.startswith("http://")
+            or v.startswith("https://")
+        ):
+            raise ValueError(
+                "video_url must start with "
+                "http:// or https://"
+            )
+        return v
+
+
 class AdminScenarioResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     title: str
     prompt: str
@@ -113,11 +224,8 @@ class AdminScenarioResponse(BaseModel):
 
     @property
     def tutor_enabled(self) -> bool:
-        """Backward compatibility: tutor enabled if template assigned."""
+        """Tutor enabled if template assigned."""
         return self.tutor_template_id is not None
-
-    class Config:
-        from_attributes = True
 
 
 __all__ = [

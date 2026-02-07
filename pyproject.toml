@@ -10,6 +10,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.0",
     "jinja2>=3.1.0",
     "pydantic>=2.5.0",
+    "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.6",
     "openai>=1.68.0",
@@ -20,6 +21,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "python-json-logger>=2.0.0",
     "bcrypt>=4.0.0",
+    "starlette-csrf>=3.0.0",
 ]
 
 [project.optional-dependencies]

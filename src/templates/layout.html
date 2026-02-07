@@ -11,6 +11,17 @@
   </title>
   <link rel="stylesheet" href="/static/css/styles.css">
   <script src="/static/js/htmx.min.js"></script>
+  <script>
+    // Auto-inject CSRF token into all HTMX requests
+    document.addEventListener('htmx:configRequest', function(e) {
+      var match = document.cookie.match(
+        /(?:^|;\s*)csrftoken=([^;]*)/
+      );
+      if (match) {
+        e.detail.headers['x-csrf-token'] = match[1];
+      }
+    });
+  </script>
 </head>
 <body>
   <a href="#main-content" class="skip-link">본문으로 건너뛰기</a>
@@ -62,22 +73,34 @@
       const toast = document.createElement('div');
       toast.className = `toast toast-${type}`;
       toast.role = 'alert';
-      
+
       const iconMap = {
         success: '✓',
         error: '✕',
         warning: '⚠',
         info: 'ℹ'
       };
-      
-      toast.innerHTML = `
-        <div class="toast-icon">${iconMap[type] || 'ℹ'}</div>
-        <div class="toast-content">${message}</div>
-        <button class="toast-close" onclick="this.parentElement.remove()" aria-label="Close">×</button>
-      `;
-      
+
+      // Create toast structure using DOM methods to prevent XSS
+      const iconDiv = document.createElement('div');
+      iconDiv.className = 'toast-icon';
+      iconDiv.textContent = iconMap[type] || 'ℹ';
+
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'toast-content';
+      contentDiv.textContent = message;
+
+      const closeButton = document.createElement('button');
+      closeButton.className = 'toast-close';
+      closeButton.setAttribute('aria-label', 'Close');
+      closeButton.textContent = '×';
+      closeButton.onclick = function() { this.parentElement.remove(); };
+
+      toast.appendChild(iconDiv);
+      toast.appendChild(contentDiv);
+      toast.appendChild(closeButton);
       container.appendChild(toast);
-      
+
       setTimeout(() => {
         toast.style.animation = 'toastSlideOut 0.3s forwards';
         toast.addEventListener('animationend', () => {

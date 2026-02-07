@@ -12,23 +12,6 @@ from src.models.session_summary import SessionSummary
 from src.models.prompt_template import PromptTemplate
 
 
-@pytest.fixture
-async def test_student_template(async_db_session) -> PromptTemplate:
-    """Create test student template."""
-    template = PromptTemplate(
-        bot_type="student",
-        template_name="Test Student Template",
-        version=1,
-        template_text=(
-            "You are a test student bot. Scenario: {scenario_title}. "
-            "Profile: {student_profile}. Context: {prompt}"
-        ),
-    )
-    async_db_session.add(template)
-    await async_db_session.flush()
-    return template
-
-
 @pytest.mark.asyncio
 async def test_framework_delete_with_soft_deleted_scenario(
     async_db_session,

@@ -9,11 +9,12 @@ class TestScenariosListEndpoint:
     def test_scenarios_requires_authentication(
         self, test_client: TestClient
     ):
-        """Verify unauthenticated request returns 401."""
-        response = test_client.get("/scenarios")
+        """Verify unauthenticated request redirects to login."""
+        response = test_client.get("/scenarios", follow_redirects=False)
 
-        assert response.status_code == 401
-        assert "detail" in response.json()
+        # App redirects to /login (303) rather than returning 401
+        assert response.status_code == 303
+        assert "/login" in response.headers["location"]
 
     def test_scenarios_returns_active_scenarios_html(
         self, test_client: TestClient
@@ -23,6 +24,7 @@ class TestScenariosListEndpoint:
         login_response = test_client.post(
             "/login",
             data={"username": "student_001", "password": "test1234"},
+            follow_redirects=False,
         )
         assert login_response.status_code == 303
 
@@ -43,10 +45,12 @@ class TestScenarioDetailEndpoint:
     def test_scenario_detail_requires_authentication(
         self, test_client: TestClient
     ):
-        """Verify unauthenticated request returns 401."""
-        response = test_client.get("/scenarios/1")
+        """Verify unauthenticated request redirects to login."""
+        response = test_client.get("/scenarios/1", follow_redirects=False)
 
-        assert response.status_code == 401
+        # App redirects to /login (303) rather than returning 401
+        assert response.status_code == 303
+        assert "/login" in response.headers["location"]
 
     def test_scenario_detail_returns_dialogue_interface(
         self, test_client: TestClient
@@ -56,6 +60,7 @@ class TestScenarioDetailEndpoint:
         login_response = test_client.post(
             "/login",
             data={"username": "student_001", "password": "test1234"},
+            follow_redirects=False,
         )
         cookies = login_response.cookies
 
@@ -74,6 +79,7 @@ class TestScenarioDetailEndpoint:
         login_response = test_client.post(
             "/login",
             data={"username": "student_001", "password": "test1234"},
+            follow_redirects=False,
         )
         cookies = login_response.cookies
 

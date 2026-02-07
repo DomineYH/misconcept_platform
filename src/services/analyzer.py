@@ -181,13 +181,13 @@ class Analyzer:
             return result
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response: {e}")
+            logger.error("Failed to parse JSON response: %s", e)
             raise ValueError(f"Invalid JSON in LLM response: {e}")
         except (APIConnectionError, RateLimitError, APIError) as e:
-            logger.error(f"Analyzer API error: {type(e).__name__}: {str(e)}")
+            logger.error("Analyzer API error: %s: %s", type(e).__name__, str(e))
             raise
         except Exception as e:
-            logger.error(f"Classification failed: {e}")
+            logger.error("Classification failed: %s", e)
             raise
 
     async def batch_classify(
@@ -226,7 +226,7 @@ class Analyzer:
                 )
                 results.append(result)
             except Exception as e:
-                logger.error(f"Failed to classify question '{question}': {e}")
+                logger.error("Failed to classify question '%s': %s", question, e)
                 # Return default classification on failure
                 results.append(
                     {
@@ -306,14 +306,14 @@ class Analyzer:
             return validated_results
 
         except json.JSONDecodeError as e:
-            logger.warning(f"Greeting detection JSON parse error: {e}")
+            logger.warning("Greeting detection JSON parse error: %s", e)
             # Return safe defaults (assume no greetings)
             return [
                 {"index": i, "is_greeting": False, "reason": "Parse error"}
                 for i in range(len(messages))
             ]
         except Exception as e:
-            logger.warning(f"Greeting detection failed: {e}")
+            logger.warning("Greeting detection failed: %s", e)
             # Return safe defaults (assume no greetings)
             return [
                 {"index": i, "is_greeting": False, "reason": "Detection failed"}

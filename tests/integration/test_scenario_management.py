@@ -8,64 +8,40 @@ from src.models.analysis_framework import AnalysisFramework
 from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.prompt_template import PromptTemplate
+from src.models.user_group import UserGroup
+from src.models.scenario_group import ScenarioGroup
 
 
 @pytest.fixture
-async def admin_user(db_session: AsyncSession) -> User:
-    """Create an admin user."""
-    user = User(username="admin_001", nickname="관리자", role="admin")
-    user.set_password("test1234")
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
-async def teacher_user(db_session: AsyncSession) -> User:
-    """Create a teacher user."""
-    user = User(
-        username="teacher_001", nickname="김교사", role="teacher"
+async def test_group(db_session: AsyncSession) -> UserGroup:
+    """Create a user group for testing."""
+    group = UserGroup(
+        name="Test Group",
+        description="Group for scenario tests",
     )
-    user.set_password("test1234")
-    db_session.add(user)
+    db_session.add(group)
     await db_session.commit()
-    await db_session.refresh(user)
-    return user
+    await db_session.refresh(group)
+    return group
 
 
 @pytest.fixture
-async def test_framework(db_session: AsyncSession) -> AnalysisFramework:
-    """Create a test framework."""
-    framework = AnalysisFramework(
-        name="Test Framework",
-        description="For testing",
-        labels_json='["high", "low"]',
-    )
-    db_session.add(framework)
-    await db_session.commit()
-    await db_session.refresh(framework)
-    return framework
-
-
-@pytest.fixture
-async def test_student_template(
+async def teacher_with_group(
     db_session: AsyncSession,
-) -> PromptTemplate:
-    """Create test student template."""
-    template = PromptTemplate(
-        bot_type="student",
-        template_name="Test Student Template",
-        version=1,
-        template_text=(
-            "You are a test student bot. Scenario: {scenario_title}. "
-            "Profile: {student_profile}. Context: {prompt}"
-        ),
+    test_group: UserGroup,
+) -> User:
+    """Create a teacher user assigned to a group."""
+    user = User(
+        username="teacher_001",
+        nickname="김교사",
+        role="teacher",
+        group_id=test_group.id,
     )
-    db_session.add(template)
+    user.set_password("test1234")
+    db_session.add(user)
     await db_session.commit()
-    await db_session.refresh(template)
-    return template
+    await db_session.refresh(user)
+    return user
 
 
 class TestScenarioLifecycle:
@@ -75,13 +51,15 @@ class TestScenarioLifecycle:
         self,
         test_client: TestClient,
         admin_user: User,
-        teacher_user: User,
+        teacher_with_group: User,
         test_framework: AnalysisFramework,
         test_student_template: PromptTemplate,
+        test_group: UserGroup,
+        db_session: AsyncSession,
     ):
-        """Test: create → activate → visibility → deactivate → hidden."""
+        """Test: create -> activate -> visibility -> deactivate -> hidden."""
 
-        # Step 1: Admin creates new scenario
+        # Step 1: Admin creates new scenario with group
         test_client.post(
             "/login",
             data={
@@ -98,18 +76,19 @@ class TestScenarioLifecycle:
                 "student_profile": "Test student profile",
                 "framework_id": test_framework.id,
                 "student_template_id": test_student_template.id,
+                "group_ids": [test_group.id],
             },
         )
 
         assert create_response.status_code == 201
         scenario_id = create_response.json()["id"]
-        assert create_response.json()["is_active"] == 1  # Active by default
+        assert create_response.json()["is_active"] == 1
 
         # Step 2: Teacher logs in
         test_client.post(
             "/login",
             data={
-                "username": teacher_user.username,
+                "username": teacher_with_group.username,
                 "password": "test1234",
             },
         )
@@ -121,7 +100,9 @@ class TestScenarioLifecycle:
         assert "Lifecycle Test Scenario" in scenarios_html
 
         # Verify scenario detail page is accessible
-        detail_response = test_client.get(f"/scenarios/{scenario_id}")
+        detail_response = test_client.get(
+            f"/scenarios/{scenario_id}"
+        )
         assert detail_response.status_code == 200
 
         # Step 4: Admin deactivates scenario
@@ -134,7 +115,8 @@ class TestScenarioLifecycle:
         )
 
         deactivate_response = test_client.put(
-            f"/admin/scenarios/{scenario_id}", json={"is_active": 0}
+            f"/admin/scenarios/{scenario_id}",
+            json={"is_active": 0},
         )
         assert deactivate_response.status_code == 200
         assert deactivate_response.json()["is_active"] == 0
@@ -143,19 +125,28 @@ class TestScenarioLifecycle:
         test_client.post(
             "/login",
             data={
-                "username": teacher_user.username,
+                "username": teacher_with_group.username,
                 "password": "test1234",
             },
         )
 
         # Step 6: Verify scenario is hidden from teachers
-        scenarios_hidden_response = test_client.get("/scenarios")
+        scenarios_hidden_response = test_client.get(
+            "/scenarios"
+        )
         assert scenarios_hidden_response.status_code == 200
-        scenarios_hidden_html = scenarios_hidden_response.text
-        assert "Lifecycle Test Scenario" not in scenarios_hidden_html
+        scenarios_hidden_html = (
+            scenarios_hidden_response.text
+        )
+        assert (
+            "Lifecycle Test Scenario"
+            not in scenarios_hidden_html
+        )
 
         # Verify detail page is not accessible (404)
-        detail_hidden_response = test_client.get(f"/scenarios/{scenario_id}")
+        detail_hidden_response = test_client.get(
+            f"/scenarios/{scenario_id}"
+        )
         assert detail_hidden_response.status_code == 404
 
         # Step 7: Admin reactivates scenario
@@ -168,36 +159,47 @@ class TestScenarioLifecycle:
         )
 
         reactivate_response = test_client.put(
-            f"/admin/scenarios/{scenario_id}", json={"is_active": 1}
+            f"/admin/scenarios/{scenario_id}",
+            json={"is_active": 1},
         )
         assert reactivate_response.status_code == 200
-        assert reactivate_response.json()["is_active"] == 1
+        assert (
+            reactivate_response.json()["is_active"] == 1
+        )
 
         # Step 8: Teacher verifies scenario is visible again
         test_client.post(
             "/login",
             data={
-                "username": teacher_user.username,
+                "username": teacher_with_group.username,
                 "password": "test1234",
             },
         )
 
-        scenarios_visible_response = test_client.get("/scenarios")
+        scenarios_visible_response = test_client.get(
+            "/scenarios"
+        )
         assert scenarios_visible_response.status_code == 200
-        scenarios_visible_html = scenarios_visible_response.text
-        assert "Lifecycle Test Scenario" in scenarios_visible_html
+        scenarios_visible_html = (
+            scenarios_visible_response.text
+        )
+        assert (
+            "Lifecycle Test Scenario"
+            in scenarios_visible_html
+        )
 
     def test_multiple_scenarios_filtering(
         self,
         test_client: TestClient,
         admin_user: User,
-        teacher_user: User,
+        teacher_with_group: User,
         test_framework: AnalysisFramework,
         test_student_template: PromptTemplate,
+        test_group: UserGroup,
     ):
-        """Test that only active scenarios are visible to teachers."""
+        """Test that only active scenarios are visible."""
 
-        # Admin creates multiple scenarios
+        # Admin creates multiple scenarios with group
         test_client.post(
             "/login",
             data={
@@ -219,6 +221,7 @@ class TestScenarioLifecycle:
                     "student_template_id": (
                         test_student_template.id
                     ),
+                    "group_ids": [test_group.id],
                 },
             )
             scenario_ids.append(resp.json()["id"])
@@ -239,13 +242,15 @@ class TestScenarioLifecycle:
         test_client.post(
             "/login",
             data={
-                "username": teacher_user.username,
+                "username": teacher_with_group.username,
                 "password": "test1234",
             },
         )
 
         # Verify only active scenarios visible
-        teacher_scenarios_response = test_client.get("/scenarios")
+        teacher_scenarios_response = test_client.get(
+            "/scenarios"
+        )
         assert teacher_scenarios_response.status_code == 200
         teacher_html = teacher_scenarios_response.text
 

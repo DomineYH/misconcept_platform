@@ -8,7 +8,67 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from src.models.user import User
+from src.models.analysis_framework import AnalysisFramework
+from src.models.prompt_template import PromptTemplate
+from src.models.scenario import Scenario
 from src.models.session import Session
+
+
+@pytest.fixture(autouse=True)
+async def seed_csv_test_data(db_session: AsyncSession):
+    """Seed test data for CSV export tests."""
+    # Create all users referenced in tests
+    usernames = [
+        "teacher_csv_001",
+        "sensitive_student_123",
+        "teacher_ts_001",
+        "teacher_roles_001",
+        "teacher_labels_001",
+        "teacher_summary_001",
+    ]
+    for uname in usernames:
+        user = User(
+            username=uname,
+            nickname=f"닉_{uname}",
+            role="teacher",
+        )
+        user.set_password("test1234")
+        db_session.add(user)
+
+    # Create framework
+    framework = AnalysisFramework(
+        name="CSV Export Framework",
+        description="Framework for CSV export tests",
+        labels_json=(
+            '["high_leverage",'
+            ' "medium_leverage",'
+            ' "low_leverage"]'
+        ),
+    )
+    db_session.add(framework)
+    await db_session.flush()
+
+    # Create template
+    template = PromptTemplate(
+        bot_type="student",
+        template_name="CSV Student Template",
+        version=1,
+        template_text="You are a test student bot.",
+    )
+    db_session.add(template)
+    await db_session.flush()
+
+    # Create scenario (id=1 since first in DB)
+    scenario = Scenario(
+        title="CSV Test Scenario",
+        prompt="Test prompt for CSV export",
+        student_profile="Test student profile",
+        framework_id=framework.id,
+        student_template_id=template.id,
+        is_active=1,
+    )
+    db_session.add(scenario)
+    await db_session.commit()
 
 
 class TestCSVExportWorkflow:
@@ -18,23 +78,28 @@ class TestCSVExportWorkflow:
         self, test_client: TestClient
     ):
         """
-        Verify CSV export format, anonymization, and timestamp formatting.
+        Verify CSV export format and content.
 
         Workflow:
         1. Create session with messages
         2. End session to trigger analysis
         3. Export CSV
-        4. Verify CSV format, headers, anonymization, timestamps
+        4. Verify CSV format, headers, timestamps
         """
         # Step 1: Login and create session
         login_response = test_client.post(
             "/login",
-            data={"username": "teacher_csv_001", "password": "test1234"},
+            data={
+                "username": "teacher_csv_001",
+                "password": "test1234",
+            },
         )
         cookies = login_response.cookies
 
         session_response = test_client.post(
-            "/sessions", json={"scenario_id": 1}, cookies=cookies
+            "/sessions",
+            json={"scenario_id": 1},
+            cookies=cookies,
         )
         session_id = session_response.json()["id"]
 
@@ -48,17 +113,24 @@ class TestCSVExportWorkflow:
         for content in teacher_messages:
             test_client.post(
                 f"/sessions/{session_id}/messages",
-                json={"content": content},
+                data={"content": content},
                 cookies=cookies,
             )
 
         # Step 2: End session and analyze
-        test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
-        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
+        test_client.post(
+            f"/sessions/{session_id}/end",
+            cookies=cookies,
+        )
+        test_client.post(
+            f"/sessions/{session_id}/analyze",
+            cookies=cookies,
+        )
 
         # Step 3: Export CSV
         export_response = test_client.get(
-            f"/sessions/{session_id}/export.csv", cookies=cookies
+            f"/sessions/{session_id}/export.csv",
+            cookies=cookies,
         )
         assert export_response.status_code == 200
 
@@ -66,10 +138,12 @@ class TestCSVExportWorkflow:
         csv_content = export_response.text
 
         # Parse CSV
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
+        csv_reader = csv.DictReader(
+            io.StringIO(csv_content)
+        )
         rows = list(csv_reader)
 
-        # Verify we have rows (at least teacher messages)
+        # Verify we have rows
         assert len(rows) >= 3
 
         # Verify required columns
@@ -85,9 +159,9 @@ class TestCSVExportWorkflow:
             "feedback",
         ]
         for col in required_columns:
-            assert (
-                col in csv_reader.fieldnames
-            ), f"Missing column: {col}"
+            assert col in csv_reader.fieldnames, (
+                f"Missing column: {col}"
+            )
 
         # Verify session_id is consistent
         for row in rows:
@@ -96,33 +170,47 @@ class TestCSVExportWorkflow:
         # Verify scenario_title is populated
         assert len(rows[0]["scenario_title"]) > 0
 
-    def test_csv_anonymization(self, test_client: TestClient):
+    def test_csv_anonymization(
+        self, test_client: TestClient
+    ):
         """Verify CSV export anonymizes username."""
         # Login with specific username
         username = "sensitive_student_123"
         login_response = test_client.post(
             "/login",
-            data={"username": username, "password": "test1234"},
+            data={
+                "username": username,
+                "password": "test1234",
+            },
         )
         cookies = login_response.cookies
 
         # Create session and send message
         session_response = test_client.post(
-            "/sessions", json={"scenario_id": 1}, cookies=cookies
+            "/sessions",
+            json={"scenario_id": 1},
+            cookies=cookies,
         )
         session_id = session_response.json()["id"]
 
         test_client.post(
             f"/sessions/{session_id}/messages",
-            json={"content": "Test message"},
+            data={"content": "Test message"},
             cookies=cookies,
         )
 
         # End, analyze, and export
-        test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
-        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
+        test_client.post(
+            f"/sessions/{session_id}/end",
+            cookies=cookies,
+        )
+        test_client.post(
+            f"/sessions/{session_id}/analyze",
+            cookies=cookies,
+        )
         export_response = test_client.get(
-            f"/sessions/{session_id}/export.csv", cookies=cookies
+            f"/sessions/{session_id}/export.csv",
+            cookies=cookies,
         )
 
         csv_content = export_response.text
@@ -130,133 +218,190 @@ class TestCSVExportWorkflow:
         # Verify raw username is NOT in CSV
         assert username not in csv_content
 
-        # Verify student_hash is present (SHA-256 = 64 hex chars)
+        # Verify student_hash is present (SHA-256 hex)
         hash_pattern = re.compile(r"[a-f0-9]{64}")
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
+        csv_reader = csv.DictReader(
+            io.StringIO(csv_content)
+        )
         rows = list(csv_reader)
 
         assert len(rows) > 0
         assert hash_pattern.match(rows[0]["student_hash"])
 
-    def test_csv_timestamp_format(self, test_client: TestClient):
-        """Verify CSV timestamps are ISO 8601 formatted."""
+    def test_csv_timestamp_format(
+        self, test_client: TestClient
+    ):
+        """Verify CSV timestamps are ISO 8601."""
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"username": "teacher_ts_001", "password": "test1234"},
+            data={
+                "username": "teacher_ts_001",
+                "password": "test1234",
+            },
         )
         cookies = login_response.cookies
 
         session_response = test_client.post(
-            "/sessions", json={"scenario_id": 1}, cookies=cookies
+            "/sessions",
+            json={"scenario_id": 1},
+            cookies=cookies,
         )
         session_id = session_response.json()["id"]
 
         # Send message
         test_client.post(
             f"/sessions/{session_id}/messages",
-            json={"content": "Timestamp test"},
+            data={"content": "Timestamp test"},
             cookies=cookies,
         )
 
         # End, analyze, and export
-        test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
-        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
+        test_client.post(
+            f"/sessions/{session_id}/end",
+            cookies=cookies,
+        )
+        test_client.post(
+            f"/sessions/{session_id}/analyze",
+            cookies=cookies,
+        )
         export_response = test_client.get(
-            f"/sessions/{session_id}/export.csv", cookies=cookies
+            f"/sessions/{session_id}/export.csv",
+            cookies=cookies,
         )
 
         csv_content = export_response.text
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
+        csv_reader = csv.DictReader(
+            io.StringIO(csv_content)
+        )
         rows = list(csv_reader)
 
-        # Verify ISO 8601 timestamp format (YYYY-MM-DD HH:MM:SS or T)
+        # Verify ISO 8601 timestamp format
         timestamp_pattern = re.compile(
             r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}"
         )
 
         for row in rows:
-            if row["timestamp"]:  # Skip empty timestamps
+            if row["timestamp"]:
                 assert timestamp_pattern.match(
                     row["timestamp"]
-                ), f"Invalid timestamp: {row['timestamp']}"
+                ), (
+                    f"Invalid timestamp:"
+                    f" {row['timestamp']}"
+                )
 
-    def test_csv_includes_all_roles(self, test_client: TestClient):
-        """Verify CSV includes teacher, student, and tutor messages."""
+    def test_csv_includes_all_roles(
+        self, test_client: TestClient
+    ):
+        """Verify CSV includes teacher and student messages."""
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"username": "teacher_roles_001", "password": "test1234"},
+            data={
+                "username": "teacher_roles_001",
+                "password": "test1234",
+            },
         )
         cookies = login_response.cookies
 
         session_response = test_client.post(
-            "/sessions", json={"scenario_id": 1}, cookies=cookies
+            "/sessions",
+            json={"scenario_id": 1},
+            cookies=cookies,
         )
         session_id = session_response.json()["id"]
 
-        # Send message (will trigger student and possibly tutor responses)
+        # Send message
         test_client.post(
             f"/sessions/{session_id}/messages",
-            json={"content": "Is this correct?"},  # Low-leverage
+            data={"content": "Is this correct?"},
             cookies=cookies,
         )
 
         # End, analyze, and export
-        test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
-        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
+        test_client.post(
+            f"/sessions/{session_id}/end",
+            cookies=cookies,
+        )
+        test_client.post(
+            f"/sessions/{session_id}/analyze",
+            cookies=cookies,
+        )
         export_response = test_client.get(
-            f"/sessions/{session_id}/export.csv", cookies=cookies
+            f"/sessions/{session_id}/export.csv",
+            cookies=cookies,
         )
 
         csv_content = export_response.text
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
+        csv_reader = csv.DictReader(
+            io.StringIO(csv_content)
+        )
         rows = list(csv_reader)
 
         # Collect unique roles
-        roles = {row["role"] for row in rows if row["role"]}
+        roles = {
+            row["role"] for row in rows if row["role"]
+        }
 
         # Should have at least teacher and student
         assert "teacher" in roles
         assert "student" in roles
-        # Tutor may or may not appear depending on intervention
 
-    def test_csv_includes_question_labels(self, test_client: TestClient):
-        """Verify CSV includes question analysis labels for teacher msgs."""
+    def test_csv_includes_question_labels(
+        self, test_client: TestClient
+    ):
+        """Verify CSV has question analysis labels."""
         # Login and create session
         login_response = test_client.post(
             "/login",
-            data={"username": "teacher_labels_001", "password": "test1234"},
+            data={
+                "username": "teacher_labels_001",
+                "password": "test1234",
+            },
         )
         cookies = login_response.cookies
 
         session_response = test_client.post(
-            "/sessions", json={"scenario_id": 1}, cookies=cookies
+            "/sessions",
+            json={"scenario_id": 1},
+            cookies=cookies,
         )
         session_id = session_response.json()["id"]
 
         # Send teacher message
         test_client.post(
             f"/sessions/{session_id}/messages",
-            json={"content": "What causes rain?"},
+            data={"content": "What causes rain?"},
             cookies=cookies,
         )
 
         # End session and analyze
-        test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
-        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
+        test_client.post(
+            f"/sessions/{session_id}/end",
+            cookies=cookies,
+        )
+        test_client.post(
+            f"/sessions/{session_id}/analyze",
+            cookies=cookies,
+        )
 
         # Export CSV
         export_response = test_client.get(
-            f"/sessions/{session_id}/export.csv", cookies=cookies
+            f"/sessions/{session_id}/export.csv",
+            cookies=cookies,
         )
 
         csv_content = export_response.text
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
+        csv_reader = csv.DictReader(
+            io.StringIO(csv_content)
+        )
         rows = list(csv_reader)
 
         # Find teacher message row
-        teacher_rows = [row for row in rows if row["role"] == "teacher"]
+        teacher_rows = [
+            row for row in rows
+            if row["role"] == "teacher"
+        ]
         assert len(teacher_rows) > 0
 
         # Teacher message should have label
@@ -266,14 +411,14 @@ class TestCSVExportWorkflow:
             "medium_leverage",
             "low_leverage",
         ]
-        # Confidence should be a number between 0 and 1
+        # Confidence should be between 0 and 1
         confidence = float(teacher_row["confidence"])
         assert 0.0 <= confidence <= 1.0
 
     def test_csv_includes_session_summary_row(
         self, test_client: TestClient
     ):
-        """Verify CSV includes session summary row at the end."""
+        """Verify CSV includes session summary row."""
         # Login and create session
         login_response = test_client.post(
             "/login",
@@ -285,40 +430,56 @@ class TestCSVExportWorkflow:
         cookies = login_response.cookies
 
         session_response = test_client.post(
-            "/sessions", json={"scenario_id": 1}, cookies=cookies
+            "/sessions",
+            json={"scenario_id": 1},
+            cookies=cookies,
         )
         session_id = session_response.json()["id"]
 
         # Send messages
-        for content in ["Question 1", "Question 2", "Question 3"]:
+        for content in [
+            "Question 1",
+            "Question 2",
+            "Question 3",
+        ]:
             test_client.post(
                 f"/sessions/{session_id}/messages",
-                json={"content": content},
+                data={"content": content},
                 cookies=cookies,
             )
 
         # End, analyze, and export
-        test_client.post(f"/sessions/{session_id}/end", cookies=cookies)
-        test_client.post(f"/sessions/{session_id}/analyze", cookies=cookies)
+        test_client.post(
+            f"/sessions/{session_id}/end",
+            cookies=cookies,
+        )
+        test_client.post(
+            f"/sessions/{session_id}/analyze",
+            cookies=cookies,
+        )
         export_response = test_client.get(
-            f"/sessions/{session_id}/export.csv", cookies=cookies
+            f"/sessions/{session_id}/export.csv",
+            cookies=cookies,
         )
 
         csv_content = export_response.text
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
+        csv_reader = csv.DictReader(
+            io.StringIO(csv_content)
+        )
         rows = list(csv_reader)
 
-        # Find summary row (role = "summary" or content contains "SUMMARY")
+        # Find summary row
         summary_rows = [
             row
             for row in rows
             if row["role"] == "summary"
-            or "SUMMARY" in row.get("content", "").upper()
+            or "SUMMARY"
+            in row.get("content", "").upper()
         ]
 
         # Should have at least one summary row
         assert len(summary_rows) > 0
 
-        # Summary row should have feedback populated
+        # Summary row should have feedback
         summary_row = summary_rows[0]
         assert len(summary_row.get("feedback", "")) > 0

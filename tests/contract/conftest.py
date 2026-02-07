@@ -7,7 +7,9 @@ from src.models import (
     AnalysisFramework,
     PromptTemplate,
     Scenario,
+    ScenarioGroup,
     User,
+    UserGroup,
 )
 
 
@@ -15,14 +17,23 @@ from src.models import (
 async def seed_contract_data(db_session: AsyncSession):
     """Seed common test data for contract tests.
 
-    Creates users, framework, template, and scenario that
-    contract tests expect to exist.
+    Creates users, framework, template, scenario, and group access
+    that contract tests expect to exist.
     """
-    # Create users
+    # Create user group
+    test_group = UserGroup(
+        name="Test Group",
+        description="Default test group for contract tests",
+    )
+    db_session.add(test_group)
+    await db_session.flush()  # Get test_group.id
+
+    # Create users with group assignment
     student_001 = User(
         username="student_001",
         nickname="테스트학생",
         role="teacher",
+        group_id=test_group.id,
     )
     student_001.set_password("test1234")
 
@@ -30,6 +41,7 @@ async def seed_contract_data(db_session: AsyncSession):
         username="user1",
         nickname="유저1",
         role="teacher",
+        group_id=test_group.id,
     )
     user1.set_password("test1234")
 
@@ -37,6 +49,7 @@ async def seed_contract_data(db_session: AsyncSession):
         username="user2",
         nickname="유저2",
         role="teacher",
+        group_id=test_group.id,
     )
     user2.set_password("test1234")
 
@@ -71,5 +84,13 @@ async def seed_contract_data(db_session: AsyncSession):
         is_active=1,
     )
     db_session.add(scenario)
+    await db_session.flush()  # Get scenario.id
+
+    # Link scenario to group
+    scenario_group = ScenarioGroup(
+        scenario_id=scenario.id,
+        group_id=test_group.id,
+    )
+    db_session.add(scenario_group)
 
     await db_session.commit()

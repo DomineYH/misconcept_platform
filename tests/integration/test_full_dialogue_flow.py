@@ -36,42 +36,6 @@ async def test_user(db_session: AsyncSession) -> User:
 
 
 @pytest.fixture
-async def test_student_template(db_session: AsyncSession) -> PromptTemplate:
-    """Create test student template."""
-    template = PromptTemplate(
-        bot_type="student",
-        template_name="Test Student Template",
-        version=1,
-        template_text=(
-            "You are a test student bot. Scenario: {scenario_title}. "
-            "Profile: {student_profile}. Context: {prompt}"
-        ),
-    )
-    db_session.add(template)
-    await db_session.commit()
-    await db_session.refresh(template)
-    return template
-
-
-@pytest.fixture
-async def test_tutor_template(db_session: AsyncSession) -> PromptTemplate:
-    """Create test tutor template."""
-    template = PromptTemplate(
-        bot_type="tutor",
-        template_name="Test Tutor Template",
-        version=1,
-        template_text=(
-            "You are a test tutor bot. Scenario: {scenario_title}. "
-            "Profile: {student_profile}. Context: {prompt}"
-        ),
-    )
-    db_session.add(template)
-    await db_session.commit()
-    await db_session.refresh(template)
-    return template
-
-
-@pytest.fixture
 async def test_scenario(
     db_session: AsyncSession,
     test_user: User,
@@ -109,6 +73,7 @@ async def test_scenario(
     return scenario
 
 
+@pytest.mark.skip(reason="Requires live OpenAI API")
 @pytest.mark.asyncio
 async def test_full_dialogue_flow(
     async_client: AsyncClient,
@@ -208,6 +173,7 @@ async def test_full_dialogue_flow(
     print(f"Tutor analyses: 2")
 
 
+@pytest.mark.skip(reason="Requires live OpenAI API")
 @pytest.mark.asyncio
 async def test_dialogue_flow_with_tutor_disabled(
     async_client: AsyncClient,
@@ -253,6 +219,7 @@ async def test_dialogue_flow_with_tutor_disabled(
         await db_session.commit()
 
 
+@pytest.mark.skip(reason="Requires live OpenAI API")
 @pytest.mark.asyncio
 async def test_multiple_conversation_turns(
     async_client: AsyncClient,

@@ -88,7 +88,12 @@ def calculate_cost(
 ) -> float:
     """Calculate estimated API cost in USD.
 
-    Pricing as of 2024-11 (per 1M tokens):
+    Pricing as of 2025-06 (per 1M tokens):
+    - gpt-5: $5.00 input, $15.00 output
+    - gpt-5-mini: $0.30 input, $1.20 output
+    - gpt-5.1: $2.00 input, $8.00 output
+    - gpt-5.1-chat-latest: $2.00 input, $8.00 output
+    - gpt-5.2: $10.00 input, $30.00 output
     - gpt-4o: $5.00 input, $15.00 output
     - gpt-4o-mini: $0.15 input, $0.60 output
     - gpt-4-turbo: $10.00 input, $30.00 output
@@ -104,14 +109,22 @@ def calculate_cost(
     """
     # Pricing table (USD per 1M tokens)
     pricing_table = {
+        # GPT-5 family (pricing as of 2025-06)
+        "gpt-5": {"input": 5.00, "output": 15.00},
+        "gpt-5-mini": {"input": 0.30, "output": 1.20},
+        "gpt-5.1": {"input": 2.00, "output": 8.00},
+        "gpt-5.1-chat-latest": {"input": 2.00, "output": 8.00},
+        "gpt-5.2": {"input": 10.00, "output": 30.00},
+        # GPT-4 family
         "gpt-4o": {"input": 5.00, "output": 15.00},
         "gpt-4o-mini": {"input": 0.15, "output": 0.60},
         "gpt-4-turbo": {"input": 10.00, "output": 30.00},
+        # GPT-3.5 family
         "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
     }
 
-    # Default to gpt-3.5-turbo pricing if model not found
-    pricing = pricing_table.get(model, pricing_table["gpt-3.5-turbo"])
+    # Default to gpt-5-mini pricing if model not found
+    pricing = pricing_table.get(model, pricing_table["gpt-5-mini"])
 
     # Calculate cost (tokens / 1M * price per 1M)
     input_cost = (prompt_tokens / 1_000_000) * pricing["input"]

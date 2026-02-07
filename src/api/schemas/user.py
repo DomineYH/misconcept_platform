@@ -1,7 +1,7 @@
 """User Pydantic schemas for admin API."""
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class UserCreate(BaseModel):
@@ -9,7 +9,7 @@ class UserCreate(BaseModel):
         ..., min_length=3, max_length=50
     )
     password: str = Field(
-        ..., min_length=4, max_length=128
+        ..., min_length=8, max_length=128
     )
     nickname: str = Field(
         ..., min_length=2, max_length=30
@@ -25,11 +25,13 @@ class UserUpdate(BaseModel):
     role: str | None = None
     group_id: int | None = None
     password: str | None = Field(
-        None, min_length=4, max_length=128
+        None, min_length=8, max_length=128
     )
 
 
 class AdminUserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     username: str
     nickname: str
@@ -37,6 +39,3 @@ class AdminUserResponse(BaseModel):
     group_id: int | None = None
     group_name: str | None = None
     created_at: datetime | None = None
-
-    class Config:
-        from_attributes = True

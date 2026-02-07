@@ -45,26 +45,24 @@ async def get_metrics(db: AsyncSession = Depends(get_db_session)) -> dict:
     """
     try:
         # Get total counts from database
-        from src.models import User, Session, Message
-
         user_count_result = await db.execute(
-            text("SELECT COUNT(*) FROM users")
+            text("SELECT COUNT(*) FROM user")
         )
         user_count = user_count_result.scalar()
 
         session_count_result = await db.execute(
-            text("SELECT COUNT(*) FROM sessions")
+            text("SELECT COUNT(*) FROM session")
         )
         session_count = session_count_result.scalar()
 
         message_count_result = await db.execute(
-            text("SELECT COUNT(*) FROM messages")
+            text("SELECT COUNT(*) FROM message")
         )
         message_count = message_count_result.scalar()
 
         # Get active sessions (not ended)
         active_session_result = await db.execute(
-            text("SELECT COUNT(*) FROM sessions WHERE ended_at IS NULL")
+            text("SELECT COUNT(*) FROM session WHERE ended_at IS NULL")
         )
         active_sessions = active_session_result.scalar()
 

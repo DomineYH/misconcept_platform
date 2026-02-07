@@ -1,43 +1,25 @@
 """Admin analysis management routes."""
 
-import json
 import logging
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_admin_user, get_db_session, templates
 from src.models.message import Message
 from src.models.question_analysis import QuestionAnalysis
 from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.user import User
+from src.utils.analysis_helpers import parse_reasoning
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin Analysis"])
-templates = Jinja2Templates(directory="src/templates")
-
-
-def _parse_reasoning(meta_json: Optional[str]) -> Optional[dict]:
-    """Parse meta_json to structured reasoning dict."""
-    if not meta_json:
-        return None
-    try:
-        return json.loads(meta_json)
-    except json.JSONDecodeError:
-        # Legacy string format
-        return {
-            "summary": meta_json,
-            "pedagogical": None,
-            "cognitive": None,
-            "contextual": None,
-        }
 
 
 @router.get("/admin/analysis-page", response_class=HTMLResponse)
@@ -49,16 +31,10 @@ async def analysis_page(
     date_to: Optional[str] = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Admin analysis management page with filtering."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="관리자 권한이 필요합니다",
-        )
 
     # Build base query
     query = (
@@ -105,7 +81,7 @@ async def analysis_page(
                 "content": message.content,
                 "label": analysis.label,
                 "confidence": analysis.confidence or 0,
-                "reasoning": _parse_reasoning(analysis.meta_json),
+                "reasoning": parse_reasoning(analysis.meta_json),
                 "session_id": session.id,
                 "scenario_title": scenario.title,
                 "created_at": message.created_at,
@@ -182,16 +158,10 @@ async def analysis_page(
 async def analysis_detail_modal(
     request: Request,
     analysis_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Get detailed analysis modal content."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="관리자 권한이 필요합니다",
-        )
 
     # Load analysis with related data
     query = (
@@ -219,7 +189,7 @@ async def analysis_detail_modal(
                 "content": message.content,
                 "label": analysis.label,
                 "confidence": analysis.confidence,
-                "reasoning": _parse_reasoning(analysis.meta_json),
+                "reasoning": parse_reasoning(analysis.meta_json),
                 "session_id": session.id,
                 "scenario_title": scenario.title,
                 "created_at": message.created_at,

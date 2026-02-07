@@ -8,6 +8,48 @@ from sqlalchemy import text
 from src.db.connection import engine
 
 
+async def ensure_migrations_table():
+    """Create the migration tracking table if it doesn't exist."""
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS _migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT NOT NULL UNIQUE,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+
+
+async def is_migration_applied(migration_filename: str) -> bool:
+    """Check if a migration has already been applied.
+
+    Args:
+        migration_filename: Name of migration file
+
+    Returns:
+        True if migration has been applied, False otherwise
+    """
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            text("SELECT 1 FROM _migrations WHERE filename = :filename"),
+            {"filename": migration_filename}
+        )
+        return result.fetchone() is not None
+
+
+async def record_migration(migration_filename: str):
+    """Record that a migration has been applied.
+
+    Args:
+        migration_filename: Name of migration file
+    """
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("INSERT INTO _migrations (filename) VALUES (:filename)"),
+            {"filename": migration_filename}
+        )
+
+
 async def run_migration(migration_file: Path):
     """Execute a single migration SQL file.
 
@@ -44,12 +86,17 @@ async def run_migration(migration_file: Path):
                 print(f"  Error: {e}")
                 raise
 
+    # Record successful migration
+    await record_migration(migration_file.name)
     print(f"✓ Migration {migration_file.name} completed successfully")
 
 
 async def run_all_migrations():
     """Run all migration files in order."""
     migrations_dir = Path(__file__).parent
+
+    # Ensure tracking table exists
+    await ensure_migrations_table()
 
     # Get all .sql files sorted by name (001_, 002_, etc.)
     migration_files = sorted(migrations_dir.glob("*.sql"))
@@ -58,12 +105,37 @@ async def run_all_migrations():
         print("No migration files found")
         return
 
-    print(f"Found {len(migration_files)} migration(s) to run")
+    # Check which migrations need to be applied
+    pending_migrations = []
+    applied_migrations = []
 
     for migration_file in migration_files:
+        if await is_migration_applied(migration_file.name):
+            applied_migrations.append(migration_file.name)
+        else:
+            pending_migrations.append(migration_file)
+
+    # Log status
+    print(f"Migration status:")
+    print(f"  Total migrations: {len(migration_files)}")
+    print(f"  Already applied: {len(applied_migrations)}")
+    print(f"  Pending: {len(pending_migrations)}")
+
+    if applied_migrations:
+        print(f"\nAlready applied:")
+        for filename in applied_migrations:
+            print(f"  ✓ {filename}")
+
+    if not pending_migrations:
+        print("\n✓ All migrations are up to date")
+        return
+
+    print(f"\nRunning {len(pending_migrations)} pending migration(s):")
+
+    for migration_file in pending_migrations:
         await run_migration(migration_file)
 
-    print("\n✓ All migrations completed successfully")
+    print("\n✓ All pending migrations completed successfully")
 
 
 if __name__ == "__main__":

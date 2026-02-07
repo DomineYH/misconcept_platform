@@ -104,12 +104,12 @@ class MisconceptionAnalyzer(OpenAIBaseService):
 
         except (APIConnectionError, RateLimitError, APIError) as e:
             logger.error(
-                f"MisconceptionAnalyzer API error: {type(e).__name__}: {str(e)}"
+                "MisconceptionAnalyzer API error: %s: %s", type(e).__name__, str(e)
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in MisconceptionAnalyzer: {str(e)}"
+                "Unexpected error in MisconceptionAnalyzer: %s", str(e)
             )
             raise Exception(f"Misconception analysis failed: {str(e)}")
 
@@ -171,7 +171,7 @@ Respond ONLY with valid JSON matching the format above."""
 
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             logger.warning(
-                f"Failed to parse misconception analysis response: {e}"
+                "Failed to parse misconception analysis response: %s", e
             )
             # 파싱 실패 시 기본값 반환
             return {

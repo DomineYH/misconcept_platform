@@ -9,11 +9,10 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_admin_user, get_db_session, templates
 from src.api.schemas import (
     AdminScenarioResponse,
     ScenarioCreate,
@@ -30,22 +29,15 @@ from src.models.user_group import UserGroup
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin Scenarios"])
-templates = Jinja2Templates(directory="src/templates")
 
 
 @router.get("/admin/scenarios", response_class=HTMLResponse)
 async def list_all_scenarios(
     request: Request,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """GET /admin/scenarios - List all scenarios (T077)."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
 
     query = (
         select(Scenario)
@@ -127,16 +119,10 @@ async def list_all_scenarios(
 )
 async def create_scenario(
     scenario_data: ScenarioCreate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """POST /admin/scenarios - Create new scenario (T078)."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
 
     # Verify framework exists
     framework = await db.get(AnalysisFramework, scenario_data.framework_id)
@@ -208,16 +194,10 @@ async def create_scenario(
 async def update_scenario(
     scenario_id: int,
     scenario_data: ScenarioUpdate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """PUT /admin/scenarios/{id} - Update scenario (T079, T080)."""
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
 
     # Get scenario
     scenario = await db.get(Scenario, scenario_id)
@@ -328,19 +308,13 @@ async def update_scenario(
 @router.delete("/admin/scenarios/{scenario_id}")
 async def delete_scenario(
     scenario_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """DELETE /admin/scenarios/{id} - Soft delete scenario and sessions.
 
     Policy: Soft delete all related sessions along with the scenario.
     """
-    # Check admin role
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
 
     # Load scenario (only active, not deleted)
     query = select(Scenario).where(

@@ -179,7 +179,7 @@
   {% if scenario.video_url %}
   const videoIframe = document.getElementById('video-iframe');
   if (videoIframe) {
-    const originalUrl = "{{ scenario.video_url }}";
+    const originalUrl = {{ scenario.video_url|tojson }};
     const embedUrl = convertToEmbedUrl(originalUrl);
     videoIframe.src = embedUrl;
     console.log('🎥 Video player initialized:', embedUrl);

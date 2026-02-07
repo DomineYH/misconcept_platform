@@ -1,6 +1,7 @@
 """Main FastAPI application entry point."""
 
 import logging
+import re
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -15,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette_csrf import CSRFMiddleware
 
 from fastapi.responses import RedirectResponse
 from src.config import config
@@ -186,7 +188,9 @@ class SecurityHeadersMiddleware:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    # Startup
+    # Startup - validate config in non-test mode
+    if not config.TESTING:
+        config.validate()
     await init_db()
     print("Database initialized")
     yield
@@ -264,6 +268,23 @@ app.add_middleware(
     # HttpOnly flag is enforced by SessionMiddleware internally.
 )
 
+# Add CSRF protection middleware (Double Submit Cookie)
+# Disabled in testing mode (same pattern as rate limiting).
+if not config.TESTING:
+    app.add_middleware(
+        CSRFMiddleware,
+        secret=config.SESSION_SECRET,
+        exempt_urls=[
+            re.compile(r"/health"),
+            re.compile(r"/metrics"),
+            re.compile(r"/login"),
+            re.compile(r"/logout"),
+        ],
+        header_name="x-csrf-token",
+        cookie_name="csrftoken",
+        cookie_secure=config.is_production,
+    )
+
 # Mount static files
 app.mount(
     "/static",
@@ -281,6 +302,9 @@ from src.api.routes import (
     admin_analysis,
     admin_api_usage,
     admin_prompts,
+    admin_session_actions,
+    admin_session_export,
+    admin_session_stats,
     admin_sessions,
     auth,
     health,
@@ -297,3 +321,6 @@ app.include_router(admin_analysis.router)
 app.include_router(admin_api_usage.router)
 app.include_router(admin_prompts.router)
 app.include_router(admin_sessions.router)
+app.include_router(admin_session_export.router)
+app.include_router(admin_session_actions.router)
+app.include_router(admin_session_stats.router)

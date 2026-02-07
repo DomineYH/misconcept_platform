@@ -7,18 +7,16 @@ from fastapi import (
     HTTPException,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_db_session
+from src.api.dependencies import get_db_session, templates
 from src.models import User
 from src.config import config
 
 router = APIRouter(tags=["Authentication"])
-templates = Jinja2Templates(directory="src/templates")
 limiter = Limiter(
     key_func=get_remote_address, enabled=not config.TESTING
 )
@@ -40,7 +38,7 @@ async def post_login(
         ..., min_length=3, max_length=50
     ),
     password: str = Form(
-        ..., min_length=4, max_length=128
+        ..., min_length=8, max_length=128
     ),
     db: AsyncSession = Depends(get_db_session),
 ):

@@ -14,61 +14,6 @@ from src.models.scenario import Scenario
 from src.models.user import User
 
 
-@pytest.fixture
-async def admin_user(db_session: AsyncSession) -> User:
-    """Create an admin user for testing."""
-    user = User(username="bot_admin", nickname="Config Admin", role="admin")
-    user.set_password("test1234")
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
-async def test_framework(db_session: AsyncSession) -> AnalysisFramework:
-    """Create a test framework."""
-    framework = AnalysisFramework(
-        name="Bot Config Framework",
-        description="For bot config testing",
-        labels_json='["high", "medium", "low"]',
-    )
-    db_session.add(framework)
-    await db_session.commit()
-    await db_session.refresh(framework)
-    return framework
-
-
-@pytest.fixture
-async def test_student_template(db_session: AsyncSession) -> PromptTemplate:
-    """Create test student template."""
-    template = PromptTemplate(
-        bot_type="student",
-        template_name="Test Student Template",
-        version=1,
-        template_text="You are a test student bot. Scenario: {scenario_title}. Profile: {student_profile}. Context: {prompt}",
-    )
-    db_session.add(template)
-    await db_session.commit()
-    await db_session.refresh(template)
-    return template
-
-
-@pytest.fixture
-async def test_tutor_template(db_session: AsyncSession) -> PromptTemplate:
-    """Create test tutor template."""
-    template = PromptTemplate(
-        bot_type="tutor",
-        template_name="Test Tutor Template",
-        version=1,
-        template_text="You are a test tutor bot. Scenario: {scenario_title}. Profile: {student_profile}. Context: {prompt}",
-    )
-    db_session.add(template)
-    await db_session.commit()
-    await db_session.refresh(template)
-    return template
-
-
 class TestScenarioBotConfigAPI:
     """Test scenario bot configuration API endpoints."""
 

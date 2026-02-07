@@ -201,6 +201,15 @@ function fetchWithRetry(url, retries = 1) {
     });
 }
 
+// Sanitize HTML by removing script tags (server-rendered HTML from trusted endpoints)
+function sanitizeHTML(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  // Remove script tags as a safety measure
+  doc.querySelectorAll('script').forEach(el => el.remove());
+  return doc.body.innerHTML;
+}
+
 function showModal(id) {
   const modal = document.getElementById(id);
   modal.classList.remove('hidden');
@@ -232,7 +241,7 @@ document.addEventListener('click', function(e) {
 
     fetchWithRetry(`/admin/sessions/${sessionId}/detail`)
       .then(html => {
-        modalBody.innerHTML = html;
+        modalBody.innerHTML = sanitizeHTML(html);
       })
       .catch(err => {
         modalBody.innerHTML = '<p style="color:red;text-align:center;">로드 실패</p>';
@@ -251,7 +260,7 @@ function showAnalysisModal(sessionId) {
 
   fetchWithRetry(`/admin/sessions/${sessionId}/analysis_modal`)
     .then(html => {
-      analysisModalBody.innerHTML = html;
+      analysisModalBody.innerHTML = sanitizeHTML(html);
     })
     .catch(err => {
       analysisModalBody.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--color-danger);">분석 결과를 불러올 수 없습니다.</div>';

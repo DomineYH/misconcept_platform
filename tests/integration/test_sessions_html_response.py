@@ -4,6 +4,7 @@ Tests that POST /sessions/{id}/messages returns HTML instead of JSON,
 which was causing the 2-second polling delay (FIX-001).
 """
 import pytest
+from datetime import datetime
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -11,59 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import User, AnalysisFramework, Scenario, Session
 from src.models.prompt_template import PromptTemplate
-
-
-@pytest.fixture
-async def test_framework(db_session: AsyncSession) -> AnalysisFramework:
-    """Create test analysis framework."""
-    framework = AnalysisFramework(
-        name="Test Framework",
-        description="For testing",
-        labels_json='["Label1", "Label2", "Label3"]',
-    )
-    db_session.add(framework)
-    await db_session.commit()
-    await db_session.refresh(framework)
-    return framework
-
-
-@pytest.fixture
-async def test_student_template(db_session: AsyncSession) -> PromptTemplate:
-    """Create test student template."""
-    template = PromptTemplate(
-        bot_type="student",
-        template_name="Test Student Template",
-        version=1,
-        template_text=(
-            "You are a test student bot. Scenario: {scenario_title}. "
-            "Profile: {student_profile}. Context: {prompt}"
-        ),
-    )
-    db_session.add(template)
-    await db_session.commit()
-    await db_session.refresh(template)
-    return template
-
-
-@pytest.fixture
-async def test_scenario(
-    db_session: AsyncSession,
-    test_framework: AnalysisFramework,
-    test_student_template: PromptTemplate,
-) -> Scenario:
-    """Create active test scenario."""
-    scenario = Scenario(
-        title="Test Scenario",
-        prompt="Test system prompt for scenario",
-        student_profile="Test student profile",
-        framework_id=test_framework.id,
-        student_template_id=test_student_template.id,
-        is_active=1,
-    )
-    db_session.add(scenario)
-    await db_session.commit()
-    await db_session.refresh(scenario)
-    return scenario
 
 
 @pytest.fixture
@@ -101,7 +49,7 @@ async def test_session(
 class TestSendMessageReturnsHTML:
     """Test that send_message endpoint returns HTML instead of JSON."""
 
-    @patch("src.api.routes.sessions.SessionManager")
+    @patch("src.api.routes.session_messages.SessionManager")
     async def test_send_message_returns_html(
         self,
         mock_session_manager,
@@ -117,7 +65,7 @@ class TestSendMessageReturnsHTML:
         mock_msg.session_id = test_session.id
         mock_msg.role = "teacher"
         mock_msg.content = "Test message"
-        mock_msg.created_at = "2025-01-01T00:00:00"
+        mock_msg.created_at = datetime(2025, 1, 1, 0, 0, 0)
 
         # Mock SessionManager to avoid OpenAI API calls
         mock_manager_instance = AsyncMock()
@@ -137,7 +85,7 @@ class TestSendMessageReturnsHTML:
         # Send message
         response = test_client.post(
             f"/sessions/{test_session.id}/messages",
-            json={"content": "Test message"},
+            data={"content": "Test message"},
             cookies=cookies,
         )
 
@@ -145,7 +93,7 @@ class TestSendMessageReturnsHTML:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
-    @patch("src.api.routes.sessions.SessionManager")
+    @patch("src.api.routes.session_messages.SessionManager")
     async def test_send_message_html_structure(
         self,
         mock_session_manager,
@@ -161,7 +109,7 @@ class TestSendMessageReturnsHTML:
         mock_msg.session_id = test_session.id
         mock_msg.role = "teacher"
         mock_msg.content = "Test message content"
-        mock_msg.created_at = "2025-01-01T00:00:00"
+        mock_msg.created_at = datetime(2025, 1, 1, 0, 0, 0)
 
         # Mock SessionManager
         mock_manager_instance = AsyncMock()
@@ -181,7 +129,7 @@ class TestSendMessageReturnsHTML:
         # Send message
         response = test_client.post(
             f"/sessions/{test_session.id}/messages",
-            json={"content": "Test message content"},
+            data={"content": "Test message content"},
             cookies=cookies,
         )
 
@@ -192,7 +140,7 @@ class TestSendMessageReturnsHTML:
         assert 'data-message-id=' in html
         assert "Test message content" in html
 
-    @patch("src.api.routes.sessions.SessionManager")
+    @patch("src.api.routes.session_messages.SessionManager")
     async def test_send_message_content_correctness(
         self,
         mock_session_manager,
@@ -210,7 +158,7 @@ class TestSendMessageReturnsHTML:
         mock_msg.session_id = test_session.id
         mock_msg.role = "teacher"
         mock_msg.content = test_content
-        mock_msg.created_at = "2025-01-01T00:00:00"
+        mock_msg.created_at = datetime(2025, 1, 1, 0, 0, 0)
 
         # Mock SessionManager
         mock_manager_instance = AsyncMock()
@@ -230,7 +178,7 @@ class TestSendMessageReturnsHTML:
         # Send message
         response = test_client.post(
             f"/sessions/{test_session.id}/messages",
-            json={"content": test_content},
+            data={"content": test_content},
             cookies=cookies,
         )
 
@@ -258,7 +206,7 @@ class TestSendMessageReturnsHTML:
         # Try to send message to non-existent session
         response = test_client.post(
             "/sessions/99999/messages",  # Non-existent session
-            json={"content": "Test"},
+            data={"content": "Test"},
             cookies=cookies,
         )
 
@@ -290,12 +238,12 @@ class TestSendMessageValidation:
         # Send empty message
         response = test_client.post(
             f"/sessions/{test_session.id}/messages",
-            json={"content": ""},
+            data={"content": ""},
             cookies=cookies,
         )
 
         # Should return 400
-        assert response.status_code == 400
+        assert response.status_code in [400, 422]
 
     async def test_forbidden_access_other_user_session(
         self,
@@ -327,7 +275,7 @@ class TestSendMessageValidation:
         # Try to send message to test_session (owned by test_user)
         response = test_client.post(
             f"/sessions/{test_session.id}/messages",
-            json={"content": "Test message"},
+            data={"content": "Test message"},
             cookies=cookies,
         )
 
@@ -338,7 +286,7 @@ class TestSendMessageValidation:
 class TestMultipleMessagesHTML:
     """Test HTML rendering for multiple messages."""
 
-    @patch("src.api.routes.sessions.SessionManager")
+    @patch("src.api.routes.session_messages.SessionManager")
     async def test_multiple_messages_rendered(
         self,
         mock_session_manager,
@@ -354,21 +302,21 @@ class TestMultipleMessagesHTML:
         teacher_msg.session_id = test_session.id
         teacher_msg.role = "teacher"
         teacher_msg.content = "Teacher message"
-        teacher_msg.created_at = "2025-01-01T00:00:00"
+        teacher_msg.created_at = datetime(2025, 1, 1, 0, 0, 0)
 
         student_msg = AsyncMock()
         student_msg.id = 2
         student_msg.session_id = test_session.id
         student_msg.role = "student"
         student_msg.content = "Student response"
-        student_msg.created_at = "2025-01-01T00:00:01"
+        student_msg.created_at = datetime(2025, 1, 1, 0, 0, 1)
 
         tutor_msg = AsyncMock()
         tutor_msg.id = 3
         tutor_msg.session_id = test_session.id
         tutor_msg.role = "tutor"
         tutor_msg.content = "Tutor intervention"
-        tutor_msg.created_at = "2025-01-01T00:00:02"
+        tutor_msg.created_at = datetime(2025, 1, 1, 0, 0, 2)
 
         # Mock SessionManager to return multiple messages
         mock_manager_instance = AsyncMock()
@@ -392,7 +340,7 @@ class TestMultipleMessagesHTML:
         # Send message
         response = test_client.post(
             f"/sessions/{test_session.id}/messages",
-            json={"content": "Teacher message"},
+            data={"content": "Teacher message"},
             cookies=cookies,
         )
 

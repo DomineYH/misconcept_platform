@@ -1,18 +1,16 @@
 """Session analysis routes."""
 
-import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
-from fastapi.templating import Jinja2Templates
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_current_user, get_db_session, templates
 from src.api.routes.session_helpers import load_session, mark_session_ended
 from src.config import config
 from src.models import (
@@ -30,11 +28,11 @@ from src.services.analysis_pipeline import (
     handle_duplicate_summary,
 )
 from src.services.export import CSVExporter
+from src.utils.analysis_helpers import parse_reasoning
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Sessions"])
-templates = Jinja2Templates(directory="src/templates")
 limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
 
 
@@ -165,15 +163,7 @@ async def get_analysis(
     for msg, analysis in message_analyses:
         reasoning = None
         if analysis and analysis.meta_json:
-            try:
-                reasoning = json.loads(analysis.meta_json)
-            except json.JSONDecodeError:
-                reasoning = {
-                    "summary": analysis.meta_json,
-                    "pedagogical": None,
-                    "cognitive": None,
-                    "contextual": None,
-                }
+            reasoning = parse_reasoning(analysis.meta_json)
         questions.append(
             {
                 "content": msg.content,

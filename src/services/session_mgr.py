@@ -152,7 +152,7 @@ class SessionManager:
         if not isinstance(results[0], Exception) and results[0] is not None:
             misconception_data = json.dumps(results[0])
         elif isinstance(results[0], Exception):
-            logger.warning(f"Misconception analysis failed: {results[0]}")
+            logger.warning("Misconception analysis failed: %s", results[0])
 
         # 3.2. Save student message with metadata
         student_msg = Message(
@@ -194,7 +194,7 @@ class SessionManager:
                         usage_dict=tutor_usage,
                     )
             else:
-                logger.warning(f"TutorBot feedback failed: {tutor_result}")
+                logger.warning("TutorBot feedback failed: %s", tutor_result)
 
         # 5. Commit all messages
         await self.db.commit()
@@ -276,7 +276,7 @@ class SessionManager:
                 total_tokens. None if no usage info available.
         """
         if usage_dict is None:
-            logger.warning(f"No usage info for {bot_type} bot (model: {model})")
+            logger.warning("No usage info for %s bot (model: %s)", bot_type, model)
             return
 
         try:
@@ -309,7 +309,7 @@ class SessionManager:
         except Exception as e:
             # Log error but don't fail the entire process
             logger.error(
-                f"Failed to log API usage for {bot_type} bot: {str(e)}"
+                "Failed to log API usage for %s bot: %s", bot_type, str(e)
             )
 
     async def end_session(self) -> None:

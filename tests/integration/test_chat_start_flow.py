@@ -16,65 +16,15 @@ from src.models.prompt_template import PromptTemplate
 
 
 @pytest.fixture
-async def test_student_template(db_session: AsyncSession) -> PromptTemplate:
-    """Create test student template."""
-    template = PromptTemplate(
-        bot_type="student",
-        template_name="Test Student Template",
-        version=1,
-        template_text=(
-            "You are a test student bot. Scenario: {scenario_title}. "
-            "Profile: {student_profile}. Context: {prompt}"
-        ),
-    )
-    db_session.add(template)
-    await db_session.commit()
-    await db_session.refresh(template)
-    return template
-
-
-@pytest.fixture
-async def test_framework(db_session: AsyncSession) -> AnalysisFramework:
-    """Create test analysis framework."""
-    framework = AnalysisFramework(
-        name="Test Framework",
-        description="For testing",
-        labels_json='["Label1", "Label2", "Label3"]',
-    )
-    db_session.add(framework)
-    await db_session.commit()
-    await db_session.refresh(framework)
-    return framework
-
-
-@pytest.fixture
-async def test_scenario(
-    db_session: AsyncSession,
-    test_framework: AnalysisFramework,
-    test_student_template: PromptTemplate,
-) -> Scenario:
-    """Create active test scenario."""
-    scenario = Scenario(
-        title="Test Scenario",
-        prompt="Test system prompt for scenario",
-        student_profile="Test student profile",
-        framework_id=test_framework.id,
-        student_template_id=test_student_template.id,
-        is_active=1,
-    )
-    db_session.add(scenario)
-    await db_session.commit()
-    await db_session.refresh(scenario)
-    return scenario
-
-
-@pytest.fixture
 async def inactive_scenario(
     db_session: AsyncSession,
     test_framework: AnalysisFramework,
     test_student_template: PromptTemplate,
+    test_group,
 ) -> Scenario:
     """Create inactive test scenario for rejection tests."""
+    from src.models.scenario_group import ScenarioGroup
+    
     scenario = Scenario(
         title="Inactive Scenario",
         prompt="This scenario is inactive",
@@ -84,19 +34,28 @@ async def inactive_scenario(
         is_active=0,
     )
     db_session.add(scenario)
+    await db_session.flush()  # Get scenario.id
+    
+    # Link to group
+    scenario_group = ScenarioGroup(
+        scenario_id=scenario.id,
+        group_id=test_group.id,
+    )
+    db_session.add(scenario_group)
     await db_session.commit()
     await db_session.refresh(scenario)
     return scenario
 
 
 @pytest.fixture(autouse=True)
-async def seed_test_teachers(db_session: AsyncSession):
+async def seed_test_teachers(db_session: AsyncSession, test_group):
     """Create teacher users used by chat start flow tests."""
     for i in range(1, 8):
         user = User(
             username=f"test_teacher_{i:03d}",
             nickname=f"테스트교사{i}",
             role="teacher",
+            group_id=test_group.id,
         )
         user.set_password("test1234")
         db_session.add(user)

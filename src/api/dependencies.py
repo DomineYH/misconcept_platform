@@ -3,10 +3,15 @@
 from typing import AsyncGenerator
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.connection import AsyncSessionLocal
+
+
+# Shared Jinja2Templates instance
+templates = Jinja2Templates(directory="src/templates")
 
 
 class AuthenticationRequired(Exception):
@@ -71,4 +76,30 @@ async def get_current_user(
             detail="User not found",
         )
 
+    return user
+
+
+async def get_admin_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """
+    Get current user and verify admin role.
+
+    Args:
+        request: FastAPI Request object
+        db: Database session
+
+    Returns:
+        User: User model instance with admin role
+
+    Raises:
+        HTTPException: If not authenticated or not admin
+    """
+    user = await get_current_user(request, db)
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
     return user

@@ -1,122 +1,136 @@
 """Configuration module for loading environment variables."""
 
-import os
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from pydantic import field_validator, computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Config:
+class Config(BaseSettings):
     """Application configuration from environment variables."""
 
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+    )
+
     # OpenAI API Configuration
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_API_KEY: str = ""
     # Supported: gpt-5 (Responses API with reasoning)
     # Recommended: gpt-5 (latest, Aug 2025)
-    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "gpt-5-mini")
-    ANALYSIS_MODEL: str = os.getenv("ANALYSIS_MODEL", "gpt-5.2")
+    CHAT_MODEL: str = "gpt-5-mini"
+    ANALYSIS_MODEL: str = "gpt-5.2"
     # Model for dialogue similarity analysis
-    DIALOGUE_ANALYSIS_MODEL: str = os.getenv(
-        "DIALOGUE_ANALYSIS_MODEL", "gpt-5.2"
-    )
+    DIALOGUE_ANALYSIS_MODEL: str = "gpt-5.2"
 
     # ===== GPT-5 Reasoning Effort Configuration =====
     # Valid values: minimal, low, medium, high
-    ANALYSIS_REASONING: str = os.getenv("ANALYSIS_REASONING", "high")
-    STUDENT_REASONING: str = os.getenv("STUDENT_REASONING", "medium")
-    TUTOR_REASONING: str = os.getenv("TUTOR_REASONING", "low")
+    ANALYSIS_REASONING: str = "high"
+    STUDENT_REASONING: str = "medium"
+    TUTOR_REASONING: str = "low"
 
     # ===== Bot Token Limits =====
     # Note: GPT-5 reasoning consumes tokens from max_output_tokens
     # Minimum recommended: 300 (reasoning) + 200 (actual output) = 500
-    STUDENT_MAX_TOKENS: int = int(
-        os.getenv("STUDENT_MAX_TOKENS", "750")
-    )
-    TUTOR_MAX_TOKENS: int = int(os.getenv("TUTOR_MAX_TOKENS", "1125"))
-    TUTOR_INTERVENTION_THRESHOLD: int = int(
-        os.getenv("TUTOR_INTERVENTION_THRESHOLD", "3")
-    )
+    STUDENT_MAX_TOKENS: int = 750
+    TUTOR_MAX_TOKENS: int = 1125
+    TUTOR_INTERVENTION_THRESHOLD: int = 3
 
     # Session Security
-    SESSION_SECRET: str = os.getenv(
-        "SESSION_SECRET", "change-this-insecure-default"
-    )
+    SESSION_SECRET: str = "change-this-insecure-default"
 
     # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", "sqlite+aiosqlite:///./dialogue_sim.db"
-    )
+    DATABASE_URL: str = "sqlite+aiosqlite:///./dialogue_sim.db"
 
     # Server
-    HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("PORT", "8000"))
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
 
     # CORS - allowed frontend origins (comma-separated for multiple)
     # In production, this MUST be set to your actual frontend URL
-    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "")
+    FRONTEND_URL: str = ""
 
     # Environment (T112: Security hardening)
-    ENV: str = os.getenv("ENV", "development")  # development or production
+    ENV: str = "development"  # development or production
 
     # Testing
-    TESTING: bool = os.getenv("TESTING", "false").lower() == "true"
+    TESTING: bool = False
 
+    @computed_field
     @property
     def is_production(self) -> bool:
         """Check if running in production mode."""
         return self.ENV == "production"
 
+    @field_validator("TESTING", mode="before")
     @classmethod
-    def validate(cls) -> None:
-        """Validate required configuration."""
-        if not cls.OPENAI_API_KEY or cls.OPENAI_API_KEY.startswith(
-            "sk-your"
-        ):
-            raise ValueError(
-                "OPENAI_API_KEY must be set in .env file"
-            )
-        if cls.SESSION_SECRET == "change-this-insecure-default":
-            raise ValueError(
-                "SESSION_SECRET must be changed in .env file"
-            )
+    def parse_testing(cls, v):
+        """Parse TESTING from string to bool."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.lower() == "true"
+        return False
 
-        # Validate Reasoning Effort values
+    @field_validator("OPENAI_API_KEY")
+    @classmethod
+    def validate_openai_key(cls, v):
+        """Validate OpenAI API key is set."""
+        if not v or v.startswith("sk-your"):
+            raise ValueError("OPENAI_API_KEY must be set in .env file")
+        return v
+
+    @field_validator("SESSION_SECRET")
+    @classmethod
+    def validate_session_secret(cls, v):
+        """Validate session secret is changed from default."""
+        if v == "change-this-insecure-default":
+            raise ValueError("SESSION_SECRET must be changed in .env file")
+        return v
+
+    @field_validator(
+        "ANALYSIS_REASONING", "STUDENT_REASONING", "TUTOR_REASONING"
+    )
+    @classmethod
+    def validate_reasoning(cls, v, info):
+        """Validate reasoning effort values."""
         # GPT-5: minimal, low, medium, high
         # GPT-5.1: none, low, medium, high
         valid_reasoning = ["none", "minimal", "low", "medium", "high"]
-        if cls.ANALYSIS_REASONING not in valid_reasoning:
+        if v not in valid_reasoning:
             raise ValueError(
-                f"ANALYSIS_REASONING must be one of {valid_reasoning}, "
-                f"got {cls.ANALYSIS_REASONING}"
+                f"{info.field_name} must be one of {valid_reasoning}, "
+                f"got {v}"
             )
-        if cls.STUDENT_REASONING not in valid_reasoning:
-            raise ValueError(
-                f"STUDENT_REASONING must be one of {valid_reasoning}, "
-                f"got {cls.STUDENT_REASONING}"
-            )
-        if cls.TUTOR_REASONING not in valid_reasoning:
-            raise ValueError(
-                f"TUTOR_REASONING must be one of {valid_reasoning}, "
-                f"got {cls.TUTOR_REASONING}"
-            )
+        return v
 
-        # Validate Token Limits
-        if cls.STUDENT_MAX_TOKENS <= 0:
+    @field_validator("STUDENT_MAX_TOKENS", "TUTOR_MAX_TOKENS")
+    @classmethod
+    def validate_positive_tokens(cls, v, info):
+        """Validate token limits are positive."""
+        if v <= 0:
             raise ValueError(
-                f"STUDENT_MAX_TOKENS must be positive, "
-                f"got {cls.STUDENT_MAX_TOKENS}"
+                f"{info.field_name} must be positive, got {v}"
             )
-        if cls.TUTOR_MAX_TOKENS <= 0:
-            raise ValueError(
-                f"TUTOR_MAX_TOKENS must be positive, "
-                f"got {cls.TUTOR_MAX_TOKENS}"
-            )
-        if not (1 <= cls.TUTOR_INTERVENTION_THRESHOLD <= 10):
+        return v
+
+    @field_validator("TUTOR_INTERVENTION_THRESHOLD")
+    @classmethod
+    def validate_intervention_threshold(cls, v):
+        """Validate intervention threshold range."""
+        if not (1 <= v <= 10):
             raise ValueError(
                 f"TUTOR_INTERVENTION_THRESHOLD must be between 1 and "
-                f"10, got {cls.TUTOR_INTERVENTION_THRESHOLD}"
+                f"10, got {v}"
             )
+        return v
+
+    def validate(self) -> None:
+        """Backward compatibility method for explicit validation.
+
+        With pydantic-settings, validation happens automatically in __init__.
+        This method is kept as a no-op for backward compatibility.
+        """
+        pass
 
 
 config = Config()

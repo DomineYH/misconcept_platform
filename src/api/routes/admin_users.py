@@ -9,11 +9,10 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session
+from src.api.dependencies import get_admin_user, get_db_session, templates
 from src.api.schemas import (
     AdminUserResponse,
     UserCreate,
@@ -26,25 +25,15 @@ from src.models.user_group import UserGroup
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin Users"])
-templates = Jinja2Templates(directory="src/templates")
-
-
-def _require_admin(user: User):
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
 
 
 @router.get("/admin/users", response_class=HTMLResponse)
 async def list_users(
     request: Request,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """GET /admin/users - User management page."""
-    _require_admin(user)
 
     result = await db.execute(
         select(User).order_by(User.id.desc())
@@ -70,11 +59,10 @@ async def list_users(
 @router.post("/admin/users", status_code=201)
 async def create_user(
     data: UserCreate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """POST /admin/users - Create new user."""
-    _require_admin(user)
 
     # Validate username format
     if not data.username.replace("_", "").isalnum():
@@ -144,11 +132,10 @@ async def create_user(
 async def update_user(
     user_id: int,
     data: UserUpdate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """PUT /admin/users/{id} - Update user."""
-    _require_admin(user)
 
     target = await db.get(User, user_id)
     if not target:
@@ -206,11 +193,10 @@ async def update_user(
 @router.delete("/admin/users/{user_id}")
 async def delete_user(
     user_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """DELETE /admin/users/{id} - Delete user."""
-    _require_admin(user)
 
     if user_id == user.id:
         raise HTTPException(

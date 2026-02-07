@@ -8,9 +8,8 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
-from src.api.dependencies import get_current_user
+from src.api.dependencies import get_current_user, templates
 from src.models.user import User
 
 from src.api.routes.admin_frameworks import router as frameworks_router
@@ -20,7 +19,6 @@ from src.api.routes.admin_sessions import router as sessions_router
 from src.api.routes.admin_users import router as users_router
 
 router = APIRouter(tags=["Admin"])
-templates = Jinja2Templates(directory="src/templates")
 
 router.include_router(scenarios_router)
 router.include_router(frameworks_router)
