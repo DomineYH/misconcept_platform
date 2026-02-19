@@ -243,6 +243,18 @@
 </style>
 
 <script>
+// Default template texts from backend
+const DEFAULT_TEMPLATES = {
+  student: {{ default_student_text|tojson }},
+  tutor: {{ default_tutor_text|tojson }}
+};
+
+// CSRF token helper
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/);
+  return match ? match[1] : '';
+}
+
 function openModal(modalId) {
   document.getElementById(modalId).classList.add('active');
   document.body.style.overflow = 'hidden';
@@ -253,12 +265,26 @@ function closeModal(modalId) {
   document.body.style.overflow = '';
 }
 
-document.getElementById('open-create-modal').addEventListener('click', () => openModal('create-modal'));
+document.getElementById('open-create-modal').addEventListener('click', () => {
+  openModal('create-modal');
+  const botType = document.getElementById('new-bot-type').value;
+  document.getElementById('new-text').value = DEFAULT_TEMPLATES[botType] || '';
+});
 
 const emptyBtn = document.getElementById('open-create-modal-empty');
 if (emptyBtn) {
-  emptyBtn.addEventListener('click', () => openModal('create-modal'));
+  emptyBtn.addEventListener('click', () => {
+    openModal('create-modal');
+    const botType = document.getElementById('new-bot-type').value;
+    document.getElementById('new-text').value = DEFAULT_TEMPLATES[botType] || '';
+  });
 }
+
+// Auto-fill default template on bot type change
+document.getElementById('new-bot-type').addEventListener('change', (e) => {
+  const tmpl = DEFAULT_TEMPLATES[e.target.value] || '';
+  document.getElementById('new-text').value = tmpl;
+});
 
 document.querySelectorAll('[data-modal]').forEach(btn => {
   btn.addEventListener('click', (e) => closeModal(e.target.dataset.modal));
@@ -301,7 +327,7 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
   try {
     const res = await fetch('/admin/prompts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCsrfToken() },
       body: JSON.stringify(data),
     });
 
@@ -337,7 +363,7 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
   try {
     const res = await fetch(`/admin/prompts/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCsrfToken() },
       body: JSON.stringify(data),
     });
 
@@ -358,7 +384,10 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
     if (!confirm('이 템플릿을 삭제하시겠습니까?')) return;
 
     try {
-      const res = await fetch(`/admin/prompts/${btn.dataset.id}`, { method: 'DELETE' });
+      const res = await fetch(`/admin/prompts/${btn.dataset.id}`, {
+        method: 'DELETE',
+        headers: { 'x-csrf-token': getCsrfToken() }
+      });
       if (res.ok) {
         alert('템플릿이 삭제되었습니다!');
         location.reload();

@@ -180,6 +180,12 @@
 </aside>
 
 <script>
+// CSRF token helper
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/);
+  return match ? match[1] : '';
+}
+
 const usersData = {
   {% for u in users %}
   "{{ u.id }}": {
@@ -254,7 +260,7 @@ document.getElementById('create-form').addEventListener('submit', async e => {
   try {
     const res = await fetch('/admin/users', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', 'x-csrf-token': getCsrfToken()},
       body: JSON.stringify(data)
     });
     if (res.ok) {
@@ -282,7 +288,7 @@ document.getElementById('edit-form').addEventListener('submit', async e => {
   try {
     const res = await fetch(`/admin/users/${id}`, {
       method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', 'x-csrf-token': getCsrfToken()},
       body: JSON.stringify(data)
     });
     if (res.ok) {
@@ -303,7 +309,10 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
     if (!confirm(`"${username}" 사용자를 삭제하시겠습니까?`)) return;
     btn.disabled = true;
     try {
-      const res = await fetch(`/admin/users/${id}`, {method: 'DELETE'});
+      const res = await fetch(`/admin/users/${id}`, {
+        method: 'DELETE',
+        headers: {'x-csrf-token': getCsrfToken()}
+      });
       if (res.ok) {
         alert('사용자가 삭제되었습니다!');
         window.location.reload();

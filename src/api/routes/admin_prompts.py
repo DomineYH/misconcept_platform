@@ -5,6 +5,7 @@
 """
 
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -17,6 +18,8 @@ from src.models.user import User
 from src.services.prompt_manager import PromptManager
 
 logger = logging.getLogger(__name__)
+
+_PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
 
 router = APIRouter(prefix="/admin", tags=["admin", "prompts"])
 
@@ -46,9 +49,23 @@ async def prompts_page(
     # 모든 프롬프트 조회 (최신순)
     prompts = await PromptManager.list_prompts(db)
 
+    # 기본 프롬프트 텍스트 로드
+    default_student_text = (
+        _PROMPTS_DIR / "student_system.txt"
+    ).read_text(encoding="utf-8")
+    default_tutor_text = (
+        _PROMPTS_DIR / "tutor_system.txt"
+    ).read_text(encoding="utf-8")
+
     return templates.TemplateResponse(
         "admin/prompts.html",
-        {"request": request, "user": user, "prompts": prompts},
+        {
+            "request": request,
+            "user": user,
+            "prompts": prompts,
+            "default_student_text": default_student_text,
+            "default_tutor_text": default_tutor_text,
+        },
     )
 
 

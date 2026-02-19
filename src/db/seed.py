@@ -247,8 +247,8 @@ async def _seed_prompt_templates(session, admin_id):
     else:
         print(f"Warning: {student_path} not found")
         student_text = (
-            "You are a student with a misconception. "
-            "(Default fallback prompt)"
+            "당신은 오개념을 가진 학생입니다. "
+            "(기본 폴백 프롬프트)"
         )
 
     await session.execute(
@@ -287,8 +287,8 @@ async def _seed_prompt_templates(session, admin_id):
     else:
         print(f"Warning: {tutor_path} not found")
         tutor_text = (
-            "You are a pedagogy tutor providing "
-            "feedback. (Default fallback prompt)"
+            "당신은 교수법 피드백을 제공하는 튜터입니다. "
+            "(기본 폴백 프롬프트)"
         )
 
     await session.execute(

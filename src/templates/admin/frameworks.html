@@ -239,6 +239,12 @@
 </style>
 
 <script>
+// CSRF token helper
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/);
+  return match ? match[1] : '';
+}
+
 const labelsContainer = document.getElementById("labels-container");
 const addLabelBtn = document.getElementById("btn-add-label");
 let labelCount = 2;
@@ -319,7 +325,7 @@ document.getElementById("create-form").addEventListener("submit", async (e) => {
   try {
     const response = await fetch("/admin/frameworks", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
       body: JSON.stringify({ name, description, labels }),
     });
 
@@ -349,7 +355,10 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
     if (!confirm(`"${name}" 프레임워크를 삭제하시겠습니까?`)) return;
 
     try {
-      const response = await fetch(`/admin/frameworks/${id}`, { method: "DELETE" });
+      const response = await fetch(`/admin/frameworks/${id}`, {
+        method: "DELETE",
+        headers: { "x-csrf-token": getCsrfToken() }
+      });
       if (response.ok || response.status === 204) {
         alert("프레임워크가 삭제되었습니다!");
         window.location.reload();
@@ -451,7 +460,7 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
   try {
     const response = await fetch(`/admin/frameworks/${id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
       body: JSON.stringify({ name, description, labels }),
     });
 
