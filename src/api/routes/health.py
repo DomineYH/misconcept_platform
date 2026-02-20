@@ -1,11 +1,13 @@
 """Health check and metrics endpoints for monitoring."""
 
 import time
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_db_session
+from src.api.dependencies import get_admin_user, get_db_session
+from src.models import User
 
 router = APIRouter(tags=["Health"])
 
@@ -36,7 +38,10 @@ async def health_check(db: AsyncSession = Depends(get_db_session)) -> dict:
 
 
 @router.get("/metrics")
-async def get_metrics(db: AsyncSession = Depends(get_db_session)) -> dict:
+async def get_metrics(
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
     """
     Metrics endpoint for observability.
 
@@ -45,9 +50,7 @@ async def get_metrics(db: AsyncSession = Depends(get_db_session)) -> dict:
     """
     try:
         # Get total counts from database
-        user_count_result = await db.execute(
-            text("SELECT COUNT(*) FROM user")
-        )
+        user_count_result = await db.execute(text("SELECT COUNT(*) FROM user"))
         user_count = user_count_result.scalar()
 
         session_count_result = await db.execute(

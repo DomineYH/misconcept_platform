@@ -1,22 +1,29 @@
 """Integration test for CSV export workflow (T054)."""
+
 import csv
 import io
 import re
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from src.models.user import User
 from src.models.analysis_framework import AnalysisFramework
 from src.models.prompt_template import PromptTemplate
 from src.models.scenario import Scenario
-from src.models.session import Session
+from src.models.scenario_group import ScenarioGroup
+from src.models.user import User
+from src.models.user_group import UserGroup
 
 
 @pytest.fixture(autouse=True)
 async def seed_csv_test_data(db_session: AsyncSession):
     """Seed test data for CSV export tests."""
+    # Create group for teachers
+    group = UserGroup(name="CSV Test Group")
+    db_session.add(group)
+    await db_session.flush()
+
     # Create all users referenced in tests
     usernames = [
         "teacher_csv_001",
@@ -31,6 +38,7 @@ async def seed_csv_test_data(db_session: AsyncSession):
             username=uname,
             nickname=f"닉_{uname}",
             role="teacher",
+            group_id=group.id,
         )
         user.set_password("test1234")
         db_session.add(user)
@@ -40,9 +48,7 @@ async def seed_csv_test_data(db_session: AsyncSession):
         name="CSV Export Framework",
         description="Framework for CSV export tests",
         labels_json=(
-            '["high_leverage",'
-            ' "medium_leverage",'
-            ' "low_leverage"]'
+            '["high_leverage",' ' "medium_leverage",' ' "low_leverage"]'
         ),
     )
     db_session.add(framework)
@@ -68,15 +74,18 @@ async def seed_csv_test_data(db_session: AsyncSession):
         is_active=1,
     )
     db_session.add(scenario)
+    await db_session.flush()
+
+    # Link scenario to group
+    sg = ScenarioGroup(scenario_id=scenario.id, group_id=group.id)
+    db_session.add(sg)
     await db_session.commit()
 
 
 class TestCSVExportWorkflow:
     """Test complete CSV export workflow (T054)."""
 
-    def test_csv_export_format_and_content(
-        self, test_client: TestClient
-    ):
+    def test_csv_export_format_and_content(self, test_client: TestClient):
         """
         Verify CSV export format and content.
 
@@ -138,9 +147,7 @@ class TestCSVExportWorkflow:
         csv_content = export_response.text
 
         # Parse CSV
-        csv_reader = csv.DictReader(
-            io.StringIO(csv_content)
-        )
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 
         # Verify we have rows
@@ -159,9 +166,7 @@ class TestCSVExportWorkflow:
             "feedback",
         ]
         for col in required_columns:
-            assert col in csv_reader.fieldnames, (
-                f"Missing column: {col}"
-            )
+            assert col in csv_reader.fieldnames, f"Missing column: {col}"
 
         # Verify session_id is consistent
         for row in rows:
@@ -170,9 +175,7 @@ class TestCSVExportWorkflow:
         # Verify scenario_title is populated
         assert len(rows[0]["scenario_title"]) > 0
 
-    def test_csv_anonymization(
-        self, test_client: TestClient
-    ):
+    def test_csv_anonymization(self, test_client: TestClient):
         """Verify CSV export anonymizes username."""
         # Login with specific username
         username = "sensitive_student_123"
@@ -220,17 +223,13 @@ class TestCSVExportWorkflow:
 
         # Verify student_hash is present (SHA-256 hex)
         hash_pattern = re.compile(r"[a-f0-9]{64}")
-        csv_reader = csv.DictReader(
-            io.StringIO(csv_content)
-        )
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 
         assert len(rows) > 0
         assert hash_pattern.match(rows[0]["student_hash"])
 
-    def test_csv_timestamp_format(
-        self, test_client: TestClient
-    ):
+    def test_csv_timestamp_format(self, test_client: TestClient):
         """Verify CSV timestamps are ISO 8601."""
         # Login and create session
         login_response = test_client.post(
@@ -271,9 +270,7 @@ class TestCSVExportWorkflow:
         )
 
         csv_content = export_response.text
-        csv_reader = csv.DictReader(
-            io.StringIO(csv_content)
-        )
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 
         # Verify ISO 8601 timestamp format
@@ -283,16 +280,11 @@ class TestCSVExportWorkflow:
 
         for row in rows:
             if row["timestamp"]:
-                assert timestamp_pattern.match(
-                    row["timestamp"]
-                ), (
-                    f"Invalid timestamp:"
-                    f" {row['timestamp']}"
+                assert timestamp_pattern.match(row["timestamp"]), (
+                    f"Invalid timestamp:" f" {row['timestamp']}"
                 )
 
-    def test_csv_includes_all_roles(
-        self, test_client: TestClient
-    ):
+    def test_csv_includes_all_roles(self, test_client: TestClient):
         """Verify CSV includes teacher and student messages."""
         # Login and create session
         login_response = test_client.post(
@@ -333,23 +325,17 @@ class TestCSVExportWorkflow:
         )
 
         csv_content = export_response.text
-        csv_reader = csv.DictReader(
-            io.StringIO(csv_content)
-        )
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 
         # Collect unique roles
-        roles = {
-            row["role"] for row in rows if row["role"]
-        }
+        roles = {row["role"] for row in rows if row["role"]}
 
         # Should have at least teacher and student
         assert "teacher" in roles
         assert "student" in roles
 
-    def test_csv_includes_question_labels(
-        self, test_client: TestClient
-    ):
+    def test_csv_includes_question_labels(self, test_client: TestClient):
         """Verify CSV has question analysis labels."""
         # Login and create session
         login_response = test_client.post(
@@ -392,16 +378,11 @@ class TestCSVExportWorkflow:
         )
 
         csv_content = export_response.text
-        csv_reader = csv.DictReader(
-            io.StringIO(csv_content)
-        )
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 
         # Find teacher message row
-        teacher_rows = [
-            row for row in rows
-            if row["role"] == "teacher"
-        ]
+        teacher_rows = [row for row in rows if row["role"] == "teacher"]
         assert len(teacher_rows) > 0
 
         # Teacher message should have label
@@ -415,9 +396,7 @@ class TestCSVExportWorkflow:
         confidence = float(teacher_row["confidence"])
         assert 0.0 <= confidence <= 1.0
 
-    def test_csv_includes_session_summary_row(
-        self, test_client: TestClient
-    ):
+    def test_csv_includes_session_summary_row(self, test_client: TestClient):
         """Verify CSV includes session summary row."""
         # Login and create session
         login_response = test_client.post(
@@ -463,9 +442,7 @@ class TestCSVExportWorkflow:
         )
 
         csv_content = export_response.text
-        csv_reader = csv.DictReader(
-            io.StringIO(csv_content)
-        )
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 
         # Find summary row
@@ -473,8 +450,7 @@ class TestCSVExportWorkflow:
             row
             for row in rows
             if row["role"] == "summary"
-            or "SUMMARY"
-            in row.get("content", "").upper()
+            or "SUMMARY" in row.get("content", "").upper()
         ]
 
         # Should have at least one summary row

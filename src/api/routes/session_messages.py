@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_current_user, get_db_session, templates
 from src.api.routes.session_helpers import load_session
 from src.config import config
-from src.models import Message, Session, User
+from src.models import Message, User
 from src.services.session_mgr import SessionManager
 
 logger = logging.getLogger(__name__)
@@ -133,6 +133,7 @@ async def send_message(
 
 
 @router.get("/sessions/{session_id}/messages/updates")
+@limiter.limit("60/minute")
 async def get_message_updates(
     request: Request,
     session_id: int,
@@ -141,16 +142,7 @@ async def get_message_updates(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """Get new messages since last message ID for HTMX polling."""
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
-    session = result.scalar_one_or_none()
-
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if session.teacher_id != user.id:
-        raise HTTPException(status_code=404, detail="Session not found")
+    await load_session(session_id, user, db)
 
     query = (
         select(Message)

@@ -3,62 +3,60 @@ Integration test for full dialogue flow: User-Chatbot-Tutor.
 
 Tests the complete conversation flow:
 1. Session creation with scenario
-2. User sends message → Chatbot responds
+2. User sends message -> Chatbot responds
 3. Tutor analyzes conversation and provides feedback
 """
+
+from datetime import datetime
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.scenario import Scenario
-from src.models.session import Session
-from src.models.message import Message
-from src.models.question_analysis import QuestionAnalysis
 from src.models.analysis_framework import AnalysisFramework
-from src.models.user import User
 from src.models.prompt_template import PromptTemplate
+from src.models.scenario import Scenario
+from src.models.user import User
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create test user."""
+async def test_user(async_session: AsyncSession) -> User:
+    """Create test admin user (bypasses group check)."""
     user = User(
         username="test_teacher_001",
         nickname="Test Teacher",
-        role="teacher",
+        role="admin",
     )
     user.set_password("test1234")
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
+    async_session.add(user)
+    await async_session.flush()
     return user
 
 
 @pytest.fixture
 async def test_scenario(
-    db_session: AsyncSession,
+    async_session: AsyncSession,
     test_user: User,
     test_student_template: PromptTemplate,
     test_tutor_template: PromptTemplate,
 ) -> Scenario:
     """Create test scenario with framework."""
-    # Create framework
     framework = AnalysisFramework(
         name="High/Low Leverage",
         description="Test framework for dialogue analysis",
+        labels_json='["High Leverage", "Low Leverage"]',
     )
-    framework.labels = ["High Leverage", "Low Leverage"]
-    db_session.add(framework)
-    await db_session.flush()
+    async_session.add(framework)
+    await async_session.flush()
 
-    # Create scenario
     scenario = Scenario(
         title="Fraction Addition Misconception",
         prompt=(
-            "You are a student who believes that when adding fractions, "
-            "you add both numerators and denominators. For example, "
-            "1/2 + 1/3 = 2/5. Maintain this misconception consistently."
+            "You are a student who believes that when adding "
+            "fractions, you add both numerators and denominators. "
+            "For example, 1/2 + 1/3 = 2/5. Maintain this "
+            "misconception consistently."
         ),
         student_profile="Middle school student learning fractions",
         is_active=1,
@@ -67,17 +65,19 @@ async def test_scenario(
         tutor_template_id=test_tutor_template.id,
         created_by=test_user.id,
     )
-    db_session.add(scenario)
-    await db_session.commit()
-    await db_session.refresh(scenario)
+    async_session.add(scenario)
+    await async_session.flush()
     return scenario
 
 
-@pytest.mark.skip(reason="Requires live OpenAI API")
 @pytest.mark.asyncio
+@patch("src.api.routes.session_messages.SessionManager")
+@patch("src.api.routes.session_analysis.analyze_session")
 async def test_full_dialogue_flow(
+    mock_analyze,
+    mock_session_manager,
     async_client: AsyncClient,
-    db_session: AsyncSession,
+    async_session: AsyncSession,
     test_scenario: Scenario,
     test_user: User,
 ):
@@ -88,8 +88,36 @@ async def test_full_dialogue_flow(
     1. Create session with scenario
     2. User asks question
     3. Chatbot responds with misconception
-    4. Tutor analyzes and provides feedback
+    4. Session ended then analyzed
     """
+    # Setup analyze mock
+    mock_analyze.return_value = {
+        "distribution": {"High Leverage": 1, "Low Leverage": 0},
+        "feedback": "Good questioning technique.",
+    }
+
+    # Setup SessionManager mock
+    mock_msg = AsyncMock()
+    mock_msg.id = 1
+    mock_msg.session_id = 1
+    mock_msg.role = "teacher"
+    mock_msg.content = "How do I add 1/2 and 1/3?"
+    mock_msg.created_at = datetime(2025, 1, 1)
+
+    student_msg = AsyncMock()
+    student_msg.id = 2
+    student_msg.session_id = 1
+    student_msg.role = "student"
+    student_msg.content = "Just add tops and bottoms: 2/5!"
+    student_msg.created_at = datetime(2025, 1, 1, 0, 0, 1)
+
+    mock_instance = AsyncMock()
+    mock_instance.process_teacher_message.return_value = [
+        mock_msg,
+        student_msg,
+    ]
+    mock_session_manager.return_value = mock_instance
+
     # Step 0: Login
     login_response = await async_client.post(
         "/login",
@@ -98,25 +126,23 @@ async def test_full_dialogue_flow(
             "password": "test1234",
         },
     )
-    assert login_response.status_code in [200, 303]  # 303 redirect after login
+    assert login_response.status_code in [200, 303]
 
-    # Step 1: Use test scenario
-    scenario = test_scenario
-    assert scenario is not None
-    assert scenario.tutor_enabled is True
+    # Step 1: Verify test scenario
+    assert test_scenario is not None
+    assert test_scenario.tutor_enabled is True
 
     # Step 2: Create new session
     session_response = await async_client.post(
         "/sessions",
-        json={"scenario_id": scenario.id},
+        json={"scenario_id": test_scenario.id},
     )
     assert session_response.status_code in [200, 201]
     session_data = session_response.json()
     session_id = session_data["id"]
 
-    # Verify session data in response
     assert "scenario_id" in session_data
-    assert session_data["scenario_id"] == scenario.id
+    assert session_data["scenario_id"] == test_scenario.id
 
     # Step 3: User sends first message
     user_message = "How do I add 1/2 and 1/3?"
@@ -125,76 +151,116 @@ async def test_full_dialogue_flow(
         data={"content": user_message},
     )
     assert msg_response.status_code == 200
-
-    # Backend now returns HTML (not JSON) for HTMX compatibility
     assert "text/html" in msg_response.headers.get("content-type", "")
     html_response = msg_response.text
-
-    # Verify HTML response contains the message
     assert len(html_response) > 0
-    print(f"\n✓ User: {user_message}")
-    print(f"✓ HTML Response: {html_response[:100]}...")
+    assert 'class="message' in html_response
 
-    # Step 5: Tutor analyzes the conversation
+    # Step 4: End session before analysis
+    end_response = await async_client.post(f"/sessions/{session_id}/end")
+    assert end_response.status_code == 200
+    assert end_response.json()["ended"] is True
+
+    # Step 5: Analyze the conversation
     analysis_response = await async_client.post(
         f"/sessions/{session_id}/analyze"
     )
     assert analysis_response.status_code == 200
     analysis_data = analysis_response.json()
 
-    # Verify tutor feedback exists
-    assert "analysis" in analysis_data
-    tutor_feedback = analysis_data["analysis"]
-    assert len(tutor_feedback) > 0
-    print(f"✓ Tutor: {tutor_feedback[:100]}...")
+    assert "distribution" in analysis_data
+    assert "feedback" in analysis_data
 
-    # Step 7: Continue conversation - User responds to chatbot
+    # Step 6: Second conversation - need new session
+    session2_response = await async_client.post(
+        "/sessions",
+        json={"scenario_id": test_scenario.id},
+    )
+    assert session2_response.status_code in [200, 201]
+    session2_id = session2_response.json()["id"]
+
     followup_message = "So I just add the tops and bottoms?"
+
+    followup_msg = AsyncMock()
+    followup_msg.id = 3
+    followup_msg.session_id = session2_id
+    followup_msg.role = "teacher"
+    followup_msg.content = followup_message
+    followup_msg.created_at = datetime(2025, 1, 1, 0, 1)
+
+    followup_student = AsyncMock()
+    followup_student.id = 4
+    followup_student.session_id = session2_id
+    followup_student.role = "student"
+    followup_student.content = "Yes, that's right!"
+    followup_student.created_at = datetime(2025, 1, 1, 0, 1, 1)
+
+    mock_instance.process_teacher_message.return_value = [
+        followup_msg,
+        followup_student,
+    ]
+
     followup_response = await async_client.post(
-        f"/sessions/{session_id}/messages",
+        f"/sessions/{session2_id}/messages",
         data={"content": followup_message},
     )
     assert followup_response.status_code == 200
     assert "text/html" in followup_response.headers.get("content-type", "")
-    print(f"✓ Followup user: {followup_message}")
-    print(f"✓ Followup HTML: {followup_response.text[:100]}...")
-
-    # Step 8: Get tutor analysis again
-    second_analysis = await async_client.post(
-        f"/sessions/{session_id}/analyze"
-    )
-    assert second_analysis.status_code == 200
-    second_data = second_analysis.json()
-    assert "analysis" in second_data
-
-    print("\n✅ Full dialogue flow test passed!")
-    print(f"Session ID: {session_id}")
-    print(f"Total conversation turns: 2")
-    print(f"Tutor analyses: 2")
 
 
-@pytest.mark.skip(reason="Requires live OpenAI API")
 @pytest.mark.asyncio
+@patch("src.api.routes.session_messages.SessionManager")
 async def test_dialogue_flow_with_tutor_disabled(
+    mock_session_manager,
     async_client: AsyncClient,
-    db_session: AsyncSession,
+    async_session: AsyncSession,
     test_scenario: Scenario,
+    test_user: User,
 ):
     """Test conversation when tutor is disabled for scenario."""
-    # Use test scenario and disable tutor
-    scenario = test_scenario
+    mock_msg = AsyncMock()
+    mock_msg.id = 1
+    mock_msg.session_id = 1
+    mock_msg.role = "teacher"
+    mock_msg.content = "Test question"
+    mock_msg.created_at = datetime(2025, 1, 1)
+
+    student_msg = AsyncMock()
+    student_msg.id = 2
+    student_msg.session_id = 1
+    student_msg.role = "student"
+    student_msg.content = "Test response"
+    student_msg.created_at = datetime(2025, 1, 1, 0, 0, 1)
+
+    mock_instance = AsyncMock()
+    mock_instance.process_teacher_message.return_value = [
+        mock_msg,
+        student_msg,
+    ]
+    mock_session_manager.return_value = mock_instance
+
+    # Login
+    login_response = await async_client.post(
+        "/login",
+        data={
+            "username": test_user.username,
+            "password": "test1234",
+        },
+    )
+    assert login_response.status_code in [200, 303]
 
     # Temporarily disable tutor by clearing template
-    original_tutor_template_id = scenario.tutor_template_id
-    scenario.tutor_template_id = None
-    await db_session.commit()
+    original_tutor_template_id = test_scenario.tutor_template_id
+    test_scenario.tutor_template_id = None
+    await async_session.flush()
 
     try:
         # Create session
         session_response = await async_client.post(
             "/sessions",
-            json={"scenario_id": scenario.id},
+            json={"scenario_id": test_scenario.id},
         )
+        assert session_response.status_code in [200, 201]
         session_id = session_response.json()["id"]
 
         # Send message
@@ -203,41 +269,79 @@ async def test_dialogue_flow_with_tutor_disabled(
             data={"content": "Test question"},
         )
         assert msg_response.status_code == 200
+        assert "text/html" in msg_response.headers.get("content-type", "")
+
+        # End session before analyze
+        end_response = await async_client.post(f"/sessions/{session_id}/end")
+        assert end_response.status_code == 200
 
         # Try to get analysis - should handle gracefully
         analysis_response = await async_client.post(
             f"/sessions/{session_id}/analyze"
         )
-        # May return 400 or specific message indicating tutor disabled
         assert analysis_response.status_code in [200, 400]
-
-        print("\n✅ Tutor disabled scenario handled correctly")
 
     finally:
         # Restore tutor state
-        scenario.tutor_template_id = original_tutor_template_id
-        await db_session.commit()
+        test_scenario.tutor_template_id = original_tutor_template_id
+        await async_session.flush()
 
 
-@pytest.mark.skip(reason="Requires live OpenAI API")
 @pytest.mark.asyncio
+@patch("src.api.routes.session_messages.SessionManager")
+@patch("src.api.routes.session_analysis.analyze_session")
 async def test_multiple_conversation_turns(
+    mock_analyze,
+    mock_session_manager,
     async_client: AsyncClient,
-    db_session: AsyncSession,
+    async_session: AsyncSession,
     test_scenario: Scenario,
+    test_user: User,
 ):
     """Test multiple turns of conversation."""
-    # Use test scenario
-    scenario = test_scenario
+    mock_analyze.return_value = {
+        "distribution": {"High Leverage": 3, "Low Leverage": 2},
+        "feedback": "Solid technique across 5 turns.",
+    }
+
+    def make_mock_pair(idx, session_id, user_content):
+        teacher = AsyncMock()
+        teacher.id = idx * 2 - 1
+        teacher.session_id = session_id
+        teacher.role = "teacher"
+        teacher.content = user_content
+        teacher.created_at = datetime(2025, 1, 1, 0, idx - 1)
+
+        student = AsyncMock()
+        student.id = idx * 2
+        student.session_id = session_id
+        student.role = "student"
+        student.content = f"Student response {idx}"
+        student.created_at = datetime(2025, 1, 1, 0, idx - 1, 1)
+
+        return [teacher, student]
+
+    mock_instance = AsyncMock()
+    mock_session_manager.return_value = mock_instance
+
+    # Login
+    login_response = await async_client.post(
+        "/login",
+        data={
+            "username": test_user.username,
+            "password": "test1234",
+        },
+    )
+    assert login_response.status_code in [200, 303]
 
     # Create session
     session_response = await async_client.post(
         "/sessions",
-        json={"scenario_id": scenario.id},
+        json={"scenario_id": test_scenario.id},
     )
+    assert session_response.status_code in [200, 201]
     session_id = session_response.json()["id"]
 
-    # Conduct 5 conversation turns
     conversation = [
         "How do I add fractions?",
         "What about 1/4 + 1/2?",
@@ -247,28 +351,27 @@ async def test_multiple_conversation_turns(
     ]
 
     for i, user_msg in enumerate(conversation, 1):
+        mock_instance.process_teacher_message.return_value = make_mock_pair(
+            i, session_id, user_msg
+        )
+
         response = await async_client.post(
             f"/sessions/{session_id}/messages",
             data={"content": user_msg},
         )
         assert response.status_code == 200
         assert "text/html" in response.headers.get("content-type", "")
+        assert 'class="message' in response.text
 
-        print(f"\nTurn {i}:")
-        print(f"User: {user_msg}")
-        print(f"HTML: {response.text[:80]}...")
+    # End session before analysis
+    end_response = await async_client.post(f"/sessions/{session_id}/end")
+    assert end_response.status_code == 200
 
-    # Verify all messages stored
-    result = await db_session.execute(
-        select(Message).where(Message.session_id == session_id)
-    )
-    messages = result.scalars().all()
-    assert len(messages) == len(conversation) * 2  # User + chatbot each
-
-    # Get final tutor analysis
+    # Get final analysis
     analysis_response = await async_client.post(
         f"/sessions/{session_id}/analyze"
     )
     assert analysis_response.status_code == 200
-
-    print(f"\n✅ Multiple turns test passed - {len(conversation)} turns")
+    analysis_data = analysis_response.json()
+    assert "distribution" in analysis_data
+    assert "feedback" in analysis_data

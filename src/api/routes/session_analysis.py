@@ -18,7 +18,6 @@ from src.models import (
     Message,
     QuestionAnalysis,
     Scenario,
-    Session,
     SessionSummary,
     User,
 )
@@ -122,16 +121,7 @@ async def get_analysis(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Get session analysis report."""
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
-    session = result.scalar_one_or_none()
-
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if session.teacher_id != user.id:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    session = await load_session(session_id, user, db)
 
     if not session.ended_at:
         raise HTTPException(
@@ -182,9 +172,7 @@ async def get_analysis(
     }
 
 
-@router.get(
-    "/sessions/{session_id}/analysis_page", response_class=HTMLResponse
-)
+@router.get("/sessions/{session_id}/analysis_page", response_class=HTMLResponse)
 async def get_analysis_page(
     request: Request,
     session_id: int,
@@ -238,16 +226,7 @@ async def export_session(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """Export session with analysis to CSV."""
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
-    session = result.scalar_one_or_none()
-
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if session.teacher_id != user.id:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    await load_session(session_id, user, db)
 
     exporter = CSVExporter()
     try:

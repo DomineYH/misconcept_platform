@@ -6,7 +6,8 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Session, User
+from src.models import Scenario, Session, User
+from src.models.scenario_group import ScenarioGroup
 
 
 async def load_session(
@@ -64,9 +65,7 @@ async def mark_session_ended(
     """
     if session.ended_at:
         if not force:
-            raise HTTPException(
-                status_code=400, detail="Session already ended"
-            )
+            raise HTTPException(status_code=400, detail="Session already ended")
         return session.ended_at, True
 
     session.ended_at = datetime.now(timezone.utc)
@@ -74,3 +73,58 @@ async def mark_session_ended(
     await db.refresh(session)
 
     return session.ended_at, False
+
+
+async def validate_scenario_access(
+    scenario_id: int,
+    user: User,
+    db: AsyncSession,
+) -> Scenario:
+    """Validate user can access the given scenario.
+
+    Checks: existence, soft-delete, active status, and
+    group-based access control. Admins bypass group checks.
+
+    Returns:
+        Scenario object if access is granted.
+
+    Raises:
+        HTTPException: 404 if not found/inactive, 403 if no access.
+    """
+    result = await db.execute(
+        select(Scenario).where(
+            Scenario.id == scenario_id,
+            Scenario.deleted_at.is_(None),
+        )
+    )
+    scenario = result.scalar_one_or_none()
+
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    if scenario.is_active != 1 and not user.is_admin:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    # Admin bypasses group check
+    if user.is_admin:
+        return scenario
+
+    if not user.group_id:
+        raise HTTPException(
+            status_code=403,
+            detail="그룹이 배정되지 않았습니다.",
+        )
+
+    sg = await db.execute(
+        select(ScenarioGroup).where(
+            ScenarioGroup.scenario_id == scenario_id,
+            ScenarioGroup.group_id == user.group_id,
+        )
+    )
+    if not sg.scalar_one_or_none():
+        raise HTTPException(
+            status_code=403,
+            detail="이 시나리오에 대한 접근 권한이 " "없습니다.",
+        )
+
+    return scenario

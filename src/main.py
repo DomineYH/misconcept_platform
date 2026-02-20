@@ -1,5 +1,6 @@
 """Main FastAPI application entry point."""
 
+import json
 import logging
 import re
 import sys
@@ -8,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pythonjsonlogger import jsonlogger
@@ -18,10 +20,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette_csrf import CSRFMiddleware
 
-from fastapi.responses import RedirectResponse
-from src.config import config
-from src.db.connection import init_db, close_db
 from src.api.dependencies import AuthenticationRequired
+from src.config import config
+from src.db.connection import close_db, init_db
 
 # Configure structured JSON logging
 logger = logging.getLogger()
@@ -41,14 +42,13 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
 # Setup JSON logging
 json_handler = logging.StreamHandler(sys.stdout)
-formatter = CustomJsonFormatter(
-    "%(timestamp)s %(level)s %(name)s %(message)s"
-)
+formatter = CustomJsonFormatter("%(timestamp)s %(level)s %(name)s %(message)s")
 json_handler.setFormatter(formatter)
 logger.addHandler(json_handler)
 
 # Log level from environment (DEBUG for troubleshooting OpenAI responses)
-import os
+import os  # noqa: E402
+
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logger.setLevel(getattr(logging, log_level, logging.INFO))
 
@@ -81,9 +81,7 @@ class LoggingMiddleware:
         request_id = f"{time.time()}"
         path = request.url.path
         method = request.method
-        client = (
-            request.client.host if request.client else None
-        )
+        client = request.client.host if request.client else None
 
         logger.info(
             "Request started",
@@ -202,9 +200,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI application
 app = FastAPI(
     title="Misconception Dialogue Simulator",
-    description=(
-        "Three-party dialogue simulator for teacher training"
-    ),
+    description=("Three-party dialogue simulator for teacher training"),
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -218,9 +214,55 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 @app.exception_handler(AuthenticationRequired)
 async def auth_required_handler(
     request: Request, exc: AuthenticationRequired
-) -> RedirectResponse:
-    """Redirect to login page when authentication is required."""
+) -> Response:
+    """Redirect to login page when authentication is required.
+
+    For chat-related HTMX requests, return 401 and a custom HX trigger
+    so the frontend can stop polling and show an explicit session-expired
+    notice instead of forcing an immediate page navigation.
+
+    Other HTMX requests keep existing HX-Redirect behavior.
+    """
+    is_htmx = request.headers.get("HX-Request") == "true"
+    request_path = request.url.path
+
+    is_chat_path = request_path.startswith("/sessions/") and (
+        "/messages" in request_path
+        or request_path.endswith("/close")
+        or request_path.endswith("/end")
+        or request_path.endswith("/analyze")
+        or request_path.endswith("/analysis_modal")
+    )
+
+    if is_htmx and is_chat_path:
+        event_payload = {
+            "auth-expired": {
+                "redirect_url": exc.redirect_url,
+                "code": "AUTH_EXPIRED",
+            }
+        }
+        body = {
+            "code": "AUTH_EXPIRED",
+            "detail": "Authentication required",
+            "redirect_url": exc.redirect_url,
+        }
+        return Response(
+            content=json.dumps(body),
+            status_code=401,
+            media_type="application/json",
+            headers={
+                "HX-Trigger": json.dumps(event_payload),
+                "Cache-Control": "no-store",
+            },
+        )
+
+    if is_htmx:
+        return Response(
+            status_code=200,
+            headers={"HX-Redirect": exc.redirect_url},
+        )
     return RedirectResponse(url=exc.redirect_url, status_code=303)
+
 
 # Add CORS middleware
 # In development, allow localhost. In production, require FRONTEND_URL.
@@ -276,9 +318,7 @@ if not config.TESTING:
         secret=config.SESSION_SECRET,
         exempt_urls=[
             re.compile(r"/health"),
-            re.compile(r"/metrics"),
             re.compile(r"/login"),
-            re.compile(r"/logout"),
         ],
         header_name="x-csrf-token",
         cookie_name="csrftoken",
@@ -297,7 +337,7 @@ templates = Jinja2Templates(directory="src/templates")
 
 
 # Register route blueprints
-from src.api.routes import (
+from src.api.routes import (  # noqa: E402
     admin,
     admin_analysis,
     admin_api_usage,

@@ -43,10 +43,8 @@
         {% endif %}
         {% if user %}
         <li>
-          <form action="/logout" method="post"
-                style="display: inline;">
-            <button type="submit" class="btn-logout">로그아웃</button>
-          </form>
+          <button type="button" class="btn-logout"
+                  onclick="doLogout()">로그아웃</button>
         </li>
         {% endif %}
       </ul>
@@ -119,9 +117,28 @@
       }
     });
 
+    function doLogout() {
+      var match = document.cookie.match(
+        /(?:^|;\s*)csrftoken=([^;]*)/
+      );
+      var headers = {};
+      if (match) {
+        headers['x-csrf-token'] = match[1];
+      }
+      fetch('/logout', {
+        method: 'POST',
+        headers: headers,
+        credentials: 'same-origin'
+      }).then(function() {
+        window.location.href = '/login';
+      }).catch(function() {
+        window.location.href = '/login';
+      });
+    }
+
     const hamburger = document.querySelector('.hamburger');
     const navMenu = document.querySelector('.nav-menu');
-    
+
     if (hamburger && navMenu) {
       hamburger.addEventListener('click', () => {
         navMenu.classList.toggle('active');

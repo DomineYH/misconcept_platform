@@ -1,6 +1,6 @@
 """Configuration module for loading environment variables."""
 
-from pydantic import field_validator, computed_field
+from pydantic import computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,10 +29,11 @@ class Config(BaseSettings):
     TUTOR_REASONING: str = "low"
 
     # ===== Bot Token Limits =====
-    # Note: GPT-5 reasoning consumes tokens from max_output_tokens
-    # Minimum recommended: 300 (reasoning) + 200 (actual output) = 500
-    STUDENT_MAX_TOKENS: int = 750
-    TUTOR_MAX_TOKENS: int = 1125
+    # Note: GPT-5 reasoning tokens count toward max_output_tokens.
+    # gpt-5-mini "low" can use ~450 reasoning tokens alone.
+    # Minimum recommended: 500 (reasoning) + 500 (text) = 1000
+    STUDENT_MAX_TOKENS: int = 1500
+    TUTOR_MAX_TOKENS: int = 1500
     TUTOR_INTERVENTION_THRESHOLD: int = 3
 
     # Session Security
@@ -108,9 +109,7 @@ class Config(BaseSettings):
     def validate_positive_tokens(cls, v, info):
         """Validate token limits are positive."""
         if v <= 0:
-            raise ValueError(
-                f"{info.field_name} must be positive, got {v}"
-            )
+            raise ValueError(f"{info.field_name} must be positive, got {v}")
         return v
 
     @field_validator("TUTOR_INTERVENTION_THRESHOLD")

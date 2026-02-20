@@ -338,6 +338,32 @@ fi
    - Practice incident scenarios
    - Post-incident reviews
 
+## Known Issues (P2 - Low Priority)
+
+### CSP Nonce Not Implemented
+
+The Content-Security-Policy header uses `'unsafe-inline'` for
+`script-src`. A future improvement would be to use per-request
+CSP nonces to eliminate the need for `'unsafe-inline'`, which
+would further reduce XSS risk. This requires a middleware that
+generates a random nonce per response and injects it into both
+the CSP header and all `<script>` tags.
+
+**Risk**: Low. Current CSP still restricts script sources to
+`'self'` and `https://unpkg.com`. Inline scripts are limited
+to the application's own templates, which are not user-editable.
+
+### DEBUG Log Level in Production
+
+The `LOG_LEVEL` environment variable defaults to `INFO` but can
+be set to `DEBUG`. When `DEBUG` is active, request/response
+details including session IDs and user data may be logged.
+Ensure `LOG_LEVEL=INFO` (or higher) in production deployments.
+
+**Mitigation**: Log files should be access-restricted (chmod 640)
+and rotated regularly. Never set `LOG_LEVEL=DEBUG` in production
+unless actively troubleshooting, and revert immediately after.
+
 ## Known Limitations
 
 1. **Single-Factor Authentication**:
@@ -353,8 +379,9 @@ fi
    - Consider secrets management system for production
 
 4. **CSRF Protection**:
-   - Relies on SameSite cookies
-   - Consider adding CSRF tokens for critical operations
+   - Double Submit Cookie pattern via starlette-csrf
+   - HTMX auto-injects `x-csrf-token` header on requests
+   - Only `/health` and `/login` are exempt
 
 ## Security Contacts
 
@@ -407,4 +434,4 @@ fi
 
 ---
 
-**Version**: 1.0 | **Status**: Production-Ready | **Last Audit**: 2025-11-06
+**Version**: 1.1 | **Status**: Production-Ready | **Last Audit**: 2026-02-19

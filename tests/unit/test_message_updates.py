@@ -1,11 +1,13 @@
 """Unit tests for message updates endpoint (TEST-001)."""
-import pytest
+
 import json
 from datetime import datetime, timezone
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import User, AnalysisFramework, Scenario, Session, Message
+from src.models import AnalysisFramework, Message, Scenario, Session, User
 
 
 @pytest.fixture
@@ -159,7 +161,10 @@ class TestGetMessageUpdatesWithNewMessages:
 
         # Check that messages are in HTML
         html_content = response.text
-        assert "message-teacher" in html_content or "message-student" in html_content
+        assert (
+            "message-teacher" in html_content
+            or "message-student" in html_content
+        )
         assert "photosynthesis" in html_content
         assert "plants" in html_content
 
@@ -368,6 +373,52 @@ class TestGetMessageUpdatesWithSinceParameter:
 class TestGetMessageUpdatesUnauthorized:
     """Test unauthorized access to message updates."""
 
+    async def test_get_updates_htmx_unauthorized_returns_401_with_trigger(
+        self,
+        test_client: TestClient,
+        db_session: AsyncSession,
+        test_scenario: Scenario,
+    ):
+        """HTMX 요청 인증 실패 시 401 + auth-expired 트리거 반환 확인."""
+        session = Session(scenario_id=test_scenario.id, teacher_id=1)
+        db_session.add(session)
+        await db_session.commit()
+        await db_session.refresh(session)
+
+        response = test_client.get(
+            f"/sessions/{session.id}/messages/updates",
+            headers={"HX-Request": "true"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 401
+        trigger = response.headers.get("HX-Trigger", "")
+        assert "auth-expired" in trigger
+
+        data = response.json()
+        assert data["code"] == "AUTH_EXPIRED"
+        assert data["redirect_url"] == "/login"
+
+    async def test_get_updates_non_htmx_unauthorized_returns_303(
+        self,
+        test_client: TestClient,
+        db_session: AsyncSession,
+        test_scenario: Scenario,
+    ):
+        """일반 요청 인증 실패 시 기존 303 리다이렉트 유지 확인."""
+        session = Session(scenario_id=test_scenario.id, teacher_id=1)
+        db_session.add(session)
+        await db_session.commit()
+        await db_session.refresh(session)
+
+        response = test_client.get(
+            f"/sessions/{session.id}/messages/updates",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers.get("location") == "/login"
+
     async def test_get_updates_unauthorized(
         self,
         test_client: TestClient,
@@ -460,8 +511,8 @@ class TestGetMessageUpdatesWrongUser:
             f"/sessions/{session.id}/messages/updates", cookies=cookies
         )
 
-        # Assertions - should be 404 (not 403 per implementation)
-        assert response.status_code == 404
+        # Assertions - 403 via load_session ownership check
+        assert response.status_code == 403
 
     async def test_get_updates_nonexistent_session(
         self,

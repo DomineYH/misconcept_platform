@@ -1,16 +1,38 @@
 """Integration tests for misconception tracking and analysis."""
+
 import json
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, Mock, patch
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Message, QuestionAnalysis
-from src.models.user import User
+from src.models import Message
 from src.models.analysis_framework import AnalysisFramework
 from src.models.prompt_template import PromptTemplate
 from src.models.scenario import Scenario
-from src.services.session_mgr import SessionManager
+from src.models.user import User
+
+
+def _make_student_bot_mock():
+    """Build a StudentBot mock that returns a string response.
+
+    The mock exposes a string .model so the API usage log
+    INSERT does not fail with an AsyncMock type error.
+    """
+    mock_bot = AsyncMock()
+    mock_bot.model = "gpt-4-turbo"
+    mock_bot.generate_response = AsyncMock(
+        return_value=(
+            "Student answer text",
+            {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+            },
+        )
+    )
+    return mock_bot
 
 
 @pytest.fixture(autouse=True)
@@ -18,11 +40,11 @@ async def seed_misconception_test_data(
     async_session: AsyncSession,
 ):
     """Seed test data for misconception tracking tests."""
-    # Create user
+    # Use admin role so group check is bypassed
     user = User(
         username="test_teacher",
         nickname="테스트교사",
-        role="teacher",
+        role="admin",
     )
     user.set_password("test1234")
     async_session.add(user)
@@ -32,9 +54,7 @@ async def seed_misconception_test_data(
         name="Misconception Framework",
         description="Framework for misconception tests",
         labels_json=(
-            '["high_leverage",'
-            ' "medium_leverage",'
-            ' "low_leverage"]'
+            '["high_leverage",' ' "medium_leverage",' ' "low_leverage"]'
         ),
     )
     async_session.add(framework)
@@ -63,7 +83,6 @@ async def seed_misconception_test_data(
     await async_session.commit()
 
 
-@pytest.mark.skip(reason="Requires live OpenAI API - StudentBot makes real API calls")
 @pytest.mark.asyncio
 async def test_student_response_analyzed_for_misconception(
     async_session, async_client
@@ -84,25 +103,28 @@ async def test_student_response_analyzed_for_misconception(
         "/sessions", json={"scenario_id": 1}
     )
     assert session_response.status_code == 201
-    session_data = session_response.json()
-    session_id = session_data["id"]
+    session_id = session_response.json()["id"]
 
-    # Mock MisconceptionAnalyzer response
+    # Mock analysis result
     mock_analysis = {
         "maintains_misconception": True,
         "misconception_strength": 0.85,
-        "evidence": "Student clearly maintains the misconception",
+        "evidence": ("Student clearly maintains the misconception"),
         "drift_detected": False,
         "analysis_notes": "Strong adherence observed",
     }
 
-    with patch(
-        "src.services.session_mgr.MisconceptionAnalyzer"
-    ) as MockAnalyzer:
-        mock_instance = MockAnalyzer.return_value
-        mock_instance.analyze_student_response = AsyncMock(
+    with (
+        patch("src.services.session_mgr.StudentBot") as MockStudentBot,
+        patch("src.services.session_mgr.MisconceptionAnalyzer") as MockAnalyzer,
+    ):
+        MockStudentBot.return_value = _make_student_bot_mock()
+
+        mock_analyzer_instance = AsyncMock()
+        mock_analyzer_instance.analyze_student_response = AsyncMock(
             return_value=mock_analysis
         )
+        MockAnalyzer.return_value = mock_analyzer_instance
 
         # Send teacher message
         msg_response = await async_client.post(
@@ -125,23 +147,18 @@ async def test_student_response_analyzed_for_misconception(
     student_msg = student_messages[0]
 
     # Verify metadata exists and contains analysis
-    assert student_msg.metadata is not None
-    analysis = json.loads(student_msg.metadata)
+    assert student_msg.analysis_metadata is not None
+    analysis = json.loads(student_msg.analysis_metadata)
 
     assert "maintains_misconception" in analysis
     assert "misconception_strength" in analysis
     assert analysis["maintains_misconception"] is True
-    assert (
-        0.0 <= analysis["misconception_strength"] <= 1.0
-    )
+    assert 0.0 <= analysis["misconception_strength"] <= 1.0
     assert "evidence" in analysis
 
 
-@pytest.mark.skip(reason="Requires live OpenAI API - StudentBot makes real API calls")
 @pytest.mark.asyncio
-async def test_metadata_structure_validation(
-    async_session, async_client
-):
+async def test_metadata_structure_validation(async_session, async_client):
     """Verify misconception metadata JSON structure."""
     # Login and create session
     await async_client.post(
@@ -154,6 +171,7 @@ async def test_metadata_structure_validation(
     session_response = await async_client.post(
         "/sessions", json={"scenario_id": 1}
     )
+    assert session_response.status_code == 201
     session_id = session_response.json()["id"]
 
     # Mock analysis with all expected fields
@@ -165,19 +183,24 @@ async def test_metadata_structure_validation(
         "analysis_notes": "Misconception weakening",
     }
 
-    with patch(
-        "src.services.session_mgr.MisconceptionAnalyzer"
-    ) as MockAnalyzer:
-        mock_instance = MockAnalyzer.return_value
-        mock_instance.analyze_student_response = AsyncMock(
+    with (
+        patch("src.services.session_mgr.StudentBot") as MockStudentBot,
+        patch("src.services.session_mgr.MisconceptionAnalyzer") as MockAnalyzer,
+    ):
+        MockStudentBot.return_value = _make_student_bot_mock()
+
+        mock_analyzer_instance = AsyncMock()
+        mock_analyzer_instance.analyze_student_response = AsyncMock(
             return_value=mock_analysis
         )
+        MockAnalyzer.return_value = mock_analyzer_instance
 
         # Send message
-        await async_client.post(
+        resp = await async_client.post(
             f"/sessions/{session_id}/messages",
             data={"content": "Can you explain further?"},
         )
+        assert resp.status_code == 200
 
     # Get student message
     result = await async_session.execute(
@@ -188,7 +211,7 @@ async def test_metadata_structure_validation(
     student_msg = result.scalar_one()
 
     # Parse and validate metadata structure
-    analysis = json.loads(student_msg.metadata)
+    analysis = json.loads(student_msg.analysis_metadata)
 
     # Verify all required fields
     required_fields = [
@@ -199,28 +222,19 @@ async def test_metadata_structure_validation(
         "analysis_notes",
     ]
     for field in required_fields:
-        assert field in analysis, (
-            f"Missing required field: {field}"
-        )
+        assert field in analysis, f"Missing required field: {field}"
 
     # Verify field types
-    assert isinstance(
-        analysis["maintains_misconception"], bool
-    )
-    assert isinstance(
-        analysis["misconception_strength"], (int, float)
-    )
+    assert isinstance(analysis["maintains_misconception"], bool)
+    assert isinstance(analysis["misconception_strength"], (int, float))
     assert isinstance(analysis["evidence"], str)
     assert isinstance(analysis["drift_detected"], bool)
     assert isinstance(analysis["analysis_notes"], str)
 
     # Verify value ranges
-    assert (
-        0.0 <= analysis["misconception_strength"] <= 1.0
-    )
+    assert 0.0 <= analysis["misconception_strength"] <= 1.0
 
 
-@pytest.mark.skip(reason="Requires live OpenAI API - StudentBot makes real API calls")
 @pytest.mark.asyncio
 async def test_misconception_analysis_failure_graceful_degradation(
     async_session, async_client
@@ -237,16 +251,21 @@ async def test_misconception_analysis_failure_graceful_degradation(
     session_response = await async_client.post(
         "/sessions", json={"scenario_id": 1}
     )
+    assert session_response.status_code == 201
     session_id = session_response.json()["id"]
 
-    # Mock analyzer to raise exception
-    with patch(
-        "src.services.session_mgr.MisconceptionAnalyzer"
-    ) as MockAnalyzer:
-        mock_instance = MockAnalyzer.return_value
-        mock_instance.analyze_student_response = AsyncMock(
+    with (
+        patch("src.services.session_mgr.StudentBot") as MockStudentBot,
+        patch("src.services.session_mgr.MisconceptionAnalyzer") as MockAnalyzer,
+    ):
+        MockStudentBot.return_value = _make_student_bot_mock()
+
+        # Mock analyzer to raise exception
+        mock_analyzer_instance = AsyncMock()
+        mock_analyzer_instance.analyze_student_response = AsyncMock(
             side_effect=Exception("API error")
         )
+        MockAnalyzer.return_value = mock_analyzer_instance
 
         # Send message - should not fail
         msg_response = await async_client.post(
@@ -267,17 +286,16 @@ async def test_misconception_analysis_failure_graceful_degradation(
 
     # Metadata should be None or empty
     assert (
-        student_msg.metadata is None
-        or student_msg.metadata == ""
+        student_msg.analysis_metadata is None
+        or student_msg.analysis_metadata == ""
     )
 
 
-@pytest.mark.skip(reason="Requires live OpenAI API - StudentBot makes real API calls")
 @pytest.mark.asyncio
 async def test_session_analysis_includes_scenario_context(
     async_session, async_client
 ):
-    """Verify scenario context in session analysis."""
+    """Verify scenario context passed to session analysis."""
     # Login and create session
     await async_client.post(
         "/login",
@@ -289,13 +307,18 @@ async def test_session_analysis_includes_scenario_context(
     session_response = await async_client.post(
         "/sessions", json={"scenario_id": 1}
     )
+    assert session_response.status_code == 201
     session_id = session_response.json()["id"]
 
-    # Mock MisconceptionAnalyzer for student messages
-    with patch(
-        "src.services.session_mgr.MisconceptionAnalyzer"
-    ) as MockMisAnalyzer:
-        mock_mis = MockMisAnalyzer.return_value
+    with (
+        patch("src.services.session_mgr.StudentBot") as MockStudentBot,
+        patch(
+            "src.services.session_mgr.MisconceptionAnalyzer"
+        ) as MockMisAnalyzer,
+    ):
+        MockStudentBot.return_value = _make_student_bot_mock()
+
+        mock_mis = AsyncMock()
         mock_mis.analyze_student_response = AsyncMock(
             return_value={
                 "maintains_misconception": True,
@@ -305,79 +328,48 @@ async def test_session_analysis_includes_scenario_context(
                 "analysis_notes": "Test",
             }
         )
+        MockMisAnalyzer.return_value = mock_mis
 
-        # Send multiple teacher messages
-        await async_client.post(
-            f"/sessions/{session_id}/messages",
-            data={"content": "Question 1"},
-        )
-        await async_client.post(
-            f"/sessions/{session_id}/messages",
-            data={"content": "Question 2"},
-        )
+        # Send teacher messages
+        for q in ["Question 1", "Question 2"]:
+            await async_client.post(
+                f"/sessions/{session_id}/messages",
+                data={"content": q},
+            )
 
-    # Mock Analyzer for session end analysis
+    # End session
+    end_response = await async_client.post(f"/sessions/{session_id}/end")
+    assert end_response.status_code == 200
+
+    # Mock analyze_session for the /analyze call and
+    # verify it is called with the correct scenario
     with patch(
-        "src.services.analyzer.Analyzer"
-    ) as MockAnalyzer:
-        mock_instance = Mock()
+        "src.api.routes.session_analysis.analyze_session"
+    ) as mock_analyze:
+        mock_analyze.return_value = {
+            "distribution": {
+                "high_leverage": 1,
+                "medium_leverage": 1,
+                "low_leverage": 0,
+            },
+            "feedback": "Good technique.",
+        }
 
-        # Capture classify_question calls
-        calls = []
-
-        async def mock_classify(
-            question,
-            framework,
-            context=None,
-            scenario_title=None,
-            misconception_prompt=None,
-            student_profile=None,
-        ):
-            calls.append(
-                {
-                    "question": question,
-                    "scenario_title": scenario_title,
-                    "misconception_prompt": (
-                        misconception_prompt
-                    ),
-                    "student_profile": student_profile,
-                }
-            )
-            return {
-                "label": "Pressing",
-                "confidence": 0.9,
-                "reasoning": "Test reasoning",
-            }
-
-        mock_instance.classify_question = mock_classify
-        MockAnalyzer.return_value = mock_instance
-
-        # End session
-        end_response = await async_client.post(
-            f"/sessions/{session_id}/end"
+        analyze_response = await async_client.post(
+            f"/sessions/{session_id}/analyze"
         )
+        assert analyze_response.status_code == 200
+        data = analyze_response.json()
+        assert "distribution" in data
+        assert "feedback" in data
 
-        assert end_response.status_code == 200
+        # Verify analyze_session was called
+        assert mock_analyze.called
+        # scenario is the 3rd positional arg (index 2)
+        called_scenario = mock_analyze.call_args[0][2]
+        assert called_scenario.title == ("Misconception Test Scenario")
+        assert called_scenario.prompt is not None
 
-        # Verify classify_question was called
-        assert len(calls) >= 2
-
-        for call in calls:
-            assert call["scenario_title"] is not None
-            assert (
-                call["misconception_prompt"] is not None
-            )
-            assert call["student_profile"] is not None
-
-            assert (
-                call["scenario_title"] != "Not specified"
-            )
-            assert (
-                call["misconception_prompt"]
-                != "Not specified"
-            )
-
-@pytest.mark.skip(reason="Requires live OpenAI API - StudentBot makes real API calls")
 
 @pytest.mark.asyncio
 async def test_multiple_student_responses_all_analyzed(
@@ -395,12 +387,13 @@ async def test_multiple_student_responses_all_analyzed(
     session_response = await async_client.post(
         "/sessions", json={"scenario_id": 1}
     )
+    assert session_response.status_code == 201
     session_id = session_response.json()["id"]
 
     # Track analysis calls
     analysis_calls = []
 
-    def create_mock_analysis(*args, **kwargs):
+    async def create_mock_analysis(*args, **kwargs):
         analysis_calls.append(kwargs)
         return {
             "maintains_misconception": True,
@@ -410,22 +403,25 @@ async def test_multiple_student_responses_all_analyzed(
             "analysis_notes": "Test",
         }
 
-    with patch(
-        "src.services.session_mgr.MisconceptionAnalyzer"
-    ) as MockAnalyzer:
-        mock_instance = MockAnalyzer.return_value
-        mock_instance.analyze_student_response = (
-            AsyncMock(side_effect=create_mock_analysis)
+    with (
+        patch("src.services.session_mgr.StudentBot") as MockStudentBot,
+        patch("src.services.session_mgr.MisconceptionAnalyzer") as MockAnalyzer,
+    ):
+        MockStudentBot.return_value = _make_student_bot_mock()
+
+        mock_instance = AsyncMock()
+        mock_instance.analyze_student_response = AsyncMock(
+            side_effect=create_mock_analysis
         )
+        MockAnalyzer.return_value = mock_instance
 
         # Send 3 teacher messages
         for i in range(3):
-            await async_client.post(
+            resp = await async_client.post(
                 f"/sessions/{session_id}/messages",
-                data={
-                    "content": f"Question {i+1}"
-                },
+                data={"content": f"Question {i + 1}"},
             )
+            assert resp.status_code == 200
 
     # Verify all 3 student responses were analyzed
     assert len(analysis_calls) == 3
@@ -442,8 +438,6 @@ async def test_multiple_student_responses_all_analyzed(
     assert len(student_messages) == 3
 
     for i, msg in enumerate(student_messages):
-        assert msg.metadata is not None
-        analysis = json.loads(msg.metadata)
-        assert (
-            analysis["evidence"] == f"Analysis {i+1}"
-        )
+        assert msg.analysis_metadata is not None
+        analysis = json.loads(msg.analysis_metadata)
+        assert analysis["evidence"] == f"Analysis {i + 1}"

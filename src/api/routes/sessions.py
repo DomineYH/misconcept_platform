@@ -12,13 +12,17 @@ from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
-from src.api.routes.session_helpers import load_session, mark_session_ended
-from src.config import config
-from src.models import Session, User
+from src.api.routes.session_analysis import router as analysis_router
+from src.api.routes.session_helpers import (
+    load_session,
+    mark_session_ended,
+    validate_scenario_access,
+)
 
 # Import sub-routers to include all session routes
 from src.api.routes.session_messages import router as messages_router
-from src.api.routes.session_analysis import router as analysis_router
+from src.config import config
+from src.models import Session, User
 
 router = APIRouter(tags=["Sessions"])
 limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
@@ -51,12 +55,15 @@ class CloseSessionResponse(BaseModel):
 
 
 @router.post("/sessions", status_code=201)
+@limiter.limit("10/minute")
 async def create_session(
+    request: Request,
     data: CreateSessionRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> SessionResponse:
     """Start new dialogue session."""
+    await validate_scenario_access(data.scenario_id, user, db)
     session = Session(scenario_id=data.scenario_id, teacher_id=user.id)
     db.add(session)
     await db.commit()
@@ -88,9 +95,7 @@ async def close_session(
     """
     session = await load_session(session_id, user, db)
 
-    ended_at, already_ended = await mark_session_ended(
-        session, db, force=True
-    )
+    ended_at, already_ended = await mark_session_ended(session, db, force=True)
 
     return CloseSessionResponse(
         status="ended",

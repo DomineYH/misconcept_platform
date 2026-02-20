@@ -1,20 +1,20 @@
 """FastAPI dependency injection for database and auth."""
 
+import time
 from typing import AsyncGenerator
+
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.connection import AsyncSessionLocal
 
-
 # Shared Jinja2Templates instance
 templates = Jinja2Templates(directory="src/templates")
 
 
-class AuthenticationRequired(Exception):
+class AuthenticationRequired(Exception):  # noqa: N818
     """Exception raised when authentication is required."""
 
     def __init__(self, redirect_url: str = "/login"):
@@ -22,9 +22,7 @@ class AuthenticationRequired(Exception):
         super().__init__("Authentication required")
 
 
-async def get_db_session() -> AsyncGenerator[
-    AsyncSession, None
-]:
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Provide database session for request scope.
 
@@ -63,6 +61,12 @@ async def get_current_user(
 
     # Get user_id from session
     user_id = request.session.get("user_id")
+
+    # Defensive: touch session to force cookie refresh
+    # Ensures itsdangerous timestamp is updated on every request
+    if user_id:
+        request.session["_refreshed_at"] = int(time.time())
+
     if not user_id:
         raise AuthenticationRequired(redirect_url="/login")
 
