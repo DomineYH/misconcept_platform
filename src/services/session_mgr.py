@@ -124,6 +124,7 @@ class SessionManager:
         )
         self.db.add(teacher_msg)
         await self.db.flush()  # Get ID without commit
+        await self.db.commit()  # Teacher 메시지 즉시 가시화
         new_messages.append(teacher_msg)
 
         # 3. Generate student response (must be sequential - needed by others)

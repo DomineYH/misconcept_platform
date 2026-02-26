@@ -283,6 +283,57 @@ class TestSendMessageValidation:
         assert response.status_code == 403
 
 
+class TestMessageResponseHeaders:
+    """Test HX-Trigger and OOB swap in responses."""
+
+    @patch("src.api.routes.session_messages.SessionManager")
+    async def test_post_response_has_hx_trigger(
+        self,
+        mock_session_manager,
+        test_client: TestClient,
+        db_session: AsyncSession,
+        test_session: Session,
+        test_user: User,
+    ):
+        """POST /messages should include HX-Trigger header."""
+        mock_msg = AsyncMock()
+        mock_msg.id = 10
+        mock_msg.session_id = test_session.id
+        mock_msg.role = "teacher"
+        mock_msg.content = "Test"
+        mock_msg.created_at = datetime(2025, 1, 1)
+
+        mock_inst = AsyncMock()
+        mock_inst.process_teacher_message.return_value = [
+            mock_msg
+        ]
+        mock_session_manager.return_value = mock_inst
+
+        login_response = test_client.post(
+            "/login",
+            data={
+                "username": test_user.username,
+                "password": "test1234",
+            },
+        )
+        cookies = login_response.cookies
+
+        response = test_client.post(
+            f"/sessions/{test_session.id}/messages",
+            data={"content": "Test"},
+            cookies=cookies,
+        )
+
+        assert response.status_code == 200
+        trigger = response.headers.get("hx-trigger")
+        assert trigger is not None
+        import json
+
+        parsed = json.loads(trigger)
+        assert "messagesAdded" in parsed
+        assert parsed["messagesAdded"]["lastId"] == 10
+
+
 class TestMultipleMessagesHTML:
     """Test HTML rendering for multiple messages."""
 

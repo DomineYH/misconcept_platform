@@ -1,5 +1,6 @@
 """Session message handling routes."""
 
+import json
 import logging
 
 from fastapi import (
@@ -136,10 +137,16 @@ async def send_message(
         f"for session {session_id}"
     )
 
+    last_id = max(m.id for m in new_messages if m.id)
     return Response(
         content=combined_html,
         media_type="text/html",
         status_code=200,
+        headers={
+            "HX-Trigger": json.dumps(
+                {"messagesAdded": {"lastId": last_id}}
+            )
+        },
     )
 
 
@@ -161,7 +168,7 @@ async def get_message_updates(
     query = (
         select(Message)
         .where(Message.session_id == session_id)
-        .order_by(Message.created_at)
+        .order_by(Message.id)
         .limit(50)
     )
 
@@ -195,6 +202,14 @@ async def get_message_updates(
         f"Polling: Rendered {len(rendered_messages)}/{len(messages)} "
         f"messages for session {session_id}"
     )
+
+    last_id = max(m.id for m in messages)
+    oob_input = (
+        f'<input type="hidden" name="since" '
+        f'value="{last_id}" id="last-message-id" '
+        f'hx-swap-oob="true">'
+    )
+    combined_html += oob_input
 
     return Response(
         content=combined_html,

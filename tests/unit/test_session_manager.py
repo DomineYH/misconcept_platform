@@ -522,8 +522,8 @@ class TestSessionManagerProcessTeacherMessage:
 
         mgr.initialize.assert_called_once()
 
-    async def test_does_not_commit_directly(self):
-        """Should not call db.commit (dependency auto-commits)."""
+    async def test_commits_teacher_message_early(self):
+        """Teacher 메시지 저장 후 조기 commit이 호출되어야 한다."""
         mgr, _, _, _ = self._setup_manager()
         mgr._get_conversation_history = AsyncMock(
             return_value=[]
@@ -532,7 +532,7 @@ class TestSessionManagerProcessTeacherMessage:
 
         await mgr.process_teacher_message("Q?")
 
-        mgr.db.commit.assert_not_called()
+        mgr.db.commit.assert_called_once()
 
 
 class TestGetConversationHistory:

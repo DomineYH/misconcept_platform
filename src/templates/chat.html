@@ -117,8 +117,7 @@
       <!-- Teacher input form -->
       <form id="teacher-form" class="teacher-form"
         hx-post="/sessions/{{ session_id }}/messages"
-        hx-target="#messages-container" hx-swap="beforeend"
-        hx-indicator="#loading-indicator">
+        hx-target="#messages-container" hx-swap="beforeend">
         <div class="input-group">
           <textarea name="content" id="teacher-input" rows="1"
             placeholder="메시지를 입력하세요..." required maxlength="5000"
@@ -133,10 +132,8 @@
             </svg>
           </button>
         </div>
-        <div id="loading-indicator" class="htmx-indicator">
-          <span class="spinner spinner-sm"></span>
-          <span>응답 생성 중...</span>
-        </div>
+        <div id="loading-indicator" class="htmx-indicator"
+          style="display: none;"></div>
       </form>
     </div>
   </section>
@@ -156,7 +153,9 @@
 
   // Server provides session_id via template variable
   window.currentSessionId = {{ session_id }};
+  window.studentDisplayName = {{ (student_name or 'S')|tojson }};
   let authExpiredHandled = false;
+  let lastSentContent = '';
   let pollingAuthFailCount = 0;
   const MAX_POLLING_AUTH_FAILS = 3;
 
@@ -703,6 +702,137 @@
   }
 
   // ========================================
+  // Immediate Message Display & Typing Indicator
+  // ========================================
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function removeTempElements() {
+    document.querySelectorAll('.temp-message').forEach(
+      el => el.remove()
+    );
+    const typing = document.getElementById('typing-indicator');
+    if (typing) typing.remove();
+  }
+
+  function restoreInputOnError() {
+    removeTempElements();
+    const input = document.getElementById('teacher-input');
+    if (input && lastSentContent) {
+      input.value = lastSentContent;
+      input.style.height = '';
+      input.style.height = input.scrollHeight + 'px';
+      lastSentContent = '';
+    }
+  }
+
+  // Show teacher message immediately when form is submitted
+  htmx.on('htmx:beforeRequest', (event) => {
+    if (event.detail.elt.id !== 'teacher-form') return;
+
+    const input = document.getElementById('teacher-input');
+    const content = input.value.trim();
+    if (!content) return;
+
+    lastSentContent = content;
+    const container = document.getElementById(
+      'messages-container'
+    );
+
+    // Create temporary teacher message
+    const now = new Date();
+    const timeStr =
+      now.getHours().toString().padStart(2, '0') + ':' +
+      now.getMinutes().toString().padStart(2, '0');
+
+    const tempMsg = document.createElement('div');
+    tempMsg.className = 'message message-teacher temp-message';
+    tempMsg.innerHTML = `
+      <div class="avatar teacher">T</div>
+      <div class="message-content-wrapper">
+        <div class="message-bubble">
+          ${escapeHtml(content)}
+        </div>
+        <div class="message-meta">
+          <span class="timestamp">${timeStr}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(tempMsg);
+
+    // Create typing indicator
+    const typingEl = document.createElement('div');
+    typingEl.className = 'message message-student';
+    typingEl.id = 'typing-indicator';
+    typingEl.innerHTML = `
+      <div class="avatar student">
+        ${escapeHtml(window.studentDisplayName)}
+      </div>
+      <div class="message-content-wrapper">
+        <div class="message-bubble typing-bubble">
+          <div class="typing-dots">
+            <span></span><span></span><span></span>
+          </div>
+          응답 생성 중...
+        </div>
+      </div>
+    `;
+    container.appendChild(typingEl);
+
+    // Pause polling during POST to avoid race conditions
+    disablePolling();
+    console.log('⏸️ Polling paused during message send');
+
+    // Clear input immediately
+    input.value = '';
+    input.style.height = '';
+    clearDraftMessage();
+
+    // Scroll to bottom
+    container.scrollTop = container.scrollHeight;
+  });
+
+  // Handle messagesAdded event from HX-Trigger header
+  document.body.addEventListener('messagesAdded', (event) => {
+    const detail = event.detail || {};
+    if (detail.lastId) {
+      document.getElementById('last-message-id').value =
+        detail.lastId;
+    }
+  });
+
+  // Remove temp elements before server response is swapped in
+  // and deduplicate messages already present from polling
+  htmx.on('htmx:beforeSwap', (event) => {
+    if (event.detail.target.id !== 'messages-container') return;
+    removeTempElements();
+
+    // POST response: remove duplicates already added by polling
+    const path = event.detail.requestConfig?.path || '';
+    if (!path.includes('/messages/updates')) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(
+        event.detail.serverResponse, 'text/html'
+      );
+      const incomingIds = new Set(
+        Array.from(
+          doc.querySelectorAll('[data-message-id]')
+        ).map(el => el.dataset.messageId)
+      );
+      document.querySelectorAll(
+        '#messages-container .message[data-message-id]'
+      ).forEach(el => {
+        if (incomingIds.has(el.dataset.messageId)) {
+          el.remove();
+        }
+      });
+    }
+  });
+
+  // ========================================
   // HTMX Event Handlers
   // ========================================
   htmx.on('htmx:afterSwap', (event) => {
@@ -750,6 +880,8 @@
       document.getElementById('teacher-input').value = '';
       document.getElementById('teacher-input').style.height = '';
       clearDraftMessage();
+      lastSentContent = '';
+      enablePolling();
     }
 
     // Reset polling auth fail counter on any successful polling response
@@ -797,6 +929,12 @@
       pollingAuthFailCount = 0;
     }
 
+    // Clean up temp elements and restore input on error
+    if (!isPolling) {
+      restoreInputOnError();
+      enablePolling();
+    }
+
     if (event.detail.target.id === 'teacher-form') {
       console.error('Message send failed:', {
         status: xhr.status,
@@ -833,6 +971,10 @@
   });
 
   document.body.addEventListener('htmx:sendError', (event) => {
+    // Clean up temp elements on network error
+    restoreInputOnError();
+    enablePolling();
+
     if (event.detail.target.id === 'teacher-form') {
       console.error('❌ Network error:', {
         error: event.detail.error,
@@ -848,7 +990,10 @@
   document.body.addEventListener('htmx:timeout', (event) => {
     console.warn('⏱️ HTMX timeout:', event.detail);
 
-    if (!event.detail.pathInfo.requestPath.includes('/messages/updates')) {
+    if (!event.detail.pathInfo.requestPath.includes(
+      '/messages/updates'
+    )) {
+      restoreInputOnError();
       alert('요청 시간이 초과되었습니다. 다시 시도해주세요.');
     }
   });
