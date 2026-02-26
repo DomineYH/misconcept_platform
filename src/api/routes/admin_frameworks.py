@@ -116,7 +116,7 @@ async def create_framework_web(
         )
 
     db.add(new_framework)
-    await db.commit()
+    await db.flush()
     await db.refresh(new_framework)
 
     logger.info(
@@ -190,7 +190,7 @@ async def update_framework_web(
                 ],
             )
 
-    await db.commit()
+    await db.flush()
     await db.refresh(framework)
 
     logger.info(f"Framework updated: id={framework_id}")
@@ -264,7 +264,7 @@ async def delete_framework_web(
     await db.flush()
 
     await db.delete(framework)
-    await db.commit()
+    await db.flush()
 
     logger.info(
         f"Framework deleted: id={framework_id}, "

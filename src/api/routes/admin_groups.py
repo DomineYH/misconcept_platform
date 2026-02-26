@@ -98,7 +98,7 @@ async def create_group(
         description=data.description,
     )
     db.add(group)
-    await db.commit()
+    await db.flush()
     await db.refresh(group)
 
     return AdminGroupResponse(
@@ -145,7 +145,7 @@ async def update_group(
     if data.description is not None:
         group.description = data.description
 
-    await db.commit()
+    await db.flush()
     await db.refresh(group)
 
     member_count = await db.scalar(
@@ -199,7 +199,7 @@ async def delete_group(
         )
 
     await db.delete(group)
-    await db.commit()
+    await db.flush()
 
     return {
         "status": "deleted",

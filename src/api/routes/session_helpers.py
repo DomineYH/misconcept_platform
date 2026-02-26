@@ -69,7 +69,7 @@ async def mark_session_ended(
         return session.ended_at, True
 
     session.ended_at = datetime.now(timezone.utc)
-    await db.commit()
+    await db.flush()
     await db.refresh(session)
 
     return session.ended_at, False

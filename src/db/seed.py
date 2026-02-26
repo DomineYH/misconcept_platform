@@ -3,11 +3,13 @@
 import asyncio
 import json
 import os
+import secrets
 from pathlib import Path
 
 import bcrypt
 from sqlalchemy import text
 
+from src.config import config
 from src.db.connection import AsyncSessionLocal
 from src.db.init_schema import init_schema
 
@@ -77,9 +79,13 @@ async def seed_database():
         )
 
         # Seed admin user with bcrypt password
-        admin_password = os.getenv(
-            "ADMIN_DEFAULT_PASSWORD", "admin123"
-        )
+        admin_password = config.ADMIN_DEFAULT_PASSWORD
+        if not admin_password:
+            admin_password = secrets.token_urlsafe(16)
+            print(
+                f"WARNING: ADMIN_DEFAULT_PASSWORD not set. "
+                f"Generated random password: {admin_password}"
+            )
         admin_hash = bcrypt.hashpw(
             admin_password.encode("utf-8"),
             bcrypt.gensalt(),
@@ -134,6 +140,7 @@ async def seed_database():
                 """
                 INSERT INTO scenario (
                     title, prompt, student_profile,
+                    student_name,
                     is_active, framework_id, created_by,
                     student_template_id,
                     chat_model, chat_temperature,
@@ -141,6 +148,7 @@ async def seed_database():
                 )
                 VALUES (
                     :title, :prompt, :profile,
+                    :student_name,
                     :active, :fid, :created,
                     :student_tid,
                     :chat_model, :chat_temp,
@@ -163,6 +171,7 @@ async def seed_database():
                     "arithmetic but struggles with fraction "
                     "concepts"
                 ),
+                "student_name": "민수",
                 "active": 1,
                 "fid": framework_id,
                 "created": admin_id,

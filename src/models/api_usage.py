@@ -119,7 +119,7 @@ def calculate_cost(
         "gpt-4o": {"input": 5.00, "output": 15.00},
         "gpt-4o-mini": {"input": 0.15, "output": 0.60},
         "gpt-4-turbo": {"input": 10.00, "output": 30.00},
-        # GPT-3.5 family
+        # GPT-3.5 family (Legacy: kept for historical records)
         "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
     }
 

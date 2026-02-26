@@ -112,7 +112,7 @@ async def create_prompt(
             template_text=req.template_text,
             updated_by=user.id,
         )
-        await db.commit()
+        await db.flush()
 
         logger.info(
             f"Admin {user.nickname} created {req.bot_type} prompt "
@@ -122,7 +122,6 @@ async def create_prompt(
         return {"prompt": prompt.to_dict()}
 
     except Exception as e:
-        await db.rollback()
         logger.error(f"Failed to create prompt: {e}")
         raise HTTPException(
             status_code=500, detail="Failed to create prompt"
@@ -154,7 +153,7 @@ async def update_prompt(
             template_text=req.template_text,
             updated_by=user.id,
         )
-        await db.commit()
+        await db.flush()
 
         logger.info(
             f"Admin {user.nickname} updated prompt {prompt_id} "
@@ -163,7 +162,6 @@ async def update_prompt(
         return {"prompt": prompt.to_dict()}
 
     except Exception as e:
-        await db.rollback()
         logger.error(f"Failed to update prompt {prompt_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update prompt")
 
@@ -182,12 +180,11 @@ async def delete_prompt(
 
     try:
         await PromptManager.delete_prompt(db, prompt_id)
-        await db.commit()
+        await db.flush()
 
         logger.info(f"Admin {user.nickname} deleted prompt {prompt_id}")
         return {"status": "success", "id": prompt_id}
 
     except Exception as e:
-        await db.rollback()
         logger.error(f"Failed to delete prompt {prompt_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete prompt")

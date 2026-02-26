@@ -66,7 +66,7 @@ async def create_session(
     await validate_scenario_access(data.scenario_id, user, db)
     session = Session(scenario_id=data.scenario_id, teacher_id=user.id)
     db.add(session)
-    await db.commit()
+    await db.flush()
     await db.refresh(session)
 
     return SessionResponse(

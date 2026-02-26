@@ -18,10 +18,14 @@ class Session(Base):
 
     # Foreign keys
     scenario_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("scenario.id"), nullable=False
+        Integer,
+        ForeignKey("scenario.id", ondelete="CASCADE"),
+        nullable=False,
     )
-    teacher_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("user.id"), nullable=False
+    teacher_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("user.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     # Timestamps
@@ -31,6 +35,14 @@ class Session(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, default=None
+    )
+
+    # TutorBot state persistence
+    tutor_intervention_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+    tutor_question_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
     )
 
     # Relationships

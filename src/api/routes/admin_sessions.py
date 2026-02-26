@@ -16,7 +16,7 @@ from sqlalchemy import func, select, desc
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session, templates
+from src.api.dependencies import get_admin_user, get_db_session, templates
 from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.user import User
@@ -64,16 +64,10 @@ async def sessions_page(
     date_to: Optional[str] = None,
     status_filter: Optional[str] = None,
     page: int = 1,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Render session listing page with filtering."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
     per_page = 10
     offset = (page - 1) * per_page
 
@@ -188,16 +182,10 @@ async def list_sessions_api(
     teacher_id: Optional[int] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """List all sessions with optional filtering (API)."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
     query = (
         select(Session)
         .options(

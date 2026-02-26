@@ -1,5 +1,6 @@
 """Health check and metrics endpoints for monitoring."""
 
+import logging
 import time
 
 from fastapi import APIRouter, Depends
@@ -8,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_admin_user, get_db_session
 from src.models import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Health"])
 
@@ -28,7 +31,8 @@ async def health_check(db: AsyncSession = Depends(get_db_session)) -> dict:
         await db.execute(text("SELECT 1"))
         db_status = "healthy"
     except Exception as e:
-        db_status = f"unhealthy: {str(e)}"
+        logger.error("Health check DB failure: %s", e)
+        db_status = "unhealthy"
 
     return {
         "status": "healthy" if db_status == "healthy" else "degraded",
@@ -83,7 +87,10 @@ async def get_metrics(
         }
 
     except Exception as e:
+        logger.error("Metrics retrieval failure: %s", e)
         return {
-            "error": f"Failed to retrieve metrics: {str(e)}",
-            "uptime_seconds": round(time.time() - START_TIME, 2),
+            "error": "Failed to retrieve metrics",
+            "uptime_seconds": round(
+                time.time() - START_TIME, 2
+            ),
         }

@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 class SessionManager:
     """Orchestrates teacher-student-tutor dialogue interactions."""
 
+    CONTEXT_WINDOW_TURNS: int = 20  # Max messages in conversation history
+
     def __init__(self, db_session: AsyncSession, session_id: int):
         """Initialize SessionManager for specific session.
 
@@ -44,6 +46,8 @@ class SessionManager:
             )
         )
         session = result.scalar_one()
+        tutor_intervention_count = session.tutor_intervention_count
+        tutor_question_count = session.tutor_question_count
 
         result = await self.db.execute(
             select(Scenario).where(Scenario.id == session.scenario_id)
@@ -80,6 +84,8 @@ class SessionManager:
                 intervention_threshold=bot_config[
                     "tutor_intervention_threshold"
                 ],
+                initial_intervention_count=tutor_intervention_count,
+                initial_question_count=tutor_question_count,
             )
         else:
             self.tutor_bot = None  # TutorBot disabled for this scenario
@@ -196,12 +202,25 @@ class SessionManager:
             else:
                 logger.warning("TutorBot feedback failed: %s", tutor_result)
 
-        # 5. Commit all messages
-        await self.db.commit()
-
-        # Refresh to get created_at timestamps
+        # 5. Refresh to get created_at timestamps (dependency auto-commits)
         for msg in new_messages:
             await self.db.refresh(msg)
+
+        # Persist TutorBot state to session
+        if self.tutor_bot:
+            result = await self.db.execute(
+                select(Session).where(
+                    Session.id == self.session_id
+                )
+            )
+            sess = result.scalar_one()
+            sess.tutor_intervention_count = (
+                self.tutor_bot.intervention_count
+            )
+            sess.tutor_question_count = (
+                self.tutor_bot.question_count
+            )
+            await self.db.flush()
 
         return new_messages
 
@@ -228,15 +247,13 @@ class SessionManager:
         return {
             # StudentBot configuration
             "student_model": (
-                scenario.chat_model  # Scenario override
-                or config.CHAT_MODEL  # .env fallback
-                or "gpt-4-turbo"  # Default
+                scenario.chat_model or config.CHAT_MODEL
             ),
             "student_reasoning": config.STUDENT_REASONING or "medium",
             "student_max_tokens": config.STUDENT_MAX_TOKENS or 750,
             # TutorBot configuration
             "tutor_enabled": scenario.tutor_enabled,
-            "tutor_model": config.ANALYSIS_MODEL or "gpt-3.5-turbo",
+            "tutor_model": config.ANALYSIS_MODEL,
             "tutor_reasoning": config.TUTOR_REASONING or "low",
             "tutor_max_tokens": config.TUTOR_MAX_TOKENS or 750,
             "tutor_intervention_threshold": (
@@ -250,7 +267,8 @@ class SessionManager:
         """Retrieve conversation history for context.
 
         Returns:
-            List of message dicts with role and content
+            List of message dicts with role and content.
+            Limited to the most recent CONTEXT_WINDOW_TURNS messages.
         """
         result = await self.db.execute(
             select(Message)
@@ -258,8 +276,9 @@ class SessionManager:
             .order_by(Message.created_at)
         )
         messages = result.scalars().all()
-
-        return [{"role": msg.role, "content": msg.content} for msg in messages]
+        window = config.CONTEXT_WINDOW_TURNS
+        recent = messages[-window:]
+        return [{"role": msg.role, "content": msg.content} for msg in recent]
 
     async def _log_api_usage(
         self,
@@ -322,7 +341,7 @@ class SessionManager:
         session = result.scalar_one()
 
         session.ended_at = datetime.now(timezone.utc)
-        await self.db.commit()
+        # Dependency auto-commits
 
 
 # TODO: Task 3.1.2/3.1.3 - API Usage Logging Tests

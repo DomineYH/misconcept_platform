@@ -813,6 +813,11 @@ textarea {
 .avatar.student {
   background-color: var(--color-gray-800);
   color: var(--color-white);
+  min-width: 36px;
+  width: auto;
+  padding: 0 0.375rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .avatar.teacher {
@@ -838,6 +843,13 @@ textarea {
   line-height: 1.6;
   position: relative;
   word-wrap: break-word;
+}
+
+.message-sender {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-gray-600);
+  margin-bottom: 0.25rem;
 }
 
 .message-meta {

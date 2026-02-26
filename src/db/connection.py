@@ -1,5 +1,7 @@
 """Database connection and session management."""
 
+import logging
+
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -10,6 +12,8 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import declarative_base
 
 from src.config import config
+
+logger = logging.getLogger(__name__)
 
 # Create async engine with SQLite
 engine: AsyncEngine = create_async_engine(
@@ -51,7 +55,10 @@ Base = declarative_base()
 
 
 async def init_db():
-    """Initialize database by creating all tables."""
+    """Initialize database. Skip create_all in production."""
+    if config.is_production:
+        logger.info("Production mode: skipping create_all")
+        return
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

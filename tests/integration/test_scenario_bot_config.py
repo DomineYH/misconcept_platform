@@ -90,8 +90,8 @@ class TestScenarioBotConfigAPI:
         data = response.json()
         assert data["student_template_id"] == test_student_template.id
         assert data["tutor_template_id"] is None
-        # Schema defaults are applied when not provided
-        assert data["chat_model"] == "gpt-4-turbo"
+        # Schema defaults: chat_model=None (uses config fallback)
+        assert data["chat_model"] is None
         assert data["chat_temperature"] == 0.7
         assert data["tutor_intervention_threshold"] == 3
 
@@ -117,7 +117,7 @@ class TestScenarioBotConfigAPI:
                 "student_profile": "Grade 5 student",
                 "framework_id": test_framework.id,
                 "student_template_id": test_student_template.id,
-                "chat_model": "gpt-5-turbo",  # Invalid model
+                "chat_model": "claude-3-opus",  # Invalid model
             },
         )
 

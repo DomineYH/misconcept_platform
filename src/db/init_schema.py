@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS scenario (
   title TEXT NOT NULL,
   prompt TEXT NOT NULL,
   student_profile TEXT,
+  student_name VARCHAR(50) NULL,
   video_url VARCHAR(500) NULL,
   video_transcript TEXT NULL,
   is_active INTEGER NOT NULL DEFAULT 1
@@ -86,11 +87,15 @@ CREATE INDEX IF NOT EXISTS idx_scenario_tutor_template
 -- Session table
 CREATE TABLE IF NOT EXISTS session (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  scenario_id INTEGER NOT NULL REFERENCES scenario(id),
-  teacher_id INTEGER NOT NULL REFERENCES user(id),
+  scenario_id INTEGER NOT NULL REFERENCES scenario(id)
+    ON DELETE CASCADE,
+  teacher_id INTEGER REFERENCES user(id)
+    ON DELETE SET NULL,
   started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   ended_at DATETIME,
-  deleted_at DATETIME NULL
+  deleted_at DATETIME NULL,
+  tutor_intervention_count INTEGER NOT NULL DEFAULT 0,
+  tutor_question_count INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_teacher_started

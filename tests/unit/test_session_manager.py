@@ -50,6 +50,8 @@ def _mock_session(session_id=1, scenario_id=1):
     session.id = session_id
     session.scenario_id = scenario_id
     session.ended_at = None
+    session.tutor_intervention_count = 0
+    session.tutor_question_count = 0
     return session
 
 
@@ -141,6 +143,26 @@ class TestLoadBotConfig:
         assert result["tutor_intervention_threshold"] == 5
 
     @patch("src.services.session_mgr.config")
+    def test_no_legacy_model_fallbacks(self, mock_config):
+        """Should not fall back to legacy models."""
+        mock_config.CHAT_MODEL = "gpt-5"
+        mock_config.STUDENT_REASONING = "medium"
+        mock_config.STUDENT_MAX_TOKENS = 750
+        mock_config.ANALYSIS_MODEL = "gpt-5.2"
+        mock_config.TUTOR_REASONING = "low"
+        mock_config.TUTOR_MAX_TOKENS = 1125
+        mock_config.TUTOR_INTERVENTION_THRESHOLD = 3
+
+        mgr = self._make_manager()
+        scenario = _mock_scenario(chat_model=None)
+        result = mgr._load_bot_config(scenario)
+
+        assert result["student_model"] == "gpt-5"
+        assert result["tutor_model"] == "gpt-5.2"
+        assert "gpt-4-turbo" not in str(result.values())
+        assert "gpt-3.5-turbo" not in str(result.values())
+
+    @patch("src.services.session_mgr.config")
     def test_config_fallback_for_all_fields(self, mock_config):
         """Should load all config defaults correctly."""
         mock_config.CHAT_MODEL = "gpt-5"
@@ -179,6 +201,11 @@ class TestSessionManagerProcessTeacherMessage:
                       mock_analyzer)
         """
         db = AsyncMock()
+        mock_sess = _mock_session()
+        mock_result = Mock()
+        mock_result.scalar_one.return_value = mock_sess
+        db.execute = AsyncMock(return_value=mock_result)
+
         mgr = SessionManager(db_session=db, session_id=1)
         mgr.scenario = _mock_scenario(
             tutor_template_id=tutor_template_id
@@ -495,8 +522,8 @@ class TestSessionManagerProcessTeacherMessage:
 
         mgr.initialize.assert_called_once()
 
-    async def test_commits_all_messages(self):
-        """Should call db.commit after all messages are saved."""
+    async def test_does_not_commit_directly(self):
+        """Should not call db.commit (dependency auto-commits)."""
         mgr, _, _, _ = self._setup_manager()
         mgr._get_conversation_history = AsyncMock(
             return_value=[]
@@ -505,7 +532,59 @@ class TestSessionManagerProcessTeacherMessage:
 
         await mgr.process_teacher_message("Q?")
 
-        mgr.db.commit.assert_called_once()
+        mgr.db.commit.assert_not_called()
+
+
+class TestGetConversationHistory:
+    """Tests for SessionManager._get_conversation_history."""
+
+    async def test_context_window_limits_messages(self):
+        """Should return only last CONTEXT_WINDOW_TURNS."""
+        db = AsyncMock()
+        mgr = SessionManager(db_session=db, session_id=1)
+        mgr.CONTEXT_WINDOW_TURNS = 20
+
+        mock_messages = []
+        for i in range(30):
+            msg = Mock()
+            msg.role = "teacher" if i % 2 == 0 else "student"
+            msg.content = f"Message {i}"
+            mock_messages.append(msg)
+
+        mock_result = Mock()
+        mock_result.scalars.return_value.all.return_value = (
+            mock_messages
+        )
+        db.execute = AsyncMock(return_value=mock_result)
+
+        history = await mgr._get_conversation_history()
+
+        assert len(history) == 20
+        assert history[0]["content"] == "Message 10"
+        assert history[-1]["content"] == "Message 29"
+
+    async def test_returns_all_when_under_limit(self):
+        """Should return all messages when under limit."""
+        db = AsyncMock()
+        mgr = SessionManager(db_session=db, session_id=1)
+        mgr.CONTEXT_WINDOW_TURNS = 20
+
+        mock_messages = []
+        for i in range(5):
+            msg = Mock()
+            msg.role = "teacher"
+            msg.content = f"Message {i}"
+            mock_messages.append(msg)
+
+        mock_result = Mock()
+        mock_result.scalars.return_value.all.return_value = (
+            mock_messages
+        )
+        db.execute = AsyncMock(return_value=mock_result)
+
+        history = await mgr._get_conversation_history()
+
+        assert len(history) == 5
 
 
 class TestSessionManagerEndSession:
@@ -527,7 +606,7 @@ class TestSessionManagerEndSession:
         await mgr.end_session()
 
         assert mock_session.ended_at is not None
-        db.commit.assert_called_once()
+        db.commit.assert_not_called()
 
     async def test_ended_at_is_utc(self):
         """Should use UTC timezone for ended_at."""

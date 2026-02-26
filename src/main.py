@@ -11,7 +11,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from pythonjsonlogger import jsonlogger
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -147,11 +146,17 @@ class SecurityHeadersMiddleware:
         ),
         (
             b"content-security-policy",
-            b"default-src 'self'; script-src 'self' "
-            b"'unsafe-inline' https://unpkg.com; "
+            b"default-src 'self'; "
+            b"script-src 'self' 'unsafe-inline' "
+            b"https://unpkg.com; "
             b"style-src 'self' 'unsafe-inline'; "
-            b"frame-src 'self' https://www.youtube.com "
-            b"https://www.youtube-nocookie.com",
+            b"img-src 'self' data:; "
+            b"connect-src 'self'; "
+            b"frame-src 'self' "
+            b"https://www.youtube.com "
+            b"https://www.youtube-nocookie.com; "
+            b"object-src 'none'; "
+            b"base-uri 'self'",
         ),
         (
             b"referrer-policy",
@@ -332,10 +337,6 @@ app.mount(
     name="static",
 )
 
-# Setup Jinja2 templates
-templates = Jinja2Templates(directory="src/templates")
-
-
 # Register route blueprints
 from src.api.routes import (  # noqa: E402
     admin,
@@ -345,7 +346,6 @@ from src.api.routes import (  # noqa: E402
     admin_session_actions,
     admin_session_export,
     admin_session_stats,
-    admin_sessions,
     auth,
     health,
     scenarios,
@@ -360,7 +360,6 @@ app.include_router(admin.router)
 app.include_router(admin_analysis.router)
 app.include_router(admin_api_usage.router)
 app.include_router(admin_prompts.router)
-app.include_router(admin_sessions.router)
 app.include_router(admin_session_export.router)
 app.include_router(admin_session_actions.router)
 app.include_router(admin_session_stats.router)

@@ -9,7 +9,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_admin_user, get_db_session, templates
@@ -109,7 +109,7 @@ async def create_user(
     new_user.set_password(data.password)
 
     db.add(new_user)
-    await db.commit()
+    await db.flush()
     await db.refresh(new_user)
 
     group_name = None
@@ -171,7 +171,7 @@ async def update_user(
     if data.password is not None:
         target.set_password(data.password)
 
-    await db.commit()
+    await db.flush()
     await db.refresh(target)
 
     group_name = None
@@ -211,18 +211,34 @@ async def delete_user(
             detail="사용자를 찾을 수 없습니다.",
         )
 
-    # Check for sessions
-    session_count = await db.scalar(
+    # Check for active sessions
+    active_count = await db.scalar(
         select(func.count(Session.id)).where(
-            Session.teacher_id == user_id
+            Session.teacher_id == user_id,
+            Session.ended_at.is_(None),
+            Session.deleted_at.is_(None),
         )
     )
 
+    if active_count and active_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="활성 세션이 있는 사용자는 "
+            "삭제할 수 없습니다. "
+            "먼저 세션을 종료해주세요.",
+        )
+
+    # Nullify teacher_id on ended sessions
+    await db.execute(
+        update(Session)
+        .where(Session.teacher_id == user_id)
+        .values(teacher_id=None)
+    )
+
     await db.delete(target)
-    await db.commit()
+    await db.flush()
 
     return {
         "status": "deleted",
         "user_id": user_id,
-        "had_sessions": (session_count or 0) > 0,
     }

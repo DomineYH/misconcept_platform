@@ -21,6 +21,7 @@ from src.api.dependencies import get_current_user, get_db_session, templates
 from src.api.routes.session_helpers import load_session
 from src.config import config
 from src.models import Message, User
+from src.models.scenario import Scenario
 from src.services.session_mgr import SessionManager
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,10 @@ limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
 
 
 def _validate_and_render_message(
-    message, request: Request, templates: Jinja2Templates
+    message,
+    request: Request,
+    templates: Jinja2Templates,
+    student_name: str | None = None,
 ) -> str | None:
     """Validate message attributes and render to HTML.
 
@@ -54,7 +58,9 @@ def _validate_and_render_message(
             return None
 
         html = templates.get_template("partials/message.html").render(
-            message=message, request=request
+            message=message,
+            request=request,
+            student_name=student_name,
         )
 
         if not html or 'class="message' not in html:
@@ -99,12 +105,17 @@ async def send_message(
     if not content or len(content) < 1:
         raise HTTPException(status_code=400, detail="Content cannot be empty")
 
+    scenario = await db.get(Scenario, session.scenario_id)
+    student_name = scenario.student_name if scenario else None
+
     manager = SessionManager(db, session_id)
     new_messages = await manager.process_teacher_message(content)
 
     rendered_messages = []
     for message in new_messages:
-        html = _validate_and_render_message(message, request, templates)
+        html = _validate_and_render_message(
+            message, request, templates, student_name
+        )
         if html:
             rendered_messages.append(html)
 
@@ -142,7 +153,10 @@ async def get_message_updates(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """Get new messages since last message ID for HTMX polling."""
-    await load_session(session_id, user, db)
+    session = await load_session(session_id, user, db)
+
+    scenario = await db.get(Scenario, session.scenario_id)
+    student_name = scenario.student_name if scenario else None
 
     query = (
         select(Message)
@@ -162,7 +176,9 @@ async def get_message_updates(
 
     rendered_messages = []
     for message in messages:
-        html = _validate_and_render_message(message, request, templates)
+        html = _validate_and_render_message(
+            message, request, templates, student_name
+        )
         if html:
             rendered_messages.append(html)
 

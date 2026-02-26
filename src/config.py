@@ -36,6 +36,9 @@ class Config(BaseSettings):
     TUTOR_MAX_TOKENS: int = 1500
     TUTOR_INTERVENTION_THRESHOLD: int = 3
 
+    # Context Window
+    CONTEXT_WINDOW_TURNS: int = 20
+
     # Session Security
     SESSION_SECRET: str = "change-this-insecure-default"
 
@@ -52,6 +55,9 @@ class Config(BaseSettings):
 
     # Environment (T112: Security hardening)
     ENV: str = "development"  # development or production
+
+    # Admin seed password (used by src/db/seed.py)
+    ADMIN_DEFAULT_PASSWORD: str = ""
 
     # Testing
     TESTING: bool = False
@@ -83,9 +89,30 @@ class Config(BaseSettings):
     @field_validator("SESSION_SECRET")
     @classmethod
     def validate_session_secret(cls, v):
-        """Validate session secret is changed from default."""
-        if v == "change-this-insecure-default":
-            raise ValueError("SESSION_SECRET must be changed in .env file")
+        """Validate session secret strength."""
+        blocked = [
+            "change-this",
+            "your-secret",
+            "example",
+            "insecure",
+            "default",
+            "placeholder",
+            "todo",
+            "fixme",
+        ]
+        v_lower = v.lower()
+        for pattern in blocked:
+            if pattern in v_lower:
+                raise ValueError(
+                    "SESSION_SECRET contains blocked "
+                    f"pattern '{pattern}'. "
+                    "Set a strong secret in .env"
+                )
+        if len(v) < 32:
+            raise ValueError(
+                "SESSION_SECRET must be at least "
+                "32 characters long"
+            )
         return v
 
     @field_validator(
@@ -123,11 +150,37 @@ class Config(BaseSettings):
             )
         return v
 
-    def validate(self) -> None:
-        """Backward compatibility method for explicit validation.
+    @field_validator(
+        "CHAT_MODEL", "ANALYSIS_MODEL", "DIALOGUE_ANALYSIS_MODEL"
+    )
+    @classmethod
+    def validate_model_name(cls, v, info):
+        """Validate model names are from supported families."""
+        if not v:
+            return v
+        if v.startswith("gpt-4") or v.startswith("gpt-5"):
+            return v
+        raise ValueError(
+            f"{info.field_name} must be a gpt-4 or gpt-5 "
+            f"model, got {v}"
+        )
 
-        With pydantic-settings, validation happens automatically in __init__.
-        This method is kept as a no-op for backward compatibility.
+    @field_validator("CONTEXT_WINDOW_TURNS")
+    @classmethod
+    def validate_context_window(cls, v):
+        """Validate context window size range."""
+        if not (4 <= v <= 200):
+            raise ValueError(
+                "CONTEXT_WINDOW_TURNS must be between "
+                f"4 and 200, got {v}"
+            )
+        return v
+
+    def validate(self) -> None:
+        """No-op for backward compatibility.
+
+        Pydantic validates all fields in __init__ automatically.
+        This method exists only for callers that expect it.
         """
         pass
 

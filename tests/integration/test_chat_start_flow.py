@@ -126,13 +126,13 @@ class TestScenarioSelectCreatesSession:
         assert created_session.teacher_id == user.id
         assert created_session.ended_at is None
 
-    async def test_multiple_sessions_allowed(
+    async def test_multiple_visits_reuse_session(
         self,
         test_client: TestClient,
         db_session: AsyncSession,
         test_scenario: Scenario,
     ):
-        """동일 시나리오에 대해 여러 세션 생성 가능한지 확인."""
+        """동일 시나리오 재방문 시 기존 세션을 재사용하는지 확인."""
         # Login
         login_response = test_client.post(
             "/login",
@@ -146,30 +146,29 @@ class TestScenarioSelectCreatesSession:
         )
         user = result.scalar_one()
 
-        # First visit
+        # First visit — creates session
         response1 = test_client.get(
             f"/scenarios/{test_scenario.id}", cookies=cookies
         )
         assert response1.status_code == 200
 
-        # Second visit
+        # Second visit — reuses existing active session
         response2 = test_client.get(
             f"/scenarios/{test_scenario.id}", cookies=cookies
         )
         assert response2.status_code == 200
 
-        # Verify two separate sessions were created
+        # Verify only one active session exists (dedup)
         result = await db_session.execute(
             select(Session)
             .where(Session.scenario_id == test_scenario.id)
             .where(Session.teacher_id == user.id)
+            .where(Session.ended_at.is_(None))
+            .where(Session.deleted_at.is_(None))
         )
         sessions = result.scalars().all()
 
-        assert len(sessions) >= 2
-        # Verify they have different IDs
-        session_ids = [s.id for s in sessions]
-        assert len(session_ids) == len(set(session_ids))
+        assert len(sessions) == 1
 
 
 class TestChatPageHasSessionId:

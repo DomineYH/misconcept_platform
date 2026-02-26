@@ -156,6 +156,7 @@ async def create_scenario(
         student_profile=scenario_data.student_profile,
         framework_id=scenario_data.framework_id,
         is_active=1 if scenario_data.is_active else 0,
+        student_name=scenario_data.student_name,
         # Phase 2: Bot configuration overrides
         chat_model=scenario_data.chat_model,
         chat_temperature=scenario_data.chat_temperature,
@@ -181,7 +182,7 @@ async def create_scenario(
             )
             db.add(sg)
 
-    await db.commit()
+    await db.flush()
     await db.refresh(scenario)
 
     return scenario
@@ -229,6 +230,8 @@ async def update_scenario(
         scenario.prompt = scenario_data.prompt.strip()
     if scenario_data.student_profile is not None:
         scenario.student_profile = scenario_data.student_profile.strip()
+    if scenario_data.student_name is not None:
+        scenario.student_name = scenario_data.student_name
     if scenario_data.framework_id is not None:
         # Verify framework exists
         framework = await db.get(
@@ -299,7 +302,7 @@ async def update_scenario(
             )
             db.add(sg)
 
-    await db.commit()
+    await db.flush()
     await db.refresh(scenario)
 
     return scenario
@@ -344,7 +347,7 @@ async def delete_scenario(
     scenario.mark_deleted()
 
     # Commit all changes
-    await db.commit()
+    await db.flush()
 
     logger.info(
         f"Scenario {scenario_id} and {len(sessions)} related session(s) "

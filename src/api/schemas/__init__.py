@@ -71,6 +71,9 @@ class ScenarioCreate(BaseModel):
     student_profile: str = Field(
         ..., min_length=3, max_length=5000
     )
+    student_name: str | None = Field(
+        None, max_length=50
+    )
     framework_id: int
     is_active: bool = True
 
@@ -79,7 +82,7 @@ class ScenarioCreate(BaseModel):
     video_transcript: str | None = None
 
     # Bot overrides (Phase 2)
-    chat_model: str | None = "gpt-4-turbo"
+    chat_model: str | None = None
     chat_temperature: float | None = 0.7
     tutor_intervention_threshold: int | None = 3
 
@@ -115,8 +118,8 @@ class ScenarioCreate(BaseModel):
         # gpt-4 family: any string starting with "gpt-4"
         if v.startswith("gpt-4"):
             return v
-        # gpt-5 family: "gpt-5" exact or "gpt-5." prefix
-        if v == "gpt-5" or v.startswith("gpt-5."):
+        # gpt-5 family: any string starting with "gpt-5"
+        if v.startswith("gpt-5"):
             return v
         raise ValueError(
             f"Invalid model: {v}. "
@@ -159,6 +162,9 @@ class ScenarioUpdate(BaseModel):
     )
     student_profile: str | None = Field(
         None, min_length=3, max_length=5000
+    )
+    student_name: str | None = Field(
+        None, max_length=50
     )
     framework_id: int | None = None
     is_active: int | None = Field(None, ge=0, le=1)
@@ -203,6 +209,7 @@ class AdminScenarioResponse(BaseModel):
     title: str
     prompt: str
     student_profile: str
+    student_name: str | None = None
     framework_id: int
     is_active: int
 

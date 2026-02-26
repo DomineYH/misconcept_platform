@@ -40,6 +40,11 @@ class Scenario(Base):
     student_profile: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )
+    student_name: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="학생 캐릭터 이름 (채팅 UI 표시용)",
+    )
 
     # Video fields
     video_url: Mapped[str | None] = mapped_column(
@@ -80,23 +85,32 @@ class Scenario(Base):
     )
 
     # Template foreign keys
-    student_template_id: Mapped[int] = mapped_column(
+    student_template_id: Mapped[int | None] = mapped_column(
         Integer,
-        ForeignKey("prompt_template.id"),
-        nullable=False,
+        ForeignKey(
+            "prompt_template.id", ondelete="SET NULL"
+        ),
+        nullable=True,
         comment="StudentBot prompt template for this scenario",
     )
 
     tutor_template_id: Mapped[Optional[int]] = mapped_column(
         Integer,
-        ForeignKey("prompt_template.id"),
+        ForeignKey(
+            "prompt_template.id", ondelete="SET NULL"
+        ),
         nullable=True,
         comment="TutorBot prompt template (NULL = tutor disabled)",
     )
 
     # Foreign keys
     framework_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("analysis_framework.id"), nullable=False
+        Integer,
+        ForeignKey(
+            "analysis_framework.id",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
     )
     created_by: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("user.id"), nullable=True

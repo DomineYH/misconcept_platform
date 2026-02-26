@@ -164,6 +164,20 @@
           </div>
 
           <div class="form-group">
+            <label for="new-student-name">학생 캐릭터 이름</label>
+            <input
+              type="text"
+              id="new-student-name"
+              name="student_name"
+              maxlength="50"
+              placeholder="예: 민수"
+            />
+            <small class="form-help">채팅 화면에 표시될 학생봇 이름</small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
             <label for="new-framework">프레임워크 <span class="required">*</span></label>
             <select id="new-framework" name="framework_id" required>
               <option value="">선택하세요</option>
@@ -307,6 +321,18 @@
       </div>
 
       <div class="form-group">
+        <label for="edit-student-name">학생 캐릭터 이름</label>
+        <input
+          type="text"
+          id="edit-student-name"
+          name="student_name"
+          maxlength="50"
+          placeholder="예: 민수"
+        />
+        <small class="form-help">채팅 화면에 표시될 학생봇 이름</small>
+      </div>
+
+      <div class="form-group">
         <label for="edit-framework">프레임워크 <span class="required">*</span></label>
         <select id="edit-framework" name="framework_id" required>
           {% for framework in frameworks %}
@@ -437,6 +463,7 @@ const scenariosData = {
     framework_id: {{ scenario.framework_id }},
     prompt: `{{ scenario.prompt|replace('\n', '\\n')|replace('\r', '')|e }}`,
     student_profile: `{{ scenario.student_profile|replace('\n', '\\n')|replace('\r', '')|e }}`,
+    student_name: "{{ scenario.student_name or '' }}",
     video_url: "{{ scenario.video_url or '' }}",
     video_transcript: `{{ (scenario.video_transcript|replace('\n', '\\n')|replace('\r', '')|e) if scenario.video_transcript else '' }}`,
     student_template_id: {{ scenario.student_template_id }},
@@ -500,6 +527,7 @@ function openEditPanel(scenarioId) {
   document.getElementById('edit-framework').value = data.framework_id;
   document.getElementById('edit-prompt').value = data.prompt;
   document.getElementById('edit-profile').value = data.student_profile;
+  document.getElementById('edit-student-name').value = data.student_name || '';
   document.getElementById('edit-video-url').value = data.video_url || '';
   document.getElementById('edit-video-transcript').value = data.video_transcript || '';
   document.getElementById('edit-student-template').value = data.student_template_id;
@@ -556,6 +584,7 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
     title: formData.get('title'),
     prompt: formData.get('prompt'),
     student_profile: formData.get('student_profile'),
+    student_name: formData.get('student_name') || null,
     framework_id: parseInt(formData.get('framework_id')),
     video_url: formData.get('video_url') || null,
     video_transcript: formData.get('video_transcript') || null,
@@ -596,6 +625,7 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
     title: formData.get('title'),
     prompt: formData.get('prompt'),
     student_profile: formData.get('student_profile'),
+    student_name: formData.get('student_name') || null,
     framework_id: parseInt(formData.get('framework_id')),
     video_url: formData.get('video_url') || null,
     video_transcript: formData.get('video_transcript') || null,

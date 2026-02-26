@@ -66,10 +66,11 @@ async def analyze_session(
 
     # Analyze each teacher message
     distribution = {label: 0 for label in framework.labels}
+    msg_index_map = {msg.id: idx for idx, msg in enumerate(all_messages)}
 
     for msg in teacher_messages:
         try:
-            msg_idx = all_messages.index(msg)
+            msg_idx = msg_index_map[msg.id]
             context_messages = all_messages[max(0, msg_idx - 3) : msg_idx]
             context = "\n".join(
                 [f"{m.role}: {m.content}" for m in context_messages]
@@ -103,8 +104,6 @@ async def analyze_session(
         except Exception as e:
             logger.warning(f"Failed to analyze message {msg.id}: {e}")
             continue
-
-    await db.commit()
 
     feedback = (
         f"Session analysis complete. Classified "

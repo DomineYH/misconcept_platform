@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db_session, templates
+from src.api.dependencies import get_admin_user, get_db_session, templates
 from src.models import (
     AnalysisFramework,
     Message,
@@ -38,16 +38,10 @@ router = APIRouter()
 async def end_session(
     request: Request,
     session_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """End an active session (set ended_at)."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
     query = (
         select(Session)
         .options(
@@ -72,7 +66,7 @@ async def end_session(
         )
 
     session.ended_at = datetime.now(timezone.utc)
-    await db.commit()
+    await db.flush()
 
     # Trigger analysis
     try:
@@ -120,16 +114,10 @@ async def end_session(
 )
 async def delete_session(
     session_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Soft delete a session (set deleted_at)."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
     session = await db.get(Session, session_id)
     if not session:
         raise HTTPException(
@@ -144,7 +132,7 @@ async def delete_session(
         )
 
     session.mark_deleted()
-    await db.commit()
+    await db.flush()
 
     return Response(content="", status_code=200)
 
@@ -156,16 +144,10 @@ async def delete_session(
 async def session_detail(
     request: Request,
     session_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Get session detail for viewing in modal."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
     query = (
         select(Session)
         .options(
@@ -196,16 +178,10 @@ async def session_detail(
 async def analysis_modal(
     request: Request,
     session_id: int,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Get session analysis for admin modal view."""
-    if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
     query = (
         select(Session)
         .options(joinedload(Session.scenario))

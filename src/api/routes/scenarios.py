@@ -87,26 +87,56 @@ async def get_scenario_detail(
     scenario = await validate_scenario_access(scenario_id, user, db)
     await db.refresh(scenario, ["framework"])
 
-    # Auto-create session
-    session = Session(scenario_id=scenario.id, teacher_id=user.id)
-    db.add(session)
+    # Check for existing active session (dedup)
+    existing_result = await db.execute(
+        select(Session).where(
+            Session.scenario_id == scenario.id,
+            Session.teacher_id == user.id,
+            Session.ended_at.is_(None),
+            Session.deleted_at.is_(None),
+        )
+    )
+    session = existing_result.scalars().first()
 
-    try:
-        await db.commit()
-        await db.refresh(session)
+    if not session:
+        session = Session(
+            scenario_id=scenario.id,
+            teacher_id=user.id,
+        )
+        db.add(session)
+
+        try:
+            await db.flush()
+            await db.refresh(session)
+            logger.info(
+                f"Auto-created session {session.id} "
+                f"for user {user.id} "
+                f"on scenario {scenario.id}"
+            )
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Failed to create session: {e}"
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="대화 세션을 시작할 수 없습니다. "
+                "잠시 후 다시 시도해주세요.",
+            )
+    else:
         logger.info(
-            f"Auto-created session {session.id} "
+            f"Reusing session {session.id} "
             f"for user {user.id} "
             f"on scenario {scenario.id}"
         )
-    except SQLAlchemyError as e:
-        logger.error(f"Failed to create session: {e}")
-        await db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="대화 세션을 시작할 수 없습니다. "
-            "잠시 후 다시 시도해주세요.",
-        )
+
+    # Load existing messages for the session
+    from src.models import Message
+    messages_result = await db.execute(
+        select(Message)
+        .where(Message.session_id == session.id)
+        .order_by(Message.created_at)
+    )
+    existing_messages = messages_result.scalars().all()
 
     return templates.TemplateResponse(
         "chat.html",
@@ -115,6 +145,7 @@ async def get_scenario_detail(
             "user": user,
             "scenario": scenario,
             "session_id": session.id,
-            "messages": [],
+            "messages": existing_messages,
+            "student_name": scenario.student_name,
         },
     )

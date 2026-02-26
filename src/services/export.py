@@ -51,6 +51,19 @@ class CSVExporter:
         combined = f"{username}:{session_salt}"
         return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _sanitize_csv_value(value: str) -> str:
+        """Sanitize value to prevent CSV formula injection.
+
+        Prefixes cells starting with dangerous characters
+        (=, +, -, @, \\t, \\r) with a single quote.
+        """
+        if not value:
+            return value
+        if value[0] in ("=", "+", "-", "@", "\t", "\r"):
+            return f"'{value}"
+        return value
+
     async def export_session(self, session_id: int, db: AsyncSession) -> str:
         """
         Export single session to CSV format.
@@ -145,7 +158,9 @@ class CSVExporter:
                     "student_hash": student_hash,
                     "timestamp": msg.created_at.isoformat(),
                     "role": msg.role,
-                    "content": msg.content,
+                    "content": self._sanitize_csv_value(
+                        msg.content
+                    ),
                     "label": analysis.label if analysis else "",
                     "confidence": (
                         f"{analysis.confidence:.2f}"
@@ -168,7 +183,9 @@ class CSVExporter:
                     "content": "Session Summary",
                     "label": "",
                     "confidence": "",
-                    "feedback": summary.feedback or "",
+                    "feedback": self._sanitize_csv_value(
+                        summary.feedback or ""
+                    ),
                 }
             )
 
@@ -276,16 +293,24 @@ class CSVExporter:
                     "scenario_id": scenario.id,
                     "scenario_title": scenario.title,
                     "teacher_id": teacher.id,
-                    "teacher_username": teacher.username,
-                    "teacher_nickname": teacher.nickname,
+                    "teacher_username": self._sanitize_csv_value(
+                        teacher.username
+                    ),
+                    "teacher_nickname": self._sanitize_csv_value(
+                        teacher.nickname
+                    ),
                     "session_started_at": session.started_at.isoformat(),
                     "session_ended_at": (
-                        session.ended_at.isoformat() if session.ended_at else ""
+                        session.ended_at.isoformat()
+                        if session.ended_at
+                        else ""
                     ),
                     "message_id": msg.id,
                     "message_created_at": msg.created_at.isoformat(),
                     "role": msg.role,
-                    "content": msg.content,
+                    "content": self._sanitize_csv_value(
+                        msg.content
+                    ),
                     "label": analysis.label if analysis else "",
                     "confidence": (
                         f"{analysis.confidence:.2f}"
@@ -304,11 +329,17 @@ class CSVExporter:
                     "scenario_id": scenario.id,
                     "scenario_title": scenario.title,
                     "teacher_id": teacher.id,
-                    "teacher_username": teacher.username,
-                    "teacher_nickname": teacher.nickname,
+                    "teacher_username": self._sanitize_csv_value(
+                        teacher.username
+                    ),
+                    "teacher_nickname": self._sanitize_csv_value(
+                        teacher.nickname
+                    ),
                     "session_started_at": session.started_at.isoformat(),
                     "session_ended_at": (
-                        session.ended_at.isoformat() if session.ended_at else ""
+                        session.ended_at.isoformat()
+                        if session.ended_at
+                        else ""
                     ),
                     "message_id": "",
                     "message_created_at": summary.created_at.isoformat(),
@@ -317,7 +348,9 @@ class CSVExporter:
                     "label": "",
                     "confidence": "",
                     "meta_json": "",
-                    "feedback": summary.feedback or "",
+                    "feedback": self._sanitize_csv_value(
+                        summary.feedback or ""
+                    ),
                 }
             )
 
@@ -426,25 +459,37 @@ class CSVExporter:
                         "scenario_id": scenario.id,
                         "scenario_title": scenario.title,
                         "teacher_id": teacher.id,
-                        "teacher_username": teacher.username,
-                        "teacher_nickname": teacher.nickname,
-                        "session_started_at": session.started_at.isoformat(),
+                        "teacher_username": self._sanitize_csv_value(
+                            teacher.username
+                        ),
+                        "teacher_nickname": self._sanitize_csv_value(
+                            teacher.nickname
+                        ),
+                        "session_started_at": (
+                            session.started_at.isoformat()
+                        ),
                         "session_ended_at": (
                             session.ended_at.isoformat()
                             if session.ended_at
                             else ""
                         ),
                         "message_id": msg.id,
-                        "message_created_at": msg.created_at.isoformat(),
+                        "message_created_at": (
+                            msg.created_at.isoformat()
+                        ),
                         "role": msg.role,
-                        "content": msg.content,
+                        "content": self._sanitize_csv_value(
+                            msg.content
+                        ),
                         "label": analysis.label if analysis else "",
                         "confidence": (
                             f"{analysis.confidence:.2f}"
                             if analysis and analysis.confidence
                             else ""
                         ),
-                        "meta_json": analysis.meta_json if analysis else "",
+                        "meta_json": (
+                            analysis.meta_json if analysis else ""
+                        ),
                         "feedback": "",
                     }
                 )
@@ -458,22 +503,32 @@ class CSVExporter:
                         "scenario_id": scenario.id,
                         "scenario_title": scenario.title,
                         "teacher_id": teacher.id,
-                        "teacher_username": teacher.username,
-                        "teacher_nickname": teacher.nickname,
-                        "session_started_at": session.started_at.isoformat(),
+                        "teacher_username": self._sanitize_csv_value(
+                            teacher.username
+                        ),
+                        "teacher_nickname": self._sanitize_csv_value(
+                            teacher.nickname
+                        ),
+                        "session_started_at": (
+                            session.started_at.isoformat()
+                        ),
                         "session_ended_at": (
                             session.ended_at.isoformat()
                             if session.ended_at
                             else ""
                         ),
                         "message_id": "",
-                        "message_created_at": summary.created_at.isoformat(),
+                        "message_created_at": (
+                            summary.created_at.isoformat()
+                        ),
                         "role": "summary",
                         "content": "Session Summary",
                         "label": "",
                         "confidence": "",
                         "meta_json": "",
-                        "feedback": summary.feedback or "",
+                        "feedback": self._sanitize_csv_value(
+                            summary.feedback or ""
+                        ),
                     }
                 )
 

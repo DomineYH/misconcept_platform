@@ -36,6 +36,8 @@ class TutorBot(OpenAIBaseService):
         reasoning_effort: Optional[str] = None,
         max_tokens: Optional[int] = None,
         intervention_threshold: Optional[int] = None,
+        initial_intervention_count: int = 0,
+        initial_question_count: int = 0,
     ):
         """Initialize TutorBot with scenario context and optional config.
 
@@ -49,6 +51,8 @@ class TutorBot(OpenAIBaseService):
             reasoning_effort: Reasoning effort level
             max_tokens: Maximum tokens for response
             intervention_threshold: Max interventions per session
+            initial_intervention_count: Restored count from prior session
+            initial_question_count: Restored count from prior session
         """
         super().__init__()
         self.db_session = db_session
@@ -62,8 +66,8 @@ class TutorBot(OpenAIBaseService):
         self.scenario_title = scenario_title
         self.prompt = prompt
         self.student_profile = student_profile
-        self.intervention_count = 0
-        self.question_count = 0
+        self.intervention_count = initial_intervention_count
+        self.question_count = initial_question_count
 
     def should_intervene(self, recent_teacher_questions: list[str]) -> bool:
         """Determine if tutor should provide feedback (legacy method)."""
