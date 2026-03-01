@@ -74,16 +74,13 @@
         <!-- Card Content -->
         <div class="card-body">
           <h3 class="card-title">{{ scenario.title }}</h3>
-          
+
           <div class="card-meta">
             <span class="meta-tag framework">
               {{ scenario.framework.name }}
             </span>
-            <span class="meta-tag {% if session_counts[scenario.id] > 0 %}sessions{% endif %}">
-              세션 {{ session_counts[scenario.id] }}개
-            </span>
-            {% if scenario.tutor_template_id %}
-            <span class="meta-tag tutor-active">🎓 튜터 활성</span>
+            {% if scenario.tutor_template %}
+            <span class="meta-tag tutor-active">🎓 {{ scenario.tutor_template.template_name }}</span>
             {% endif %}
             {% for gid in scenario_group_map.get(scenario.id, []) %}
               {% for g in groups if g.id == gid %}
@@ -303,10 +300,10 @@
     <h2>시나리오 수정</h2>
     <button type="button" class="close-panel-btn" id="close-edit-panel" aria-label="닫기">&times;</button>
   </div>
-  
+
   <form id="edit-form" class="panel-form">
     <input type="hidden" id="edit-scenario-id" name="scenario_id" />
-    
+
     <div class="panel-body">
       <div class="form-group">
         <label for="edit-title">제목 <span class="required">*</span></label>
@@ -750,30 +747,30 @@ const scenariosGrid = document.getElementById('scenarios-grid');
 
 function filterScenarios() {
   if (!scenariosGrid) return;
-  
+
   const searchTerm = searchInput.value.toLowerCase();
   const frameworkId = filterFramework.value;
   const status = filterStatus.value;
 
   const cards = scenariosGrid.querySelectorAll('.scenario-card');
-  
+
   cards.forEach(card => {
     const title = card.dataset.title.toLowerCase();
     const cardFrameworkId = card.dataset.frameworkId;
     const isInactive = card.classList.contains('inactive');
-    
+
     let show = true;
-    
+
     // Search filter
     if (searchTerm && !title.includes(searchTerm)) {
       show = false;
     }
-    
+
     // Framework filter
     if (frameworkId && cardFrameworkId !== frameworkId) {
       show = false;
     }
-    
+
     // Status filter
     if (status === 'active' && isInactive) {
       show = false;
@@ -781,7 +778,7 @@ function filterScenarios() {
     if (status === 'inactive' && !isInactive) {
       show = false;
     }
-    
+
     card.style.display = show ? '' : 'none';
   });
 }

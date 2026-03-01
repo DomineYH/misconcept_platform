@@ -1,4 +1,5 @@
 """Admin scenario management routes (T077-T080)."""
+
 import logging
 
 from fastapi import (
@@ -82,9 +83,7 @@ async def list_all_scenarios(
         session_counts[scenario.id] = count or 0
 
     # Load groups for assignment checkboxes
-    groups_result = await db.execute(
-        select(UserGroup).order_by(UserGroup.name)
-    )
+    groups_result = await db.execute(select(UserGroup).order_by(UserGroup.name))
     groups = groups_result.scalars().all()
 
     # Load scenario-group assignments
@@ -92,9 +91,7 @@ async def list_all_scenarios(
     all_sg = sg_result.scalars().all()
     scenario_group_map = {}
     for sg in all_sg:
-        scenario_group_map.setdefault(
-            sg.scenario_id, []
-        ).append(sg.group_id)
+        scenario_group_map.setdefault(sg.scenario_id, []).append(sg.group_id)
 
     return templates.TemplateResponse(
         "admin/scenarios.html",
@@ -133,7 +130,9 @@ async def create_scenario(
         )
 
     # Verify student template exists and is correct type
-    student_template = await db.get(PromptTemplate, scenario_data.student_template_id)
+    student_template = await db.get(
+        PromptTemplate, scenario_data.student_template_id
+    )
     if not student_template or student_template.bot_type != "student":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -142,7 +141,9 @@ async def create_scenario(
 
     # Verify tutor template if provided
     if scenario_data.tutor_template_id is not None:
-        tutor_template = await db.get(PromptTemplate, scenario_data.tutor_template_id)
+        tutor_template = await db.get(
+            PromptTemplate, scenario_data.tutor_template_id
+        )
         if not tutor_template or tutor_template.bot_type != "tutor":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -177,9 +178,7 @@ async def create_scenario(
     # Handle group assignments
     if scenario_data.group_ids:
         for gid in scenario_data.group_ids:
-            sg = ScenarioGroup(
-                scenario_id=scenario.id, group_id=gid
-            )
+            sg = ScenarioGroup(scenario_id=scenario.id, group_id=gid)
             db.add(sg)
 
     await db.flush()
@@ -234,9 +233,7 @@ async def update_scenario(
         scenario.student_name = scenario_data.student_name
     if scenario_data.framework_id is not None:
         # Verify framework exists
-        framework = await db.get(
-            AnalysisFramework, scenario_data.framework_id
-        )
+        framework = await db.get(AnalysisFramework, scenario_data.framework_id)
         if not framework:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -258,7 +255,9 @@ async def update_scenario(
 
     # Update template selections
     if scenario_data.student_template_id is not None:
-        student_template = await db.get(PromptTemplate, scenario_data.student_template_id)
+        student_template = await db.get(
+            PromptTemplate, scenario_data.student_template_id
+        )
         if not student_template or student_template.bot_type != "student":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -271,7 +270,9 @@ async def update_scenario(
         if scenario_data.tutor_template_id == -1:
             scenario.tutor_template_id = None
         else:
-            tutor_template = await db.get(PromptTemplate, scenario_data.tutor_template_id)
+            tutor_template = await db.get(
+                PromptTemplate, scenario_data.tutor_template_id
+            )
             if not tutor_template or tutor_template.bot_type != "tutor":
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -295,11 +296,10 @@ async def update_scenario(
         )
         for sg in old_sgs.scalars().all():
             await db.delete(sg)
+        await db.flush()  # flush deletes before inserts
         # Insert new assignments
         for gid in scenario_data.group_ids:
-            sg = ScenarioGroup(
-                scenario_id=scenario_id, group_id=gid
-            )
+            sg = ScenarioGroup(scenario_id=scenario_id, group_id=gid)
             db.add(sg)
 
     await db.flush()
