@@ -3,13 +3,13 @@
 Tests student response generation with mocked OpenAI Responses API.
 """
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
-from openai import APIConnectionError, APIError, RateLimitError
+import pytest
+from openai import APIError, RateLimitError
 from tenacity import RetryError
 
-from src.services.student_bot import StudentBot
+from src.services.student_bot import BASE_STUDENT_PROMPT, StudentBot
 
 
 def _make_responses_api_mock(
@@ -77,6 +77,87 @@ class TestStudentBotInit:
         assert bot.max_tokens == 500
 
 
+class TestBaseStudentPrompt:
+    """Tests for BASE_STUDENT_PROMPT constant and its application."""
+
+    def test_base_prompt_contains_honorific_rule(self):
+        """BASE_STUDENT_PROMPT must require 존댓말."""
+        assert "존댓말" in BASE_STUDENT_PROMPT
+
+    def test_base_prompt_contains_no_question_rule(self):
+        """BASE_STUDENT_PROMPT must forbid counter-questions."""
+        assert "되묻는" in BASE_STUDENT_PROMPT
+
+    async def test_base_prompt_is_first_developer_message(self):
+        """Base prompt must precede template as first developer msg."""
+        with patch("src.services.base.AsyncOpenAI") as mock_cls:
+            bot = StudentBot(
+                scenario_prompt="Test",
+                scenario_title="Title",
+                student_profile="Profile",
+                db_session=AsyncMock(),
+                template_id=1,
+                model="gpt-5",
+            )
+            bot.client = mock_cls.return_value
+
+        mock_response = _make_responses_api_mock("Response")
+        create_mock = AsyncMock(return_value=mock_response)
+        bot.client.responses.create = create_mock
+
+        with patch(
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
+            new_callable=AsyncMock,
+            return_value=(
+                "Template {scenario_title} " "{student_profile} {prompt}"
+            ),
+        ):
+            await bot.generate_response("Hello", [])
+
+        call_kwargs = create_mock.call_args.kwargs
+        input_msgs = call_kwargs["input"]
+
+        # First message: base prompt (developer)
+        assert input_msgs[0]["role"] == "developer"
+        assert input_msgs[0]["content"] == BASE_STUDENT_PROMPT
+
+        # Second message: template prompt (developer)
+        assert input_msgs[1]["role"] == "developer"
+        assert "Title" in input_msgs[1]["content"]
+
+    async def test_base_prompt_always_applied_regardless_of_template(
+        self,
+    ):
+        """Base prompt should appear even with different templates."""
+        with patch("src.services.base.AsyncOpenAI") as mock_cls:
+            bot = StudentBot(
+                scenario_prompt="Test",
+                scenario_title="Different",
+                student_profile="Grade 3",
+                db_session=AsyncMock(),
+                template_id=99,
+                model="gpt-5",
+            )
+            bot.client = mock_cls.return_value
+
+        mock_response = _make_responses_api_mock("Response")
+        create_mock = AsyncMock(return_value=mock_response)
+        bot.client.responses.create = create_mock
+
+        with patch(
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
+            new_callable=AsyncMock,
+            return_value=(
+                "Custom template {scenario_title} " "{student_profile} {prompt}"
+            ),
+        ):
+            await bot.generate_response("Question?", [])
+
+        call_kwargs = create_mock.call_args.kwargs
+        input_msgs = call_kwargs["input"]
+        assert input_msgs[0]["content"] == BASE_STUDENT_PROMPT
+
+
 class TestStudentBotGenerateResponse:
     """Tests for StudentBot.generate_response method."""
 
@@ -103,13 +184,10 @@ class TestStudentBotGenerateResponse:
             output_tokens=30,
             total_tokens=230,
         )
-        bot.client.responses.create = AsyncMock(
-            return_value=mock_response
-        )
+        bot.client.responses.create = AsyncMock(return_value=mock_response)
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value=(
                 "You are a student. Title: {scenario_title}. "
@@ -133,19 +211,14 @@ class TestStudentBotGenerateResponse:
         mock_response.output_text = "Student answer"
         mock_response.usage = None
 
-        bot.client.responses.create = AsyncMock(
-            return_value=mock_response
-        )
+        bot.client.responses.create = AsyncMock(return_value=mock_response)
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
-            content, usage = await bot.generate_response(
-                "Question?", []
-            )
+            content, usage = await bot.generate_response("Question?", [])
 
         assert content == "Student answer"
         assert usage is None
@@ -163,8 +236,7 @@ class TestStudentBotGenerateResponse:
         )
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value=template,
         ):
@@ -175,8 +247,12 @@ class TestStudentBotGenerateResponse:
         call_kwargs = create_mock.call_args.kwargs
         input_msgs = call_kwargs["input"]
 
-        # Developer message should contain formatted template
-        developer_msg = input_msgs[0]
+        # First developer msg: base prompt
+        assert input_msgs[0]["role"] == "developer"
+        assert input_msgs[0]["content"] == BASE_STUDENT_PROMPT
+
+        # Second developer msg: formatted template
+        developer_msg = input_msgs[1]
         assert developer_msg["role"] == "developer"
         assert "Moon Phases" in developer_msg["content"]
         assert "Grade 5 student" in developer_msg["content"]
@@ -196,38 +272,37 @@ class TestStudentBotGenerateResponse:
         ]
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="System {scenario_title} {student_profile} {prompt}",
         ):
-            await bot.generate_response(
-                "Why do you think so?", history
-            )
+            await bot.generate_response("Why do you think so?", history)
 
         call_kwargs = create_mock.call_args.kwargs
         input_msgs = call_kwargs["input"]
 
-        # Structure: developer + 4 history + 1 current
-        assert len(input_msgs) == 6
+        # Structure: base_prompt + template + 4 history + 1 current
+        assert len(input_msgs) == 7
         assert input_msgs[0]["role"] == "developer"
-        assert input_msgs[1] == {
+        assert input_msgs[0]["content"] == BASE_STUDENT_PROMPT
+        assert input_msgs[1]["role"] == "developer"
+        assert input_msgs[2] == {
             "role": "user",
             "content": "What is the moon?",
         }
-        assert input_msgs[2] == {
+        assert input_msgs[3] == {
             "role": "assistant",
             "content": "A big rock.",
         }
-        assert input_msgs[3] == {
+        assert input_msgs[4] == {
             "role": "user",
             "content": "Does it shine?",
         }
-        assert input_msgs[4] == {
+        assert input_msgs[5] == {
             "role": "assistant",
             "content": "Yes, by itself.",
         }
-        assert input_msgs[5] == {
+        assert input_msgs[6] == {
             "role": "user",
             "content": "Why do you think so?",
         }
@@ -239,8 +314,7 @@ class TestStudentBotGenerateResponse:
         bot.client.responses.create = create_mock
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
@@ -249,20 +323,15 @@ class TestStudentBotGenerateResponse:
         call_kwargs = create_mock.call_args.kwargs
         assert call_kwargs["model"] == "gpt-5"
         assert call_kwargs["max_output_tokens"] == bot.max_tokens
-        assert call_kwargs["reasoning"] == {
-            "effort": bot.reasoning_effort
-        }
+        assert call_kwargs["reasoning"] == {"effort": bot.reasoning_effort}
 
     async def test_template_loading_via_prompt_manager(self, bot):
         """Should call PromptManager with correct template_id."""
         mock_response = _make_responses_api_mock("Response")
-        bot.client.responses.create = AsyncMock(
-            return_value=mock_response
-        )
+        bot.client.responses.create = AsyncMock(return_value=mock_response)
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ) as mock_get:
@@ -281,8 +350,7 @@ class TestStudentBotGenerateResponse:
         )
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
@@ -303,8 +371,7 @@ class TestStudentBotGenerateResponse:
         )
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
@@ -320,8 +387,7 @@ class TestStudentBotGenerateResponse:
         )
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
@@ -339,13 +405,10 @@ class TestStudentBotGenerateResponse:
         if hasattr(mock_response, "model_dump"):
             del mock_response.model_dump
 
-        bot.client.responses.create = AsyncMock(
-            return_value=mock_response
-        )
+        bot.client.responses.create = AsyncMock(return_value=mock_response)
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
@@ -359,23 +422,22 @@ class TestStudentBotGenerateResponse:
         bot.client.responses.create = create_mock
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
-            content, usage = await bot.generate_response(
-                "Hello, student!", []
-            )
+            content, usage = await bot.generate_response("Hello, student!", [])
 
         assert content == "First response"
 
-        # Only developer + current message
+        # base_prompt + template + current message
         call_kwargs = create_mock.call_args.kwargs
         input_msgs = call_kwargs["input"]
-        assert len(input_msgs) == 2
+        assert len(input_msgs) == 3
         assert input_msgs[0]["role"] == "developer"
-        assert input_msgs[1]["role"] == "user"
+        assert input_msgs[0]["content"] == BASE_STUDENT_PROMPT
+        assert input_msgs[1]["role"] == "developer"
+        assert input_msgs[2]["role"] == "user"
 
     async def test_usage_dict_extraction(self, bot):
         """Should extract all usage fields correctly."""
@@ -385,13 +447,10 @@ class TestStudentBotGenerateResponse:
             output_tokens=200,
             total_tokens=700,
         )
-        bot.client.responses.create = AsyncMock(
-            return_value=mock_response
-        )
+        bot.client.responses.create = AsyncMock(return_value=mock_response)
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
@@ -406,13 +465,10 @@ class TestStudentBotGenerateResponse:
         mock_response = Mock(spec=[])
         mock_response.output_text = "Response text"
 
-        bot.client.responses.create = AsyncMock(
-            return_value=mock_response
-        )
+        bot.client.responses.create = AsyncMock(return_value=mock_response)
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
@@ -433,8 +489,7 @@ class TestStudentBotGenerateResponse:
         ]
 
         with patch(
-            "src.services.student_bot.PromptManager"
-            ".get_template_text_by_id",
+            "src.services.student_bot.PromptManager" ".get_template_text_by_id",
             new_callable=AsyncMock,
             return_value="Template {scenario_title} {student_profile} {prompt}",
         ):
@@ -442,8 +497,14 @@ class TestStudentBotGenerateResponse:
 
         call_kwargs = create_mock.call_args.kwargs
         input_msgs = call_kwargs["input"]
-        # developer + teacher(user) + student(assistant) + current
+        # base + template + teacher(user) + student(assistant) + current
         # tutor messages are skipped
-        assert len(input_msgs) == 4
+        assert len(input_msgs) == 5
         roles = [m["role"] for m in input_msgs]
-        assert roles == ["developer", "user", "assistant", "user"]
+        assert roles == [
+            "developer",
+            "developer",
+            "user",
+            "assistant",
+            "user",
+        ]

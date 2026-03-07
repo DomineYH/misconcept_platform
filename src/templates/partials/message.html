@@ -5,13 +5,15 @@
     {% elif message.role == 'student' %}
     {{ student_name or 'S' }}
     {% elif message.role == 'tutor' %}
-    !
+    튜터
     {% endif %}
   </div>
 
   <div class="message-content-wrapper">
     {% if message.role == 'student' and student_name %}
     <div class="message-sender">{{ student_name }}</div>
+    {% elif message.role == 'tutor' %}
+    <div class="message-sender">튜터</div>
     {% endif %}
     <div class="message-bubble">
       {{ message.content }}

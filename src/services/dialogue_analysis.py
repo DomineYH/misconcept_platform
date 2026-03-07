@@ -2,6 +2,28 @@
 
 import re
 
+# Sensitivity presets control how aggressively the tutor intervenes.
+SENSITIVITY_PRESETS = {
+    "high": {
+        "similarity_threshold": 0.5,
+        "vague_min_matches": 1,
+        "low_leverage_count": 1,
+        "use_llm": True,
+    },
+    "medium": {
+        "similarity_threshold": 0.65,
+        "vague_min_matches": 2,
+        "low_leverage_count": 2,
+        "use_llm": True,
+    },
+    "low": {
+        "similarity_threshold": 0.8,
+        "vague_min_matches": 3,
+        "low_leverage_count": 3,
+        "use_llm": False,
+    },
+}
+
 
 def extract_recent_pairs(
     exchanges: list[dict], max_pairs: int = 3
@@ -76,12 +98,8 @@ def detect_repetitive_dialogue_simple(
 
     similar_count = 0
     for i in range(len(pairs) - 1):
-        teacher_sim = calculate_jaccard_similarity(
-            pairs[i][0], pairs[i + 1][0]
-        )
-        student_sim = calculate_jaccard_similarity(
-            pairs[i][1], pairs[i + 1][1]
-        )
+        teacher_sim = calculate_jaccard_similarity(pairs[i][0], pairs[i + 1][0])
+        student_sim = calculate_jaccard_similarity(pairs[i][1], pairs[i + 1][1])
 
         if teacher_sim > threshold or student_sim > threshold:
             similar_count += 1
@@ -90,37 +108,67 @@ def detect_repetitive_dialogue_simple(
     return similar_count >= 1
 
 
-def check_low_leverage_patterns(question: str) -> bool:
+def _is_low_leverage(question: str) -> bool:
+    """Check if a single question is low-leverage."""
+    q = question.lower()
+    return any(
+        [
+            q.endswith("?") and len(q.split()) < 5,
+            any(
+                phrase in q
+                for phrase in [
+                    "yes or no",
+                    "is it",
+                    "are you",
+                    "do you",
+                ]
+            ),
+            "you should" in q or "try this" in q,
+        ]
+    )
+
+
+def check_low_leverage_patterns(
+    question: str,
+    recent_questions: list[str] | None = None,
+    min_count: int = 1,
+) -> bool:
     """Check for low-leverage question patterns.
 
     Args:
-        question: Teacher's question
+        question: Current teacher question
+        recent_questions: Previous teacher questions for
+            consecutive detection. If None, only checks current.
+        min_count: Minimum consecutive low-leverage questions
+            required to trigger (default: 1 = current behavior)
 
     Returns:
         True if low-leverage pattern detected
     """
-    latest = question.lower()
+    if not _is_low_leverage(question):
+        return False
 
-    low_leverage_indicators = [
-        # Too short question
-        latest.endswith("?") and len(latest.split()) < 5,
-        # Closed yes/no questions
-        any(
-            phrase in latest
-            for phrase in ["yes or no", "is it", "are you", "do you"]
-        ),
-        # Directive statements
-        "you should" in latest or "try this" in latest,
-    ]
+    if min_count <= 1 or recent_questions is None:
+        return True
 
-    return any(low_leverage_indicators)
+    # Count consecutive low-leverage including current
+    count = 1  # current question already matched
+    for q in recent_questions:
+        if _is_low_leverage(q):
+            count += 1
+    return count >= min_count
 
 
-def check_vague_patterns(recent_teacher_questions: list[str]) -> bool:
+def check_vague_patterns(
+    recent_teacher_questions: list[str],
+    min_matches: int = 2,
+) -> bool:
     """Check for vague/stagnant question patterns.
 
     Args:
         recent_teacher_questions: Recent teacher questions
+        min_matches: Minimum vague matches in last 3 questions
+            to trigger (default: 2)
 
     Returns:
         True if vague pattern detected
@@ -141,4 +189,4 @@ def check_vague_patterns(recent_teacher_questions: list[str]) -> bool:
             ]
         )
     ]
-    return len(vague_questions) >= 2
+    return len(vague_questions) >= min_matches

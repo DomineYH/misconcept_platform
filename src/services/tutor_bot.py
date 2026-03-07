@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import config
 from src.services.base import OpenAIBaseService, openai_retry
 from src.services.dialogue_analysis import (
+    SENSITIVITY_PRESETS,
     check_low_leverage_patterns,
     check_vague_patterns,
     detect_repetitive_dialogue_simple,
@@ -38,6 +39,7 @@ class TutorBot(OpenAIBaseService):
         intervention_threshold: Optional[int] = None,
         initial_intervention_count: int = 0,
         initial_question_count: int = 0,
+        sensitivity: str = "medium",
     ):
         """Initialize TutorBot with scenario context and optional config.
 
@@ -53,6 +55,7 @@ class TutorBot(OpenAIBaseService):
             intervention_threshold: Max interventions per session
             initial_intervention_count: Restored count from prior session
             initial_question_count: Restored count from prior session
+            sensitivity: Tutor sensitivity level (high/medium/low)
         """
         super().__init__()
         self.db_session = db_session
@@ -68,6 +71,9 @@ class TutorBot(OpenAIBaseService):
         self.student_profile = student_profile
         self.intervention_count = initial_intervention_count
         self.question_count = initial_question_count
+        self.sensitivity_config = SENSITIVITY_PRESETS.get(
+            sensitivity, SENSITIVITY_PRESETS["medium"]
+        )
 
     def should_intervene(self, recent_teacher_questions: list[str]) -> bool:
         """Determine if tutor should provide feedback (legacy method)."""
@@ -118,7 +124,9 @@ class TutorBot(OpenAIBaseService):
 2. 부적절한 대화: 교사가 학생 응답을 무시하거나, 대화가 진전 없이 맴도는가?
 
 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{{"is_repetitive": true/false, "is_inappropriate": true/false, "reason": "판단 근거 (한 문장)"}}"""
+{{"is_repetitive": true/false,
+"is_inappropriate": true/false,
+"reason": "판단 근거"}}"""
 
         try:
             response = await self.client.responses.create(
@@ -156,6 +164,8 @@ JSON 형식으로만 응답하세요 (다른 텍스트 없이):
         current_student: str,
     ) -> tuple[bool, str | None]:
         """Analyze conversation pairs to determine intervention need."""
+        sc = self.sensitivity_config
+
         # Rate limiting
         self.question_count += 1
         if self.question_count > 10:
@@ -169,37 +179,51 @@ JSON 형식으로만 응답하세요 (다른 텍스트 없이):
         pairs = extract_recent_pairs(recent_exchanges, max_pairs=2)
         pairs.append((current_teacher, current_student))
 
-        # Need at least 2 pairs for comparison
-        if len(pairs) < 2:
-            if check_low_leverage_patterns(current_teacher):
-                return True, "low_leverage"
-            return False, None
-
-        # First check simple Jaccard similarity (fast, no API call)
-        if detect_repetitive_dialogue_simple(pairs, threshold=0.8):
-            return True, "반복적인 대화 패턴이 감지되었습니다."
-
-        # LLM-based semantic analysis for edge cases
-        analysis = await self.analyze_conversation_with_llm(pairs)
-
-        if analysis["is_repetitive"]:
-            return True, analysis["reason"] or "반복적인 대화 패턴 감지"
-
-        if analysis["is_inappropriate"]:
-            return True, analysis["reason"] or "대화 진전 없음"
-
-        # Fallback: check vague patterns from teacher questions
+        # Collect recent teacher questions for pattern checks
         teacher_questions = [
             ex["content"]
             for ex in recent_exchanges[-5:]
             if ex["role"] == "teacher"
         ]
-        teacher_questions.append(current_teacher)
 
-        if check_vague_patterns(teacher_questions):
+        # Need at least 2 pairs for comparison
+        if len(pairs) < 2:
+            if check_low_leverage_patterns(
+                current_teacher,
+                recent_questions=teacher_questions,
+                min_count=sc["low_leverage_count"],
+            ):
+                return True, "low_leverage"
+            return False, None
+
+        # Fast Jaccard similarity check (uses sensitivity threshold)
+        if detect_repetitive_dialogue_simple(
+            pairs, threshold=sc["similarity_threshold"]
+        ):
+            return True, "반복적인 대화 패턴이 감지되었습니다."
+
+        # LLM semantic analysis (skipped if sensitivity disables it)
+        if sc["use_llm"]:
+            analysis = await self.analyze_conversation_with_llm(pairs)
+            if analysis["is_repetitive"]:
+                return True, (analysis["reason"] or "반복적인 대화 패턴 감지")
+            if analysis["is_inappropriate"]:
+                return True, (analysis["reason"] or "대화 진전 없음")
+
+        # Check vague patterns with sensitivity min_matches
+        all_teacher_questions = teacher_questions + [current_teacher]
+        if check_vague_patterns(
+            all_teacher_questions,
+            min_matches=sc["vague_min_matches"],
+        ):
             return True, "모호한 질문 패턴 감지"
 
-        if check_low_leverage_patterns(current_teacher):
+        # Check low-leverage with sensitivity min_count
+        if check_low_leverage_patterns(
+            current_teacher,
+            recent_questions=all_teacher_questions,
+            min_count=sc["low_leverage_count"],
+        ):
             return True, "low_leverage"
 
         return False, None
@@ -247,7 +271,8 @@ JSON 형식으로만 응답하세요 (다른 텍스트 없이):
                     "role": "user",
                     "content": (
                         f"{context}\n"
-                        "교사를 위한 간단하고 건설적인 피드백을 한글로 제공해주세요."
+                        "교사를 위한 간단하고 건설적인 "
+                        "피드백을 한글로 제공해주세요."
                     ),
                 },
             ]

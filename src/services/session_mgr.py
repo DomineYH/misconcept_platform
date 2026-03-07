@@ -86,6 +86,7 @@ class SessionManager:
                 ],
                 initial_intervention_count=tutor_intervention_count,
                 initial_question_count=tutor_question_count,
+                sensitivity=bot_config["tutor_sensitivity"],
             )
         else:
             self.tutor_bot = None  # TutorBot disabled for this scenario
@@ -210,17 +211,11 @@ class SessionManager:
         # Persist TutorBot state to session
         if self.tutor_bot:
             result = await self.db.execute(
-                select(Session).where(
-                    Session.id == self.session_id
-                )
+                select(Session).where(Session.id == self.session_id)
             )
             sess = result.scalar_one()
-            sess.tutor_intervention_count = (
-                self.tutor_bot.intervention_count
-            )
-            sess.tutor_question_count = (
-                self.tutor_bot.question_count
-            )
+            sess.tutor_intervention_count = self.tutor_bot.intervention_count
+            sess.tutor_question_count = self.tutor_bot.question_count
             await self.db.flush()
 
         return new_messages
@@ -247,9 +242,7 @@ class SessionManager:
         """
         return {
             # StudentBot configuration
-            "student_model": (
-                scenario.chat_model or config.CHAT_MODEL
-            ),
+            "student_model": (scenario.chat_model or config.CHAT_MODEL),
             "student_reasoning": config.STUDENT_REASONING or "medium",
             "student_max_tokens": config.STUDENT_MAX_TOKENS or 750,
             # TutorBot configuration
@@ -261,6 +254,11 @@ class SessionManager:
                 scenario.tutor_intervention_threshold
                 if scenario.tutor_intervention_threshold is not None
                 else config.TUTOR_INTERVENTION_THRESHOLD or 3
+            ),
+            "tutor_sensitivity": (
+                scenario.tutor_sensitivity
+                if hasattr(scenario, "tutor_sensitivity")
+                else "medium"
             ),
         }
 
@@ -296,7 +294,9 @@ class SessionManager:
                 total_tokens. None if no usage info available.
         """
         if usage_dict is None:
-            logger.warning("No usage info for %s bot (model: %s)", bot_type, model)
+            logger.warning(
+                "No usage info for %s bot (model: %s)", bot_type, model
+            )
             return
 
         try:

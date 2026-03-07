@@ -1,23 +1,27 @@
 """Scenario model for dialogue situations (T024)."""
+
 from datetime import datetime, timezone
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
+
 from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
     Integer,
     String,
     Text,
-    DateTime,
-    ForeignKey,
-    CheckConstraint,
-    Float,
-    Boolean,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.connection import Base
 
 if TYPE_CHECKING:
+    from src.models.analysis_framework import AnalysisFramework
     from src.models.prompt_template import PromptTemplate
     from src.models.scenario_group import ScenarioGroup
+    from src.models.session import Session
+    from src.models.user import User
 
 
 class Scenario(Base):
@@ -34,25 +38,22 @@ class Scenario(Base):
 
     # Scenario identity
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    prompt: Mapped[str] = mapped_column(
-        Text, nullable=False
-    )  # System prompt
-    student_profile: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)  # System prompt
+    student_profile: Mapped[str | None] = mapped_column(Text, nullable=True)
     student_name: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
         comment="학생 캐릭터 이름 (채팅 UI 표시용)",
     )
+    subject: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="과목명 (채팅 UI 표시용)",
+    )
 
     # Video fields
-    video_url: Mapped[str | None] = mapped_column(
-        String(500), nullable=True
-    )
-    video_transcript: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
+    video_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    video_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Status
     is_active: Mapped[int] = mapped_column(
@@ -64,8 +65,7 @@ class Scenario(Base):
         String(50),
         nullable=True,
         comment=(
-            "Override StudentBot model for this scenario "
-            "(NULL = use global)"
+            "Override StudentBot model for this scenario " "(NULL = use global)"
         ),
     )
 
@@ -84,21 +84,24 @@ class Scenario(Base):
         ),
     )
 
+    tutor_sensitivity: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        default="medium",
+        comment="Tutor intervention sensitivity: high, medium, low",
+    )
+
     # Template foreign keys
     student_template_id: Mapped[int | None] = mapped_column(
         Integer,
-        ForeignKey(
-            "prompt_template.id", ondelete="SET NULL"
-        ),
+        ForeignKey("prompt_template.id", ondelete="SET NULL"),
         nullable=True,
         comment="StudentBot prompt template for this scenario",
     )
 
     tutor_template_id: Mapped[Optional[int]] = mapped_column(
         Integer,
-        ForeignKey(
-            "prompt_template.id", ondelete="SET NULL"
-        ),
+        ForeignKey("prompt_template.id", ondelete="SET NULL"),
         nullable=True,
         comment="TutorBot prompt template (NULL = tutor disabled)",
     )
@@ -128,9 +131,7 @@ class Scenario(Base):
     framework: Mapped["AnalysisFramework"] = relationship(
         "AnalysisFramework", back_populates="scenarios"
     )
-    creator: Mapped["User"] = relationship(
-        "User", back_populates="scenarios"
-    )
+    creator: Mapped["User"] = relationship("User", back_populates="scenarios")
     sessions: Mapped[list["Session"]] = relationship(
         "Session",
         back_populates="scenario",
@@ -158,6 +159,10 @@ class Scenario(Base):
     # Constraints
     __table_args__ = (
         CheckConstraint("is_active IN (0, 1)", name="ck_scenario_active"),
+        CheckConstraint(
+            "tutor_sensitivity IN ('high', 'medium', 'low')",
+            name="ck_scenario_sensitivity",
+        ),
     )
 
     @property

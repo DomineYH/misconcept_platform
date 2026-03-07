@@ -158,12 +158,14 @@ async def create_scenario(
         framework_id=scenario_data.framework_id,
         is_active=1 if scenario_data.is_active else 0,
         student_name=scenario_data.student_name,
+        subject=scenario_data.subject,
         # Phase 2: Bot configuration overrides
         chat_model=scenario_data.chat_model,
         chat_temperature=scenario_data.chat_temperature,
         tutor_intervention_threshold=(
             scenario_data.tutor_intervention_threshold
         ),
+        tutor_sensitivity=scenario_data.tutor_sensitivity,
         # Template selections
         student_template_id=scenario_data.student_template_id,
         tutor_template_id=scenario_data.tutor_template_id,
@@ -230,7 +232,15 @@ async def update_scenario(
     if scenario_data.student_profile is not None:
         scenario.student_profile = scenario_data.student_profile.strip()
     if scenario_data.student_name is not None:
-        scenario.student_name = scenario_data.student_name
+        scenario.student_name = (
+            scenario_data.student_name.strip()
+            if scenario_data.student_name
+            else None
+        )
+    if scenario_data.subject is not None:
+        scenario.subject = (
+            scenario_data.subject.strip() if scenario_data.subject else None
+        )
     if scenario_data.framework_id is not None:
         # Verify framework exists
         framework = await db.get(AnalysisFramework, scenario_data.framework_id)
@@ -252,6 +262,8 @@ async def update_scenario(
         scenario.tutor_intervention_threshold = (
             scenario_data.tutor_intervention_threshold
         )
+    if scenario_data.tutor_sensitivity is not None:
+        scenario.tutor_sensitivity = scenario_data.tutor_sensitivity
 
     # Update template selections
     if scenario_data.student_template_id is not None:

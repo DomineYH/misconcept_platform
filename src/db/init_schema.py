@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS scenario (
   prompt TEXT NOT NULL,
   student_profile TEXT,
   student_name VARCHAR(50) NULL,
+  subject VARCHAR(100) NULL,
   video_url VARCHAR(500) NULL,
   video_transcript TEXT NULL,
   is_active INTEGER NOT NULL DEFAULT 1
@@ -65,6 +66,8 @@ CREATE TABLE IF NOT EXISTS scenario (
   tutor_intervention_threshold INTEGER NULL
     CHECK(tutor_intervention_threshold IS NULL OR
       (tutor_intervention_threshold BETWEEN 1 AND 10)),
+  tutor_sensitivity VARCHAR(10) NOT NULL DEFAULT 'medium'
+    CHECK(tutor_sensitivity IN ('high', 'medium', 'low')),
   -- Template foreign keys
   student_template_id INTEGER NOT NULL REFERENCES prompt_template(id),
   tutor_template_id INTEGER NULL REFERENCES prompt_template(id),

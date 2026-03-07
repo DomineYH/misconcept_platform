@@ -1,9 +1,11 @@
 """Unit tests for TutorBot service (conversation pair analysis)."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from src.services.dialogue_analysis import (
+    SENSITIVITY_PRESETS,
     calculate_jaccard_similarity,
     check_low_leverage_patterns,
     check_vague_patterns,
@@ -132,28 +134,24 @@ class TestCalculateJaccardSimilarity:
 
     def test_punctuation_ignored(self):
         """Punctuation should be ignored."""
-        result = calculate_jaccard_similarity(
-            "Hello, world!", "Hello world"
-        )
+        result = calculate_jaccard_similarity("Hello, world!", "Hello world")
         assert result == 1.0
 
     def test_korean_text(self):
         """Should work with Korean text."""
         result = calculate_jaccard_similarity(
-            "안녕하세요 반갑습니다",
-            "안녕하세요 반갑습니다"
+            "안녕하세요 반갑습니다", "안녕하세요 반갑습니다"
         )
         assert result == 1.0
 
     def test_mixed_language(self):
         """Should work with mixed language text."""
         result = calculate_jaccard_similarity(
-            "Hello 안녕하세요",
-            "Hello 안녕하세요 world"
+            "Hello 안녕하세요", "Hello 안녕하세요 world"
         )
         # Intersection: {hello, 안녕하세요} = 2
         # Union: {hello, 안녕하세요, world} = 3
-        assert result == pytest.approx(2/3, rel=0.01)
+        assert result == pytest.approx(2 / 3, rel=0.01)
 
 
 class TestDetectRepetitiveDialogueSimple:
@@ -204,6 +202,48 @@ class TestDetectRepetitiveDialogueSimple:
         assert detect_repetitive_dialogue_simple(pairs, threshold=0.9) is False
 
 
+class TestSensitivityPresets:
+    """Tests for SENSITIVITY_PRESETS configuration."""
+
+    def test_presets_contain_all_levels(self):
+        """Should have high, medium, low presets."""
+        assert "high" in SENSITIVITY_PRESETS
+        assert "medium" in SENSITIVITY_PRESETS
+        assert "low" in SENSITIVITY_PRESETS
+
+    def test_preset_keys(self):
+        """Each preset should have all required keys."""
+        required = {
+            "similarity_threshold",
+            "vague_min_matches",
+            "low_leverage_count",
+            "use_llm",
+        }
+        for level, preset in SENSITIVITY_PRESETS.items():
+            assert (
+                set(preset.keys()) == required
+            ), f"{level} preset missing keys"
+
+    def test_high_is_most_sensitive(self):
+        """HIGH should have lowest thresholds."""
+        h = SENSITIVITY_PRESETS["high"]
+        m = SENSITIVITY_PRESETS["medium"]
+        assert h["similarity_threshold"] < m["similarity_threshold"]
+        assert h["low_leverage_count"] <= m["low_leverage_count"]
+
+    def test_low_is_least_sensitive(self):
+        """LOW should have highest thresholds."""
+        m = SENSITIVITY_PRESETS["medium"]
+        lo = SENSITIVITY_PRESETS["low"]
+        assert lo["similarity_threshold"] > m["similarity_threshold"]
+        assert lo["low_leverage_count"] >= m["low_leverage_count"]
+
+    def test_low_disables_llm(self):
+        """LOW should disable LLM analysis."""
+        assert SENSITIVITY_PRESETS["low"]["use_llm"] is False
+        assert SENSITIVITY_PRESETS["high"]["use_llm"] is True
+
+
 class TestCheckPatterns:
     """Tests for pattern checking functions."""
 
@@ -219,21 +259,52 @@ class TestCheckPatterns:
 
     def test_low_leverage_directive(self):
         """Should detect directive statements as low-leverage."""
-        assert check_low_leverage_patterns(
-            "You should try adding them"
-        ) is True
-        assert check_low_leverage_patterns(
-            "Try this approach instead"
-        ) is True
+        assert check_low_leverage_patterns("You should try adding them") is True
+        assert check_low_leverage_patterns("Try this approach instead") is True
 
     def test_high_leverage_question(self):
         """Should not flag high-leverage questions."""
-        assert check_low_leverage_patterns(
-            "Can you explain your reasoning for that answer?"
-        ) is False
-        assert check_low_leverage_patterns(
-            "How does this connect to what we learned before?"
-        ) is False
+        assert (
+            check_low_leverage_patterns(
+                "Can you explain your reasoning for that answer?"
+            )
+            is False
+        )
+        assert (
+            check_low_leverage_patterns(
+                "How does this connect to what we learned before?"
+            )
+            is False
+        )
+
+    def test_low_leverage_with_min_count(self):
+        """Should respect min_count for consecutive detection."""
+        questions = ["Is it?", "Do you get it?", "Why?"]
+        # min_count=1: single occurrence triggers
+        assert (
+            check_low_leverage_patterns(
+                "Is it?", recent_questions=questions, min_count=1
+            )
+            is True
+        )
+        # min_count=3: need 3 consecutive low-leverage
+        assert (
+            check_low_leverage_patterns(
+                "Is it?", recent_questions=questions, min_count=3
+            )
+            is True
+        )
+        # min_count=5: not enough (3 recent + 1 current = 4)
+        assert (
+            check_low_leverage_patterns(
+                "Is it?", recent_questions=questions, min_count=5
+            )
+            is False
+        )
+
+    def test_low_leverage_min_count_default(self):
+        """Default min_count=1 should match current behavior."""
+        assert check_low_leverage_patterns("Is it?") is True
 
     def test_vague_patterns_insufficient_questions(self):
         """Should return False with less than 3 questions."""
@@ -256,6 +327,20 @@ class TestCheckPatterns:
             "Can you show your work?",
         ]
         assert check_vague_patterns(questions) is False
+
+    def test_vague_patterns_min_matches(self):
+        """Should respect min_matches parameter."""
+        questions = [
+            "What do you think?",
+            "Any thoughts on this?",
+            "What is 2+2?",
+        ]
+        # min_matches=1: only 1 vague needed → True (2 found)
+        assert check_vague_patterns(questions, min_matches=1) is True
+        # min_matches=2: need 2 vague → True (2 found)
+        assert check_vague_patterns(questions, min_matches=2) is True
+        # min_matches=3: need 3 vague → False (only 2)
+        assert check_vague_patterns(questions, min_matches=3) is False
 
 
 class TestTutorBotAnalyzeConversation:
@@ -284,16 +369,28 @@ class TestTutorBotAnalyzeConversation:
         assert reason is None
 
     @pytest.mark.asyncio
-    async def test_single_pair_low_leverage(self, mock_db_session):
-        """Should detect low-leverage with single pair."""
+    async def test_single_pair_low_leverage_medium(self, mock_db_session):
+        """Medium sensitivity: single low-leverage should NOT trigger."""
         bot = TutorBot(mock_db_session, template_id=1)
 
-        # Empty exchanges, so only current pair
+        result, reason = await bot.analyze_conversation([], "Is it?", "Yes")
+        # Medium needs 2+ low-leverage, only 1 here
+        assert result is False
+        assert reason is None
+
+    @pytest.mark.asyncio
+    async def test_repeated_low_leverage_medium(self, mock_db_session):
+        """Medium sensitivity: 2 low-leverage questions should trigger."""
+        bot = TutorBot(mock_db_session, template_id=1)
+
+        exchanges = [
+            {"role": "teacher", "content": "Is it?"},
+            {"role": "student", "content": "Yes"},
+        ]
         result, reason = await bot.analyze_conversation(
-            [], "Is it?", "Yes"
+            exchanges, "Do you understand?", "No"
         )
         assert result is True
-        assert reason == "low_leverage"
 
     @pytest.mark.asyncio
     async def test_repetitive_dialogue_detection(self, mock_db_session):
@@ -308,8 +405,7 @@ class TestTutorBotAnalyzeConversation:
 
         # Mock the LLM call
         with patch.object(
-            bot, 'analyze_conversation_with_llm',
-            new_callable=AsyncMock
+            bot, "analyze_conversation_with_llm", new_callable=AsyncMock
         ) as mock_llm:
             mock_llm.return_value = {
                 "is_repetitive": False,
@@ -337,8 +433,7 @@ class TestTutorBotAnalyzeConversation:
         ]
 
         with patch.object(
-            bot, 'analyze_conversation_with_llm',
-            new_callable=AsyncMock
+            bot, "analyze_conversation_with_llm", new_callable=AsyncMock
         ) as mock_llm:
             mock_llm.return_value = {
                 "is_repetitive": True,
@@ -355,6 +450,69 @@ class TestTutorBotAnalyzeConversation:
             mock_llm.assert_called_once()
             assert result is True
             assert "Similar semantic content" in reason
+
+    @pytest.mark.asyncio
+    async def test_sensitivity_high_triggers_on_first_low_leverage(
+        self, mock_db_session
+    ):
+        """HIGH sensitivity: single low-leverage triggers."""
+        bot = TutorBot(mock_db_session, template_id=1, sensitivity="high")
+        result, reason = await bot.analyze_conversation([], "Is it?", "Yes")
+        assert result is True
+        assert reason == "low_leverage"
+
+    @pytest.mark.asyncio
+    async def test_sensitivity_invalid_falls_back_to_medium(
+        self, mock_db_session
+    ):
+        """Invalid sensitivity value should fall back to medium."""
+        bot = TutorBot(mock_db_session, template_id=1, sensitivity="invalid")
+        assert bot.sensitivity_config == SENSITIVITY_PRESETS["medium"]
+
+    @pytest.mark.asyncio
+    async def test_sensitivity_low_skips_llm(self, mock_db_session):
+        """LOW sensitivity: LLM analysis should not be called."""
+        bot = TutorBot(mock_db_session, template_id=1, sensitivity="low")
+        exchanges = [
+            {"role": "teacher", "content": "What is 2+2?"},
+            {"role": "student", "content": "I think 4."},
+        ]
+        with patch.object(
+            bot, "analyze_conversation_with_llm", new_callable=AsyncMock
+        ) as mock_llm:
+            mock_llm.return_value = {
+                "is_repetitive": False,
+                "is_inappropriate": False,
+                "reason": "",
+            }
+            await bot.analyze_conversation(exchanges, "Why?", "Because.")
+            # LLM should NOT be called for low sensitivity
+            mock_llm.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_sensitivity_uses_preset_similarity_threshold(
+        self, mock_db_session
+    ):
+        """Should use sensitivity-specific similarity threshold."""
+        # HIGH sensitivity has lower threshold (0.5)
+        bot_high = TutorBot(mock_db_session, template_id=1, sensitivity="high")
+        assert (
+            bot_high.sensitivity_config["similarity_threshold"]
+            == SENSITIVITY_PRESETS["high"]["similarity_threshold"]
+        )
+
+        # LOW sensitivity has higher threshold (0.8)
+        bot_low = TutorBot(mock_db_session, template_id=1, sensitivity="low")
+        assert (
+            bot_low.sensitivity_config["similarity_threshold"]
+            == SENSITIVITY_PRESETS["low"]["similarity_threshold"]
+        )
+
+    @pytest.mark.asyncio
+    async def test_sensitivity_default_is_medium(self, mock_db_session):
+        """Default sensitivity should be medium."""
+        bot = TutorBot(mock_db_session, template_id=1)
+        assert bot.sensitivity_config == SENSITIVITY_PRESETS["medium"]
 
 
 class TestTutorBotAnalyzeConversationWithLLM:
@@ -386,15 +544,18 @@ class TestTutorBotAnalyzeConversationWithLLM:
                 content=[
                     MagicMock(
                         type="output_text",
-                        text='{"is_repetitive": true, "is_inappropriate": false, "reason": "Test reason"}'
+                        text=(
+                            '{"is_repetitive": true,'
+                            ' "is_inappropriate": false,'
+                            ' "reason": "Test reason"}'
+                        ),
                     )
-                ]
+                ],
             )
         ]
 
         with patch.object(
-            bot.client.responses, 'create',
-            new_callable=AsyncMock
+            bot.client.responses, "create", new_callable=AsyncMock
         ) as mock_create:
             mock_create.return_value = mock_response
 
@@ -411,15 +572,13 @@ class TestTutorBotAnalyzeConversationWithLLM:
         bot = TutorBot(mock_db_session, template_id=1)
 
         with patch.object(
-            bot.client.responses, 'create',
-            new_callable=AsyncMock
+            bot.client.responses, "create", new_callable=AsyncMock
         ) as mock_create:
             # Simulate API error
             from openai import APIError
+
             mock_create.side_effect = APIError(
-                message="API Error",
-                request=MagicMock(),
-                body=None
+                message="API Error", request=MagicMock(), body=None
             )
 
             # Repetitive pairs

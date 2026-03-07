@@ -175,6 +175,18 @@
 
         <div class="form-row">
           <div class="form-group">
+            <label for="new-subject">과목</label>
+            <input
+              type="text"
+              id="new-subject"
+              name="subject"
+              maxlength="100"
+              placeholder="예: 수학, 과학"
+            />
+            <small class="form-help">채팅 화면에 표시될 과목명</small>
+          </div>
+
+          <div class="form-group">
             <label for="new-framework">프레임워크 <span class="required">*</span></label>
             <select id="new-framework" name="framework_id" required>
               <option value="">선택하세요</option>
@@ -209,6 +221,16 @@
               {% endfor %}
             </select>
             <small class="form-help">선택하지 않으면 튜터봇이 비활성화됩니다</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-tutor-sensitivity">튜터봇 민감도</label>
+            <select id="new-tutor-sensitivity" name="tutor_sensitivity">
+              <option value="high">높음 (즉시 개입)</option>
+              <option value="medium" selected>보통 (2회 반복 시)</option>
+              <option value="low">낮음 (3회 반복 시)</option>
+            </select>
+            <small class="form-help">튜터봇이 개입하는 민감도를 설정합니다</small>
           </div>
         </div>
 
@@ -330,6 +352,18 @@
       </div>
 
       <div class="form-group">
+        <label for="edit-subject">과목</label>
+        <input
+          type="text"
+          id="edit-subject"
+          name="subject"
+          maxlength="100"
+          placeholder="예: 수학, 과학"
+        />
+        <small class="form-help">채팅 화면에 표시될 과목명</small>
+      </div>
+
+      <div class="form-group">
         <label for="edit-framework">프레임워크 <span class="required">*</span></label>
         <select id="edit-framework" name="framework_id" required>
           {% for framework in frameworks %}
@@ -361,6 +395,16 @@
             {% endfor %}
           </select>
           <small class="form-help">선택하지 않으면 튜터봇이 비활성화됩니다</small>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-tutor-sensitivity">튜터봇 민감도</label>
+          <select id="edit-tutor-sensitivity" name="tutor_sensitivity">
+            <option value="high">높음 (즉시 개입)</option>
+            <option value="medium">보통 (2회 반복 시)</option>
+            <option value="low">낮음 (3회 반복 시)</option>
+          </select>
+          <small class="form-help">튜터봇이 개입하는 민감도를 설정합니다</small>
         </div>
       </div>
 
@@ -460,11 +504,13 @@ const scenariosData = {
     framework_id: {{ scenario.framework_id }},
     prompt: `{{ scenario.prompt|replace('\n', '\\n')|replace('\r', '')|e }}`,
     student_profile: `{{ scenario.student_profile|replace('\n', '\\n')|replace('\r', '')|e }}`,
-    student_name: "{{ scenario.student_name or '' }}",
+    student_name: "{{ (scenario.student_name or '')|e }}",
+    subject: "{{ (scenario.subject or '')|e }}",
     video_url: "{{ scenario.video_url or '' }}",
     video_transcript: `{{ (scenario.video_transcript|replace('\n', '\\n')|replace('\r', '')|e) if scenario.video_transcript else '' }}`,
     student_template_id: {{ scenario.student_template_id }},
     tutor_template_id: {{ scenario.tutor_template_id|default('null', true) }},
+    tutor_sensitivity: "{{ scenario.tutor_sensitivity|default('medium', true)|e }}",
     group_ids: {{ scenario_group_map.get(scenario.id, [])|tojson }}
   }{% if not loop.last %},{% endif %}
   {% endfor %}
@@ -525,10 +571,12 @@ function openEditPanel(scenarioId) {
   document.getElementById('edit-prompt').value = data.prompt;
   document.getElementById('edit-profile').value = data.student_profile;
   document.getElementById('edit-student-name').value = data.student_name || '';
+  document.getElementById('edit-subject').value = data.subject || '';
   document.getElementById('edit-video-url').value = data.video_url || '';
   document.getElementById('edit-video-transcript').value = data.video_transcript || '';
   document.getElementById('edit-student-template').value = data.student_template_id;
   document.getElementById('edit-tutor-template').value = data.tutor_template_id || '';
+  document.getElementById('edit-tutor-sensitivity').value = data.tutor_sensitivity || 'medium';
 
   // Set group checkboxes
   const editGroupCbs = document.querySelectorAll('#edit-group-checkboxes input[type="checkbox"]');
@@ -582,11 +630,13 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
     prompt: formData.get('prompt'),
     student_profile: formData.get('student_profile'),
     student_name: formData.get('student_name') || null,
+    subject: formData.get('subject') || null,
     framework_id: parseInt(formData.get('framework_id')),
     video_url: formData.get('video_url') || null,
     video_transcript: formData.get('video_transcript') || null,
     student_template_id: parseInt(formData.get('student_template_id')),
     tutor_template_id: formData.get('tutor_template_id') ? parseInt(formData.get('tutor_template_id')) : null,
+    tutor_sensitivity: formData.get('tutor_sensitivity') || 'medium',
     group_ids: groupIds.length > 0 ? groupIds : null
   };
 
@@ -623,11 +673,13 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
     prompt: formData.get('prompt'),
     student_profile: formData.get('student_profile'),
     student_name: formData.get('student_name') || null,
+    subject: formData.get('subject') || null,
     framework_id: parseInt(formData.get('framework_id')),
     video_url: formData.get('video_url') || null,
     video_transcript: formData.get('video_transcript') || null,
     student_template_id: parseInt(formData.get('student_template_id')),
     tutor_template_id: formData.get('tutor_template_id') ? parseInt(formData.get('tutor_template_id')) : null,
+    tutor_sensitivity: formData.get('tutor_sensitivity') || 'medium',
     group_ids: editGroupIds
   };
 

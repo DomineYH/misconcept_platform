@@ -828,6 +828,11 @@ textarea {
 .avatar.tutor {
   background-color: var(--color-gray-400);
   color: var(--color-white);
+  min-width: 36px;
+  width: auto;
+  padding: 0 0.375rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 /* Message Content */

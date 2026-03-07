@@ -13,6 +13,13 @@ from src.utils.openai_helpers import extract_response_text, extract_usage_dict
 
 logger = logging.getLogger(__name__)
 
+BASE_STUDENT_PROMPT = (
+    "## 필수 행동 규칙 (최우선 적용)\n\n"
+    "1. 항상 존댓말(높임말)을 사용하여 대답하세요.\n"
+    "2. 사용자에게 되묻는 질문을 하지 마세요. "
+    "사용자가 묻는 말에만 답하세요."
+)
+
 
 class StudentBot(OpenAIBaseService):
     """Chatbot simulating student with specific misconception."""
@@ -86,7 +93,11 @@ class StudentBot(OpenAIBaseService):
             )
 
             # Build input for Responses API (developer role)
-            input_messages = [{"role": "developer", "content": system_prompt}]
+            # Base prompt first (highest priority)
+            input_messages = [
+                {"role": "developer", "content": BASE_STUDENT_PROMPT},
+                {"role": "developer", "content": system_prompt},
+            ]
 
             # Add conversation history
             for msg in conversation_history:
@@ -119,7 +130,9 @@ class StudentBot(OpenAIBaseService):
             return content, usage_dict
 
         except (APIConnectionError, RateLimitError, APIError) as e:
-            logger.error("StudentBot API error: %s: %s", type(e).__name__, str(e))
+            logger.error(
+                "StudentBot API error: %s: %s", type(e).__name__, str(e)
+            )
             raise
         except Exception as e:
             logger.error("Unexpected error in StudentBot: %s", str(e))

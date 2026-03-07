@@ -1,21 +1,24 @@
 """API Pydantic schemas."""
+
 from datetime import datetime
+from typing import Literal
+
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     field_validator,
-    ConfigDict,
 )
 
-from src.api.schemas.user import (
-    UserCreate,
-    UserUpdate,
-    AdminUserResponse,
-)
 from src.api.schemas.group import (
+    AdminGroupResponse,
     GroupCreate,
     GroupUpdate,
-    AdminGroupResponse,
+)
+from src.api.schemas.user import (
+    AdminUserResponse,
+    UserCreate,
+    UserUpdate,
 )
 
 
@@ -34,20 +37,14 @@ class FrameworkCreateWeb(BaseModel):
             raise ValueError("Maximum 20 labels allowed")
         for label in v:
             if len(label) < 2:
-                raise ValueError(
-                    f"Label '{label}' too short (min 2 chars)"
-                )
+                raise ValueError(f"Label '{label}' too short (min 2 chars)")
             if len(label) > 50:
-                raise ValueError(
-                    f"Label too long (max 50 chars)"
-                )
+                raise ValueError("Label too long (max 50 chars)")
         return v
 
 
 class FrameworkUpdateWeb(BaseModel):
-    name: str | None = Field(
-        None, min_length=2, max_length=100
-    )
+    name: str | None = Field(None, min_length=2, max_length=100)
     description: str | None = Field(None, max_length=500)
     labels: list[str] | None = None
 
@@ -65,15 +62,10 @@ class AdminFrameworkResponse(BaseModel):
 # Scenario Schemas
 class ScenarioCreate(BaseModel):
     title: str = Field(..., min_length=3, max_length=200)
-    prompt: str = Field(
-        ..., min_length=10, max_length=10000
-    )
-    student_profile: str = Field(
-        ..., min_length=3, max_length=5000
-    )
-    student_name: str | None = Field(
-        None, max_length=50
-    )
+    prompt: str = Field(..., min_length=10, max_length=10000)
+    student_profile: str = Field(..., min_length=3, max_length=5000)
+    student_name: str | None = Field(None, max_length=50)
+    subject: str | None = Field(None, max_length=100)
     framework_id: int
     is_active: bool = True
 
@@ -85,6 +77,9 @@ class ScenarioCreate(BaseModel):
     chat_model: str | None = None
     chat_temperature: float | None = 0.7
     tutor_intervention_threshold: int | None = 3
+
+    # Tutor sensitivity
+    tutor_sensitivity: Literal["high", "medium", "low"] = "medium"
 
     # Template selection (Phase 2.5)
     student_template_id: int  # Required
@@ -99,14 +94,8 @@ class ScenarioCreate(BaseModel):
         """Validate video URL format."""
         if v is None or v.strip() == "":
             return v
-        if not (
-            v.startswith("http://")
-            or v.startswith("https://")
-        ):
-            raise ValueError(
-                "video_url must start with "
-                "http:// or https://"
-            )
+        if not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("video_url must start with " "http:// or https://")
         return v
 
     @field_validator("chat_model")
@@ -122,8 +111,7 @@ class ScenarioCreate(BaseModel):
         if v.startswith("gpt-5"):
             return v
         raise ValueError(
-            f"Invalid model: {v}. "
-            "Must start with gpt-4 or gpt-5"
+            f"Invalid model: {v}. " "Must start with gpt-4 or gpt-5"
         )
 
     @field_validator("chat_temperature")
@@ -133,10 +121,7 @@ class ScenarioCreate(BaseModel):
         if v is None:
             return v
         if not (0.0 <= v <= 2.0):
-            raise ValueError(
-                "chat_temperature must be "
-                "between 0.0 and 2.0"
-            )
+            raise ValueError("chat_temperature must be " "between 0.0 and 2.0")
         return v
 
     @field_validator("tutor_intervention_threshold")
@@ -146,26 +131,16 @@ class ScenarioCreate(BaseModel):
         if v is None:
             return v
         if not (1 <= v <= 10):
-            raise ValueError(
-                "tutor_intervention_threshold "
-                "must be 1-10"
-            )
+            raise ValueError("tutor_intervention_threshold " "must be 1-10")
         return v
 
 
 class ScenarioUpdate(BaseModel):
-    title: str | None = Field(
-        None, min_length=3, max_length=200
-    )
-    prompt: str | None = Field(
-        None, min_length=10, max_length=10000
-    )
-    student_profile: str | None = Field(
-        None, min_length=3, max_length=5000
-    )
-    student_name: str | None = Field(
-        None, max_length=50
-    )
+    title: str | None = Field(None, min_length=3, max_length=200)
+    prompt: str | None = Field(None, min_length=10, max_length=10000)
+    student_profile: str | None = Field(None, min_length=3, max_length=5000)
+    student_name: str | None = Field(None, max_length=50)
+    subject: str | None = Field(None, max_length=100)
     framework_id: int | None = None
     is_active: int | None = Field(None, ge=0, le=1)
 
@@ -177,6 +152,9 @@ class ScenarioUpdate(BaseModel):
     chat_model: str | None = None
     chat_temperature: float | None = None
     tutor_intervention_threshold: int | None = None
+
+    # Tutor sensitivity
+    tutor_sensitivity: Literal["high", "medium", "low"] | None = None
 
     # Template selection
     student_template_id: int | None = None
@@ -191,14 +169,8 @@ class ScenarioUpdate(BaseModel):
         """Validate video URL format."""
         if v is None or v.strip() == "":
             return v
-        if not (
-            v.startswith("http://")
-            or v.startswith("https://")
-        ):
-            raise ValueError(
-                "video_url must start with "
-                "http:// or https://"
-            )
+        if not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("video_url must start with " "http:// or https://")
         return v
 
 
@@ -210,6 +182,7 @@ class AdminScenarioResponse(BaseModel):
     prompt: str
     student_profile: str
     student_name: str | None = None
+    subject: str | None = None
     framework_id: int
     is_active: int
 
@@ -221,6 +194,7 @@ class AdminScenarioResponse(BaseModel):
     chat_model: str | None = None
     chat_temperature: float | None = None
     tutor_intervention_threshold: int | None = None
+    tutor_sensitivity: str = "medium"
 
     # Template selection
     student_template_id: int
