@@ -144,7 +144,7 @@ class TestCSVExportWorkflow:
         assert export_response.status_code == 200
 
         # Step 4: Verify CSV format
-        csv_content = export_response.text
+        csv_content = export_response.text.lstrip("\ufeff")
 
         # Parse CSV
         csv_reader = csv.DictReader(io.StringIO(csv_content))
@@ -216,7 +216,7 @@ class TestCSVExportWorkflow:
             cookies=cookies,
         )
 
-        csv_content = export_response.text
+        csv_content = export_response.text.lstrip("\ufeff")
 
         # Verify raw username is NOT in CSV
         assert username not in csv_content
@@ -269,7 +269,7 @@ class TestCSVExportWorkflow:
             cookies=cookies,
         )
 
-        csv_content = export_response.text
+        csv_content = export_response.text.lstrip("\ufeff")
         csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 
@@ -324,7 +324,7 @@ class TestCSVExportWorkflow:
             cookies=cookies,
         )
 
-        csv_content = export_response.text
+        csv_content = export_response.text.lstrip("\ufeff")
         csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 
@@ -377,7 +377,7 @@ class TestCSVExportWorkflow:
             cookies=cookies,
         )
 
-        csv_content = export_response.text
+        csv_content = export_response.text.lstrip("\ufeff")
         csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 
@@ -441,7 +441,7 @@ class TestCSVExportWorkflow:
             cookies=cookies,
         )
 
-        csv_content = export_response.text
+        csv_content = export_response.text.lstrip("\ufeff")
         csv_reader = csv.DictReader(io.StringIO(csv_content))
         rows = list(csv_reader)
 

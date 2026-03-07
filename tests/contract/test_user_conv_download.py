@@ -181,7 +181,7 @@ class TestExportUserConversations:
         assert response.status_code == 200
         assert "text/csv" in response.headers["content-type"]
 
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv.DictReader(io.StringIO(response.text.lstrip("\ufeff")))
         rows = list(reader)
         session_ids = {r["session_id"] for r in rows}
 
@@ -207,7 +207,7 @@ class TestExportUserConversations:
         )
         assert response.status_code == 200
 
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv.DictReader(io.StringIO(response.text.lstrip("\ufeff")))
         rows = list(reader)
         session_ids = {r["session_id"] for r in rows}
 

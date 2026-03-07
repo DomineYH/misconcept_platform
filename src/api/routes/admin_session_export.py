@@ -87,7 +87,7 @@ async def export_sessions(
     )
 
     return Response(
-        content=csv_content,
+        content="\ufeff" + csv_content,
         media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": ("attachment; filename=sessions_export.csv")
@@ -139,7 +139,7 @@ async def export_selected_sessions(
     csv_content = await exporter.export_multiple_sessions_admin(valid_ids, db)
 
     return Response(
-        content=csv_content,
+        content="\ufeff" + csv_content,
         media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": (
@@ -194,7 +194,7 @@ async def export_user_conversations(
 
     filename = f"user_{user_id}_conversations.csv"
     return Response(
-        content=csv_content,
+        content="\ufeff" + csv_content,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": (f"attachment; filename={filename}")},
     )
@@ -288,7 +288,7 @@ async def download_session(
 
     filename = f"session_{session_id}.csv"
     return Response(
-        content=csv_content,
+        content="\ufeff" + csv_content,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": (f"attachment; filename={filename}")},
     )

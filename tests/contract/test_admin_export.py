@@ -2,18 +2,19 @@
 
 import csv
 import io
-import pytest
 from datetime import datetime, timedelta
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.user import User
+from src.models.analysis_framework import AnalysisFramework
+from src.models.message import Message
+from src.models.prompt_template import PromptTemplate
+from src.models.question_analysis import QuestionAnalysis
 from src.models.scenario import Scenario
 from src.models.session import Session
-from src.models.message import Message
-from src.models.analysis_framework import AnalysisFramework
-from src.models.question_analysis import QuestionAnalysis
-from src.models.prompt_template import PromptTemplate
+from src.models.user import User
 
 
 @pytest.fixture
@@ -200,7 +201,7 @@ class TestAdminExportEndedOnly:
         response = test_client.get("/admin/sessions/export")
         assert response.status_code == 200
 
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv.DictReader(io.StringIO(response.text.lstrip("\ufeff")))
         rows = list(reader)
         session_ids = {r["session_id"] for r in rows}
 
@@ -232,7 +233,7 @@ class TestAdminExportTeacherFilter:
         )
         assert response.status_code == 200
 
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv.DictReader(io.StringIO(response.text.lstrip("\ufeff")))
         rows = list(reader)
 
         for row in rows:
@@ -260,7 +261,7 @@ class TestAdminExportTeacherInfo:
         response = test_client.get("/admin/sessions/export")
         assert response.status_code == 200
 
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv.DictReader(io.StringIO(response.text.lstrip("\ufeff")))
         rows = list(reader)
         assert len(rows) > 0
 
@@ -287,7 +288,7 @@ class TestAdminExportTeacherInfo:
         response = test_client.get("/admin/sessions/export")
         assert response.status_code == 200
 
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv.DictReader(io.StringIO(response.text.lstrip("\ufeff")))
         rows = list(reader)
         teacher_rows = [r for r in rows if r["role"] == "teacher"]
         assert len(teacher_rows) > 0
@@ -321,7 +322,7 @@ class TestAdminExportSelected:
         assert response.status_code == 200
         assert "text/csv" in response.headers["content-type"]
 
-        reader = csv.DictReader(io.StringIO(response.text))
+        reader = csv.DictReader(io.StringIO(response.text.lstrip("\ufeff")))
         rows = list(reader)
         session_ids = {r["session_id"] for r in rows}
 

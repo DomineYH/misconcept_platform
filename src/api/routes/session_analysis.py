@@ -235,8 +235,8 @@ async def export_session(
         raise HTTPException(status_code=404, detail=str(e))
 
     return Response(
-        content=csv_content,
-        media_type="text/csv",
+        content="\ufeff" + csv_content,
+        media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": (
                 f"attachment; filename=session_{session_id}_analysis.csv"
