@@ -23,30 +23,35 @@ from src.api.schemas.user import (
 
 
 # Framework Schemas
+class LabelItem(BaseModel):
+    name: str = Field(..., min_length=2, max_length=50)
+    criteria: str = Field("", max_length=500)
+
+
 class FrameworkCreateWeb(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     description: str = Field(..., max_length=500)
-    labels: list[str] = Field(..., min_length=2, max_length=20)
+    labels: list[LabelItem] = Field(..., min_length=2, max_length=20)
 
     @field_validator("labels")
     @classmethod
     def validate_labels(cls, v):
         if len(v) < 2:
-            raise ValueError("At least 2 labels are required")
+            raise ValueError("At least 2 labels required")
         if len(v) > 20:
             raise ValueError("Maximum 20 labels allowed")
-        for label in v:
-            if len(label) < 2:
-                raise ValueError(f"Label '{label}' too short (min 2 chars)")
-            if len(label) > 50:
-                raise ValueError("Label too long (max 50 chars)")
+        for item in v:
+            if len(item.name) < 2:
+                raise ValueError(f"Label '{item.name}' too short")
+            if len(item.name) > 50:
+                raise ValueError("Label too long (max 50)")
         return v
 
 
 class FrameworkUpdateWeb(BaseModel):
     name: str | None = Field(None, min_length=2, max_length=100)
     description: str | None = Field(None, max_length=500)
-    labels: list[str] | None = None
+    labels: list[LabelItem] | None = None
 
 
 class AdminFrameworkResponse(BaseModel):
@@ -210,6 +215,7 @@ class AdminScenarioResponse(BaseModel):
 
 
 __all__ = [
+    "LabelItem",
     "FrameworkCreateWeb",
     "FrameworkUpdateWeb",
     "AdminFrameworkResponse",

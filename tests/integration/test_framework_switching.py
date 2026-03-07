@@ -1,16 +1,18 @@
 """Integration test for framework switching (T086)."""
+
 import json
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.user import User
 from src.models.analysis_framework import AnalysisFramework
-from src.models.scenario import Scenario
-from src.models.session import Session as DialogueSession
 from src.models.message import Message
 from src.models.question_analysis import QuestionAnalysis
+from src.models.scenario import Scenario
+from src.models.session import Session as DialogueSession
+from src.models.user import User
 
 
 @pytest.mark.asyncio
@@ -45,7 +47,11 @@ async def test_framework_switching_workflow(
         json={
             "name": "New Framework",
             "description": "Alternative classification framework",
-            "labels": ["HighQuality", "LowQuality", "Neutral"],
+            "labels": [
+                {"name": "HighQuality", "criteria": ""},
+                {"name": "LowQuality", "criteria": ""},
+                {"name": "Neutral", "criteria": ""},
+            ],
         },
     )
 
@@ -53,7 +59,7 @@ async def test_framework_switching_workflow(
     new_framework_data = new_framework_response.json()
     new_framework_id = new_framework_data["id"]
     new_labels = json.loads(new_framework_data["labels_json"])
-    assert "HighQuality" in new_labels
+    assert new_labels[0]["name"] == "HighQuality"
 
     # Step 2: Switch scenario to use new framework
     update_response = test_client.put(
@@ -230,7 +236,10 @@ async def test_framework_switching_affects_new_sessions_only(
         json={
             "name": "New Framework",
             "description": "Different labels",
-            "labels": ["Alpha", "Beta"],
+            "labels": [
+                {"name": "Alpha", "criteria": ""},
+                {"name": "Beta", "criteria": ""},
+            ],
         },
     )
     new_framework_id = new_framework_response.json()["id"]
@@ -276,9 +285,7 @@ async def test_framework_switching_affects_new_sessions_only(
     result = await db_session.execute(session_stmt)
     session2 = result.scalar_one()
 
-    scenario_stmt = select(Scenario).where(
-        Scenario.id == session2.scenario_id
-    )
+    scenario_stmt = select(Scenario).where(Scenario.id == session2.scenario_id)
     result = await db_session.execute(scenario_stmt)
     scenario = result.scalar_one()
 

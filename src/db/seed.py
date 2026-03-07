@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import os
 import secrets
 from pathlib import Path
 
@@ -46,16 +45,19 @@ async def seed_database():
 
         # Get default group id
         group_result = await session.execute(
-            text(
-                "SELECT id FROM user_group "
-                "WHERE name = 'default'"
-            )
+            text("SELECT id FROM user_group " "WHERE name = 'default'")
         )
         default_group_id = group_result.scalar()
 
         # Seed default analysis framework
         framework_labels = json.dumps(
-            ["Pressing", "Linking", "Directing", "Recall"]
+            [
+                {"name": "Pressing", "criteria": ""},
+                {"name": "Linking", "criteria": ""},
+                {"name": "Directing", "criteria": ""},
+                {"name": "Recall", "criteria": ""},
+            ],
+            ensure_ascii=False,
         )
 
         await session.execute(
@@ -112,27 +114,19 @@ async def seed_database():
 
         # Get framework_id and admin user_id
         framework_result = await session.execute(
-            text(
-                "SELECT id FROM analysis_framework "
-                "WHERE name = :name"
-            ),
+            text("SELECT id FROM analysis_framework " "WHERE name = :name"),
             {"name": "High/Low Leverage"},
         )
         framework_id = framework_result.scalar()
 
         admin_result = await session.execute(
-            text(
-                "SELECT id FROM user "
-                "WHERE username = :username"
-            ),
+            text("SELECT id FROM user " "WHERE username = :username"),
             {"username": "admin"},
         )
         admin_id = admin_result.scalar()
 
         # Seed prompt templates (before scenario)
-        student_template_id = await _seed_prompt_templates(
-            session, admin_id
-        )
+        student_template_id = await _seed_prompt_templates(session, admin_id)
 
         # Seed sample scenario with student_template_id
         await session.execute(
@@ -256,8 +250,7 @@ async def _seed_prompt_templates(session, admin_id):
     else:
         print(f"Warning: {student_path} not found")
         student_text = (
-            "당신은 오개념을 가진 학생입니다. "
-            "(기본 폴백 프롬프트)"
+            "당신은 오개념을 가진 학생입니다. " "(기본 폴백 프롬프트)"
         )
 
     await session.execute(
@@ -338,10 +331,7 @@ async def seed_prompts():
             return
 
         admin_result = await session.execute(
-            text(
-                "SELECT id FROM user "
-                "WHERE role = 'admin' LIMIT 1"
-            )
+            text("SELECT id FROM user " "WHERE role = 'admin' LIMIT 1")
         )
         admin_id = admin_result.scalar()
         await _seed_prompt_templates(session, admin_id)

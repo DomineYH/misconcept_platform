@@ -65,7 +65,7 @@ async def analyze_session(
         )
 
     # Analyze each teacher message
-    distribution = {label: 0 for label in framework.labels}
+    distribution = {label: 0 for label in framework.label_names}
     msg_index_map = {msg.id: idx for idx, msg in enumerate(all_messages)}
 
     for msg in teacher_messages:
@@ -197,7 +197,7 @@ async def create_fallback_summary(
     db: AsyncSession,
 ) -> dict[str, Any]:
     """Create fallback summary when analysis fails."""
-    fallback_distribution = {label: 0 for label in framework.labels}
+    fallback_distribution = {label: 0 for label in framework.label_names}
 
     try:
         summary = SessionSummary(

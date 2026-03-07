@@ -1,16 +1,17 @@
 """Contract tests for admin endpoints (T072-T074, T084-T085, T092-T093)."""
-import pytest
+
 from datetime import datetime, timedelta
+
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.user import User
+from src.models.analysis_framework import AnalysisFramework
+from src.models.message import Message
+from src.models.prompt_template import PromptTemplate
 from src.models.scenario import Scenario
 from src.models.session import Session
-from src.models.message import Message
-from src.models.analysis_framework import AnalysisFramework
-from src.models.prompt_template import PromptTemplate
+from src.models.user import User
 
 
 @pytest.fixture
@@ -27,9 +28,7 @@ async def admin_user(db_session: AsyncSession) -> User:
 @pytest.fixture
 async def teacher_user(db_session: AsyncSession) -> User:
     """Create a teacher user for testing."""
-    user = User(
-        username="teacher_001", nickname="김교사", role="teacher"
-    )
+    user = User(username="teacher_001", nickname="김교사", role="teacher")
     user.set_password("test1234")
     db_session.add(user)
     await db_session.commit()
@@ -446,9 +445,7 @@ class TestFrameworkManagement:
         self, test_client: TestClient
     ):
         """Verify unauthenticated users are redirected."""
-        response = test_client.get(
-            "/admin/frameworks", follow_redirects=False
-        )
+        response = test_client.get("/admin/frameworks", follow_redirects=False)
 
         # Contract: 303 redirect to /login
         assert response.status_code == 303
@@ -473,7 +470,11 @@ class TestFrameworkManagement:
             json={
                 "name": "New Framework",
                 "description": "Test framework description",
-                "labels": ["Label1", "Label2", "Label3"],
+                "labels": [
+                    {"name": "Label1", "criteria": ""},
+                    {"name": "Label2", "criteria": ""},
+                    {"name": "Label3", "criteria": ""},
+                ],
             },
         )
 
@@ -484,9 +485,10 @@ class TestFrameworkManagement:
         assert data["description"] == "Test framework description"
         # API returns labels_json as raw JSON string
         import json
+
         labels = json.loads(data["labels_json"])
         assert len(labels) == 3
-        assert "Label1" in labels
+        assert labels[0]["name"] == "Label1"
         assert "id" in data
 
     def test_create_framework_with_min_labels(
@@ -508,7 +510,10 @@ class TestFrameworkManagement:
             json={
                 "name": "Minimal Framework",
                 "description": "Minimal test",
-                "labels": ["Label1", "Label2"],
+                "labels": [
+                    {"name": "Label1", "criteria": ""},
+                    {"name": "Label2", "criteria": ""},
+                ],
             },
         )
 
@@ -516,6 +521,7 @@ class TestFrameworkManagement:
         assert response.status_code == 201
         # API returns labels_json as raw JSON string
         import json
+
         labels = json.loads(response.json()["labels_json"])
         assert len(labels) == 2
 
@@ -538,7 +544,9 @@ class TestFrameworkManagement:
             json={
                 "name": "Invalid Framework",
                 "description": "Invalid test",
-                "labels": ["OnlyOne"],
+                "labels": [
+                    {"name": "OnlyOne", "criteria": ""},
+                ],
             },
         )
 
@@ -560,7 +568,7 @@ class TestFrameworkManagement:
         )
 
         # Create framework with 21 labels
-        labels = [f"Label{i}" for i in range(21)]
+        labels = [{"name": f"Label{i}", "criteria": ""} for i in range(21)]
         response = test_client.post(
             "/admin/frameworks",
             json={
@@ -593,7 +601,10 @@ class TestFrameworkManagement:
             json={
                 "name": "Invalid Label Framework",
                 "description": "Test",
-                "labels": ["A", "ValidLabel"],  # "A" is too short
+                "labels": [
+                    {"name": "A", "criteria": ""},
+                    {"name": "ValidLabel", "criteria": ""},
+                ],  # "A" is too short
             },
         )
 
@@ -648,7 +659,10 @@ class TestFrameworkManagement:
             json={
                 "name": "New Framework",
                 "description": "Test description for framework",
-                "labels": ["Label1", "Label2"],
+                "labels": [
+                    {"name": "Label1", "criteria": ""},
+                    {"name": "Label2", "criteria": ""},
+                ],
             },
         )
 
@@ -796,12 +810,8 @@ class TestSessionLogs:
         )
 
         # Filter sessions from 3 days ago to now
-        date_from = (
-            datetime.utcnow() - timedelta(days=3)
-        ).isoformat()
-        response = test_client.get(
-            f"/admin/sessions?date_from={date_from}"
-        )
+        date_from = (datetime.utcnow() - timedelta(days=3)).isoformat()
+        response = test_client.get(f"/admin/sessions?date_from={date_from}")
 
         # Contract: 200 OK with filtered sessions
         assert response.status_code == 200
@@ -899,10 +909,7 @@ class TestBulkExport:
 
         # Contract: 200 OK with CSV content
         assert response.status_code == 200
-        assert (
-            response.headers["content-type"]
-            == "text/csv; charset=utf-8"
-        )
+        assert response.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in response.headers["content-disposition"]
         assert ".csv" in response.headers["content-disposition"]
 
@@ -933,9 +940,7 @@ class TestBulkExport:
         )
 
         # Export filtered sessions
-        date_from = (
-            datetime.utcnow() - timedelta(days=3)
-        ).isoformat()
+        date_from = (datetime.utcnow() - timedelta(days=3)).isoformat()
         response = test_client.get(
             f"/admin/sessions/export?date_from={date_from}"
         )
@@ -971,7 +976,9 @@ class TestBulkExport:
     ):
         """Verify redirect to login if not authenticated."""
         # Try to export without login
-        response = test_client.get("/admin/sessions/export", follow_redirects=False)
+        response = test_client.get(
+            "/admin/sessions/export", follow_redirects=False
+        )
 
         # Contract: 303 See Other redirect to /login
         assert response.status_code == 303

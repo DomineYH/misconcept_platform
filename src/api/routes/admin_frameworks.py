@@ -1,4 +1,5 @@
 """Admin framework management routes with web UI."""
+
 import json
 import logging
 
@@ -33,9 +34,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Admin Frameworks"])
 
 
-@router.get(
-    "/admin/frameworks", response_class=HTMLResponse
-)
+@router.get("/admin/frameworks", response_class=HTMLResponse)
 async def list_all_frameworks_web(
     request: Request,
     user: User = Depends(get_admin_user),
@@ -43,9 +42,7 @@ async def list_all_frameworks_web(
 ):
     """GET /admin/frameworks - Framework management page."""
 
-    query = select(AnalysisFramework).order_by(
-        AnalysisFramework.id.desc()
-    )
+    query = select(AnalysisFramework).order_by(AnalysisFramework.id.desc())
     result = await db.execute(query)
     frameworks = result.scalars().all()
 
@@ -91,8 +88,7 @@ async def create_framework_web(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"프레임워크 '{framework_data.name}'"
-                "이(가) 이미 존재합니다"
+                f"프레임워크 '{framework_data.name}'" "이(가) 이미 존재합니다"
             ),
         )
 
@@ -101,7 +97,16 @@ async def create_framework_web(
         new_framework = AnalysisFramework(
             name=framework_data.name,
             description=framework_data.description,
-            labels_json=json.dumps(framework_data.labels),
+            labels_json=json.dumps(
+                [
+                    {
+                        "name": item.name,
+                        "criteria": item.criteria,
+                    }
+                    for item in framework_data.labels
+                ],
+                ensure_ascii=False,
+            ),
         )
     except ValueError as e:
         raise HTTPException(
@@ -139,9 +144,7 @@ async def update_framework_web(
 ):
     """PUT /admin/frameworks/{id} - Update framework."""
 
-    framework = await db.get(
-        AnalysisFramework, framework_id
-    )
+    framework = await db.get(AnalysisFramework, framework_id)
     if not framework:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -149,10 +152,7 @@ async def update_framework_web(
         )
 
     # Check for duplicate name if updating name
-    if (
-        framework_data.name
-        and framework_data.name != framework.name
-    ):
+    if framework_data.name and framework_data.name != framework.name:
         existing_query = select(AnalysisFramework).where(
             AnalysisFramework.name == framework_data.name
         )
@@ -174,13 +174,18 @@ async def update_framework_web(
     if framework_data.labels:
         try:
             framework.labels_json = json.dumps(
-                framework_data.labels
+                [
+                    {
+                        "name": item.name,
+                        "criteria": item.criteria,
+                    }
+                    for item in framework_data.labels
+                ],
+                ensure_ascii=False,
             )
         except ValueError as e:
             raise HTTPException(
-                status_code=(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY
-                ),
+                status_code=(status.HTTP_422_UNPROCESSABLE_ENTITY),
                 detail=[
                     {
                         "loc": ["body", "labels"],
@@ -209,9 +214,7 @@ async def delete_framework_web(
 ):
     """DELETE /admin/frameworks/{id} - Delete framework."""
 
-    framework = await db.get(
-        AnalysisFramework, framework_id
-    )
+    framework = await db.get(AnalysisFramework, framework_id)
     if not framework:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -240,12 +243,8 @@ async def delete_framework_web(
         Scenario.framework_id == framework_id,
         Scenario.deleted_at.is_not(None),
     )
-    soft_deleted_result = await db.execute(
-        soft_deleted_query
-    )
-    soft_deleted_scenarios = (
-        soft_deleted_result.scalars().all()
-    )
+    soft_deleted_result = await db.execute(soft_deleted_query)
+    soft_deleted_scenarios = soft_deleted_result.scalars().all()
 
     for scenario in soft_deleted_scenarios:
         sessions_query = select(Session).where(
@@ -267,8 +266,7 @@ async def delete_framework_web(
     await db.flush()
 
     logger.info(
-        f"Framework deleted: id={framework_id}, "
-        f"name={framework.name}"
+        f"Framework deleted: id={framework_id}, " f"name={framework.name}"
     )
 
     return None

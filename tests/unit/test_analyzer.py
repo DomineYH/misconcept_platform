@@ -3,11 +3,13 @@ Unit tests for Analyzer service (T061).
 
 Tests question classification with mocked OpenAI responses.
 """
-import pytest
+
 from unittest.mock import AsyncMock, Mock, patch
 
-from src.services.analyzer import Analyzer
+import pytest
+
 from src.models.analysis_framework import AnalysisFramework
+from src.services.analyzer import Analyzer
 
 
 @pytest.fixture
@@ -16,7 +18,24 @@ def mock_framework():
     framework = Mock(spec=AnalysisFramework)
     framework.name = "High/Low Leverage"
     framework.description = "Test framework"
-    framework.labels = ["Pressing", "Linking", "Directing", "Recall"]
+    framework.labels = [
+        {"name": "Pressing", "criteria": "학생의 사고를 깊이 탐색하는 질문"},
+        {"name": "Linking", "criteria": "아이디어를 연결하는 안내형 질문"},
+        {"name": "Directing", "criteria": "방향을 제시하는 질문"},
+        {"name": "Recall", "criteria": "단순 사실 확인 질문"},
+    ]
+    framework.label_names = [
+        "Pressing",
+        "Linking",
+        "Directing",
+        "Recall",
+    ]
+    framework.label_criteria_map = {
+        "Pressing": "학생의 사고를 깊이 탐색하는 질문",
+        "Linking": "아이디어를 연결하는 안내형 질문",
+        "Directing": "방향을 제시하는 질문",
+        "Recall": "단순 사실 확인 질문",
+    }
     return framework
 
 
@@ -30,9 +49,7 @@ def analyzer():
 
 
 @pytest.mark.asyncio
-async def test_classify_question_valid_response(
-    analyzer, mock_framework
-):
+async def test_classify_question_valid_response(analyzer, mock_framework):
     """Test successful classification with valid response."""
     # Mock OpenAI Responses API response
     mock_response = Mock()
@@ -41,9 +58,7 @@ async def test_classify_question_valid_response(
         '"confidence": 0.92, '
         '"reasoning": "Encourages articulation"}'
     )
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Classify question
     result = await analyzer.classify_question(
@@ -66,37 +81,27 @@ async def test_classify_question_invalid_label(analyzer, mock_framework):
     mock_response.output = Mock(
         content='{"label": "InvalidLabel", "confidence": 0.8}'
     )
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Classify question
-    result = await analyzer.classify_question(
-        "Test question?", mock_framework
-    )
+    result = await analyzer.classify_question("Test question?", mock_framework)
 
     # Should use first framework label
     assert result["label"] == "Pressing"
 
 
 @pytest.mark.asyncio
-async def test_classify_question_confidence_range(
-    analyzer, mock_framework
-):
+async def test_classify_question_confidence_range(analyzer, mock_framework):
     """Test confidence score is clamped to [0, 1]."""
     # Mock Responses API response with out-of-range confidence
     mock_response = Mock()
     mock_response.output = Mock(
         content='{"label": "Recall", "confidence": 1.5}'
     )
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Classify question
-    result = await analyzer.classify_question(
-        "What is 2+2?", mock_framework
-    )
+    result = await analyzer.classify_question("What is 2+2?", mock_framework)
 
     # Confidence should be clamped
     assert 0.0 <= result["confidence"] <= 1.0
@@ -108,40 +113,28 @@ async def test_classify_question_json_error(analyzer, mock_framework):
     # Mock Responses API response with invalid JSON
     mock_response = Mock()
     mock_response.output = Mock(content="Not valid JSON")
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Should raise ValueError
     with pytest.raises(ValueError, match="Invalid JSON"):
-        await analyzer.classify_question(
-            "Test question?", mock_framework
-        )
+        await analyzer.classify_question("Test question?", mock_framework)
 
 
 @pytest.mark.asyncio
-async def test_classify_question_missing_fields(
-    analyzer, mock_framework
-):
+async def test_classify_question_missing_fields(analyzer, mock_framework):
     """Test handling of response missing required fields."""
     # Mock Responses API response missing confidence field
     mock_response = Mock()
     mock_response.output = Mock(content='{"label": "Recall"}')
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Should raise ValueError
     with pytest.raises(ValueError, match="missing required fields"):
-        await analyzer.classify_question(
-            "Test question?", mock_framework
-        )
+        await analyzer.classify_question("Test question?", mock_framework)
 
 
 @pytest.mark.asyncio
-async def test_batch_classify_multiple_questions(
-    analyzer, mock_framework
-):
+async def test_batch_classify_multiple_questions(analyzer, mock_framework):
     """Test batch classification of multiple questions."""
     # Mock responses for each question
     mock_responses = [
@@ -177,9 +170,7 @@ async def test_batch_classify_multiple_questions(
 
 
 @pytest.mark.asyncio
-async def test_batch_classify_handles_failures(
-    analyzer, mock_framework
-):
+async def test_batch_classify_handles_failures(analyzer, mock_framework):
     """Test batch classification continues on individual failures."""
     # Mock responses with one failure
     call_count = 0
@@ -220,13 +211,20 @@ async def test_detect_greetings_valid_response(analyzer):
     # Mock Responses API response
     mock_response = Mock()
     mock_response.output = Mock(
-        content='[{"index": 0, "is_greeting": true, "reason": "Opening greeting"}, '
-        '{"index": 1, "is_greeting": false, "reason": "Question about concept"}]'
+        content=(
+            '[{"index": 0, "is_greeting": true,'
+            ' "reason": "Opening greeting"}, '
+            '{"index": 1, "is_greeting": false,'
+            ' "reason": "Question about concept"}]'
+        )
     )
     analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Detect greetings
-    messages = ["안녕하세요!", "분수의 덧셈에서 분모가 다르면 어떻게 해야 할까요?"]
+    messages = [
+        "안녕하세요!",
+        "분수의 덧셈에서 분모가 다르면 어떻게 해야 할까요?",
+    ]
     results = await analyzer.detect_greetings(messages)
 
     # Verify results
@@ -299,9 +297,7 @@ async def test_detect_greetings_fills_missing_indices(analyzer):
 
 
 @pytest.mark.asyncio
-async def test_classify_question_structured_reasoning(
-    analyzer, mock_framework
-):
+async def test_classify_question_structured_reasoning(analyzer, mock_framework):
     """Test successful classification with full structured reasoning."""
     import json
 
@@ -399,9 +395,7 @@ async def test_classify_question_legacy_reasoning_compatibility(
 
 
 @pytest.mark.asyncio
-async def test_classify_question_partial_reasoning(
-    analyzer, mock_framework
-):
+async def test_classify_question_partial_reasoning(analyzer, mock_framework):
     """Test handling of partial reasoning structure."""
     import json
 

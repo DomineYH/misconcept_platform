@@ -4,16 +4,17 @@ Analyzer service for teacher question classification (T060).
 Stateless LLM-based classification using framework-specific
 prompts with structured JSON output.
 """
+
 import json
 import logging
 from typing import Dict, Optional
 
-from openai import AsyncOpenAI, APIError, APIConnectionError, RateLimitError
+from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from src.config import config
@@ -21,7 +22,6 @@ from src.models.analysis_framework import AnalysisFramework
 from src.prompts.example_templates import generate_examples
 from src.utils.cache import load_prompt_template
 from src.utils.openai_helpers import extract_response_text
-
 
 logger = logging.getLogger(__name__)
 
@@ -114,20 +114,30 @@ class Analyzer:
             ValueError: If response format is invalid
             APIError: If OpenAI API call fails after retries
         """
-        # Generate dynamic few-shot examples using framework labels
+        # Generate dynamic few-shot examples
         few_shot_examples = generate_examples(
-            framework.labels, framework.description or ""
+            framework.labels,
+            framework.description or "",
         )
 
-        # Format prompt with framework, scenario context, and question
+        # Build criteria-formatted labels for prompt
+        criteria_map = framework.label_criteria_map
+        labels_with_criteria = "\n".join(
+            f"- **{name}**: {criteria}" if criteria else f"- **{name}**"
+            for name, criteria in criteria_map.items()
+        )
+        label_names = framework.label_names
+
+        # Format prompt with framework and scenario context
         prompt = self.prompt_template.format(
             framework_name=framework.name,
-            framework_description=framework.description or "",
-            framework_labels=", ".join(framework.labels),
+            framework_description=(framework.description or ""),
+            framework_labels=", ".join(label_names),
+            framework_labels_with_criteria=(labels_with_criteria),
             few_shot_examples=few_shot_examples,
-            scenario_title=scenario_title or "Not specified",
-            misconception_prompt=misconception_prompt or "Not specified",
-            student_profile=student_profile or "Not specified",
+            scenario_title=(scenario_title or "Not specified"),
+            misconception_prompt=(misconception_prompt or "Not specified"),
+            student_profile=(student_profile or "Not specified"),
             question=question,
             context=context or "No prior context",
         )
@@ -147,7 +157,7 @@ class Analyzer:
                 reasoning={"effort": self.reasoning_effort},
             )
 
-            # Parse JSON response using helper (handles GPT-5 response structure)
+            # Parse JSON response (GPT-5 structure)
             content = extract_response_text(response)
             result = json.loads(content)
 
@@ -158,12 +168,13 @@ class Analyzer:
                 )
 
             # Validate label is in framework
-            if result["label"] not in framework.labels:
+            if result["label"] not in label_names:
                 logger.warning(
-                    f"LLM returned invalid label '{result['label']}', "
-                    f"using first framework label"
+                    "LLM returned invalid label "
+                    f"'{result['label']}', "
+                    "using first framework label"
                 )
-                result["label"] = framework.labels[0]
+                result["label"] = label_names[0]
 
             # Validate confidence range
             confidence = float(result["confidence"])
@@ -226,13 +237,15 @@ class Analyzer:
                 )
                 results.append(result)
             except Exception as e:
-                logger.error("Failed to classify question '%s': %s", question, e)
+                logger.error(
+                    "Failed to classify question '%s': %s", question, e
+                )
                 # Return default classification on failure
                 results.append(
                     {
-                        "label": framework.labels[0],
+                        "label": framework.label_names[0],
                         "confidence": 0.0,
-                        "reasoning": f"Classification failed: {str(e)}",
+                        "reasoning": (f"Classification failed: {e}"),
                     }
                 )
         return results
@@ -259,7 +272,8 @@ class Analyzer:
         Example:
             [
                 {"index": 0, "is_greeting": True, "reason": "Opening greeting"},
-                {"index": 1, "is_greeting": False, "reason": "Conceptual question"}
+                {"index": 1, "is_greeting": False,
+                 "reason": "Conceptual question"}
             ]
         """
         if not messages:

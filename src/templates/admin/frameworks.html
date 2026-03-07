@@ -26,7 +26,7 @@
       <div class="scenario-card" data-framework-id="{{ framework.id }}">
         <div class="card-body">
           <h3 class="card-title">{{ framework.name }}</h3>
-          
+
           <div class="card-meta">
             <span class="meta-tag">ID: {{ framework.id }}</span>
             <span class="meta-tag {% if framework_usage[framework.id] > 0 %}sessions{% endif %}">
@@ -38,7 +38,22 @@
 
           <div class="framework-labels">
             {% for label in framework.labels %}
-            <span class="label-badge label-default">{{ label }}</span>
+            {% if label is mapping %}
+            <div class="label-item">
+              <span class="label-badge label-default">
+                {{ label.name }}
+              </span>
+              {% if label.criteria %}
+              <span class="label-criteria">
+                {{ label.criteria[:50] }}{% if label.criteria|length > 50 %}...{% endif %}
+              </span>
+              {% endif %}
+            </div>
+            {% else %}
+            <span class="label-badge label-default">
+              {{ label }}
+            </span>
+            {% endif %}
             {% endfor %}
           </div>
         </div>
@@ -117,14 +132,16 @@
 
         <div class="form-group">
           <label>카테고리 라벨 <span class="required">*</span></label>
-          <p class="form-help">2-20개 라벨, 각 2-50자</p>
+          <p class="form-help">2-20개 라벨, 각 2-50자 / 분석 기준 선택</p>
           <div id="labels-container" class="labels-container">
             <div class="label-input-row">
-              <input type="text" class="label-input" placeholder="라벨 1" minlength="2" maxlength="50" required />
+              <input type="text" class="label-name-input" placeholder="라벨명 1" minlength="2" maxlength="50" required />
+              <textarea class="label-criteria-input" placeholder="분석 기준 (선택)" maxlength="500" rows="1"></textarea>
               <button type="button" class="btn-remove-label" disabled>&times;</button>
             </div>
             <div class="label-input-row">
-              <input type="text" class="label-input" placeholder="라벨 2" minlength="2" maxlength="50" required />
+              <input type="text" class="label-name-input" placeholder="라벨명 2" minlength="2" maxlength="50" required />
+              <textarea class="label-criteria-input" placeholder="분석 기준 (선택)" maxlength="500" rows="1"></textarea>
               <button type="button" class="btn-remove-label">&times;</button>
             </div>
           </div>
@@ -183,12 +200,24 @@
     margin-top: 1rem;
   }
 
+  .label-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .label-criteria {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    margin-left: 0.25rem;
+  }
+
   .labels-container {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
     margin-bottom: 1rem;
-    max-height: 280px;
+    max-height: 320px;
     overflow-y: auto;
     padding-right: 0.5rem;
   }
@@ -196,11 +225,17 @@
   .label-input-row {
     display: flex;
     gap: 0.5rem;
-    align-items: center;
+    align-items: flex-start;
   }
 
-  .label-input-row input {
-    flex: 1;
+  .label-name-input, .edit-label-name-input {
+    flex: 0.8;
+  }
+
+  .label-criteria-input, .edit-label-criteria-input {
+    flex: 1.2;
+    resize: vertical;
+    min-height: 32px;
   }
 
   .btn-remove-label {
@@ -287,7 +322,8 @@ addLabelBtn.addEventListener("click", () => {
   const row = document.createElement("div");
   row.className = "label-input-row";
   row.innerHTML = `
-    <input type="text" class="label-input" placeholder="라벨 ${labelCount}" minlength="2" maxlength="50" required />
+    <input type="text" class="label-name-input" placeholder="라벨명 ${labelCount}" minlength="2" maxlength="50" required />
+    <textarea class="label-criteria-input" placeholder="분석 기준 (선택)" maxlength="500" rows="1"></textarea>
     <button type="button" class="btn-remove-label">&times;</button>
   `;
   labelsContainer.appendChild(row);
@@ -313,9 +349,14 @@ document.getElementById("create-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = document.getElementById("new-name").value.trim();
   const description = document.getElementById("new-description").value.trim();
-  const labels = Array.from(labelsContainer.querySelectorAll(".label-input"))
-    .map(input => input.value.trim())
-    .filter(label => label.length > 0);
+  const labels = [];
+  labelsContainer.querySelectorAll(".label-input-row").forEach(row => {
+    const n = row.querySelector(".label-name-input").value.trim();
+    const c = row.querySelector(".label-criteria-input").value.trim();
+    if (n.length > 0) {
+      labels.push({ name: n, criteria: c });
+    }
+  });
 
   if (labels.length < 2) {
     alert("최소 2개 라벨이 필요합니다");
@@ -400,21 +441,34 @@ function addEditLabelRow(value = "") {
   const row = document.createElement("div");
   row.className = "label-input-row";
 
-  // Create input element safely using DOM methods
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "edit-label-input";
-  input.value = value;
-  input.minLength = 2;
-  input.maxLength = 50;
-  input.required = true;
+  // Handle both old string and new {name, criteria} formats
+  const labelName = (typeof value === "object" && value !== null)
+    ? (value.name || "") : value;
+  const labelCriteria = (typeof value === "object" && value !== null)
+    ? (value.criteria || "") : "";
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.className = "edit-label-name-input";
+  nameInput.value = labelName;
+  nameInput.minLength = 2;
+  nameInput.maxLength = 50;
+  nameInput.required = true;
+
+  const criteriaInput = document.createElement("textarea");
+  criteriaInput.className = "edit-label-criteria-input";
+  criteriaInput.value = labelCriteria;
+  criteriaInput.maxLength = 500;
+  criteriaInput.rows = 1;
+  criteriaInput.placeholder = "분석 기준 (선택)";
 
   const button = document.createElement("button");
   button.type = "button";
   button.className = "btn-remove-label";
   button.innerHTML = "&times;";
 
-  row.appendChild(input);
+  row.appendChild(nameInput);
+  row.appendChild(criteriaInput);
   row.appendChild(button);
   editLabelsContainer.appendChild(row);
   updateEditRemoveButtons();
@@ -448,9 +502,14 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
   const id = document.getElementById("edit-id").value;
   const name = document.getElementById("edit-name").value.trim();
   const description = document.getElementById("edit-description").value.trim();
-  const labels = Array.from(editLabelsContainer.querySelectorAll(".edit-label-input"))
-    .map(input => input.value.trim())
-    .filter(label => label.length > 0);
+  const labels = [];
+  editLabelsContainer.querySelectorAll(".label-input-row").forEach(row => {
+    const n = row.querySelector(".edit-label-name-input").value.trim();
+    const c = row.querySelector(".edit-label-criteria-input").value.trim();
+    if (n.length > 0) {
+      labels.push({ name: n, criteria: c });
+    }
+  });
 
   if (labels.length < 2) {
     alert("최소 2개 라벨이 필요합니다");
