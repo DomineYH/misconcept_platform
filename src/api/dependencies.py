@@ -3,8 +3,10 @@
 import time
 from typing import AsyncGenerator
 
+import markdown as md_lib
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +14,22 @@ from src.db.connection import AsyncSessionLocal
 
 # Shared Jinja2Templates instance
 templates = Jinja2Templates(directory="src/templates")
+
+
+def md_filter(text: str | None) -> Markup:
+    """Convert markdown text to safe HTML.
+
+    Escapes raw HTML first to prevent XSS, then converts
+    markdown syntax to HTML tags.
+    """
+    if not text:
+        return Markup("")
+    escaped = str(escape(text))
+    html = md_lib.markdown(escaped, extensions=["nl2br"])
+    return Markup(html)
+
+
+templates.env.filters["md"] = md_filter
 
 
 class AuthenticationRequired(Exception):  # noqa: N818

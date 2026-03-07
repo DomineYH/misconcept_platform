@@ -37,10 +37,19 @@
           </td>
           <td>
             {% if item.ended_session_count > 0 %}
-            <a href="/admin/user-conversations/{{ item.user.id }}/export" 
-               class="btn btn-sm btn-primary">
-              📥 CSV 다운로드 ({{ item.ended_session_count }})
-            </a>
+            <div class="btn-group">
+              <a href="/admin/user-conversations/{{ item.user.id }}/export"
+                 class="btn btn-sm btn-primary"
+                 title="전체 CSV 다운로드">
+                📥 전체
+              </a>
+              <button type="button"
+                 class="btn btn-sm btn-success"
+                 onclick="showSessionList({{ item.user.id }})"
+                 title="개별 세션 다운로드">
+                📋 개별
+              </button>
+            </div>
             {% else %}
             <span class="badge badge-warning">완료된 세션 없음</span>
             {% endif %}
@@ -57,4 +66,95 @@
     </table>
   </div>
 </div>
+
+<!-- Session List Modal -->
+<div id="sessionModal" class="modal-overlay">
+  <div class="modal-container modal-lg">
+    <div class="modal-header">
+      <h2>📋 개별 세션 다운로드</h2>
+      <button class="close-modal-btn"
+              onclick="closeModal('sessionModal')">
+        &times;
+      </button>
+    </div>
+    <div class="modal-body" id="sessionListContent">
+      <p>로딩 중...</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary"
+              onclick="closeModal('sessionModal')">
+        닫기
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentUserId = null;
+
+function escapeHtml(text) {
+  var div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function showSessionList(userId) {
+  currentUserId = userId;
+  const content = document.getElementById(
+    'sessionListContent'
+  );
+  content.innerHTML = '<p>로딩 중...</p>';
+  document.getElementById('sessionModal')
+    .classList.add('active');
+
+  fetch(
+    '/admin/user-conversations/' +
+    userId + '/sessions'
+  )
+  .then(function(r) { return r.json(); })
+  .then(function(sessions) {
+    if (!sessions.length) {
+      content.innerHTML =
+        '<p>완료된 세션이 없습니다.</p>';
+      return;
+    }
+    var html = '<table class="data-table">';
+    html += '<thead><tr>';
+    html += '<th>일시</th>';
+    html += '<th>시나리오</th>';
+    html += '<th>메시지</th>';
+    html += '<th>다운로드</th>';
+    html += '</tr></thead><tbody>';
+    sessions.forEach(function(s) {
+      html += '<tr>';
+      html += '<td>' + escapeHtml(s.started_at) + '</td>';
+      html += '<td>' + escapeHtml(s.scenario_title) + '</td>';
+      html += '<td>' + escapeHtml(String(s.message_count)) + '</td>';
+      html += '<td>';
+      html += '<a href="/admin/sessions/' +
+        encodeURIComponent(s.id) + '/download" ';
+      html += 'class="btn btn-sm btn-primary">';
+      html += '📥</a>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    content.innerHTML = html;
+  })
+  .catch(function() {
+    content.innerHTML =
+      '<p>세션 목록을 불러올 수 없습니다.</p>';
+  });
+}
+
+function closeModal(modalId) {
+  document.getElementById(modalId)
+    .classList.remove('active');
+}
+
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('active');
+  }
+});
+</script>
 {% endblock %}

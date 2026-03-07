@@ -359,6 +359,37 @@ button:disabled,
   background-color: var(--color-gray-50);
 }
 
+.btn-info {
+  background-color: var(--color-gray-700);
+  color: var(--color-white);
+  border: 1px solid var(--color-gray-700);
+}
+
+.btn-info:hover {
+  background-color: var(--color-gray-600);
+  border-color: var(--color-gray-600);
+}
+
+.btn-success {
+  background-color: var(--color-gray-800);
+  color: var(--color-white);
+  border: 1px solid var(--color-gray-800);
+}
+
+.btn-success:hover {
+  background-color: var(--color-gray-700);
+  border-color: var(--color-gray-700);
+}
+
+.btn-group {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.btn-group .btn {
+  border-radius: var(--radius-sm);
+}
+
 .btn-sm {
   padding: 0.5rem 1rem;
   font-size: 0.85rem;
@@ -848,6 +879,24 @@ textarea {
   line-height: 1.6;
   position: relative;
   word-wrap: break-word;
+}
+
+.message-bubble p {
+  margin: 0 0 0.5em 0;
+}
+
+.message-bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.message-bubble ul,
+.message-bubble ol {
+  margin: 0.25em 0;
+  padding-left: 1.5em;
+}
+
+.message-bubble li {
+  margin-bottom: 0.15em;
 }
 
 .message-sender {

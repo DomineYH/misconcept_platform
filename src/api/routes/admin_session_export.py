@@ -1,21 +1,23 @@
 """Admin session CSV export routes."""
 
 import logging
-from typing import Optional, List
+from typing import List, Optional
 
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
     Form,
+    HTTPException,
     status,
 )
 from fastapi.responses import Response
-from sqlalchemy import select, desc
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
 from src.api.routes.admin_sessions import parse_date_filter
+from src.models.message import Message
+from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.user import User
 from src.services.export import CSVExporter
@@ -48,13 +50,9 @@ async def export_sessions(
     )
 
     if scenario_id:
-        query = query.where(
-            Session.scenario_id == scenario_id
-        )
+        query = query.where(Session.scenario_id == scenario_id)
     if teacher_id:
-        query = query.where(
-            Session.teacher_id == teacher_id
-        )
+        query = query.where(Session.teacher_id == teacher_id)
     if date_from:
         dt, err = parse_date_filter(date_from, "date_from")
         if err:
@@ -84,19 +82,15 @@ async def export_sessions(
         )
 
     exporter = CSVExporter()
-    csv_content = (
-        await exporter.export_multiple_sessions_admin(
-            list(session_ids), db
-        )
+    csv_content = await exporter.export_multiple_sessions_admin(
+        list(session_ids), db
     )
 
     return Response(
         content=csv_content,
         media_type="text/csv; charset=utf-8",
         headers={
-            "Content-Disposition": (
-                "attachment; filename=sessions_export.csv"
-            )
+            "Content-Disposition": ("attachment; filename=sessions_export.csv")
         },
     )
 
@@ -130,14 +124,11 @@ async def export_selected_sessions(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    f"Session {s.id} is still active."
-                    " Only ended allowed."
+                    f"Session {s.id} is still active." " Only ended allowed."
                 ),
             )
 
-    valid_ids = [
-        s.id for s in sessions if s.deleted_at is None
-    ]
+    valid_ids = [s.id for s in sessions if s.deleted_at is None]
     if not valid_ids:
         return Response(
             content="No valid sessions",
@@ -145,27 +136,20 @@ async def export_selected_sessions(
         )
 
     exporter = CSVExporter()
-    csv_content = (
-        await exporter.export_multiple_sessions_admin(
-            valid_ids, db
-        )
-    )
+    csv_content = await exporter.export_multiple_sessions_admin(valid_ids, db)
 
     return Response(
         content=csv_content,
         media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": (
-                "attachment;"
-                " filename=selected_sessions.csv"
+                "attachment;" " filename=selected_sessions.csv"
             )
         },
     )
 
 
-@router.get(
-    "/admin/user-conversations/{user_id}/export"
-)
+@router.get("/admin/user-conversations/{user_id}/export")
 async def export_user_conversations(
     user_id: int,
     user: User = Depends(get_current_user),
@@ -204,22 +188,73 @@ async def export_user_conversations(
         )
 
     exporter = CSVExporter()
-    csv_content = (
-        await exporter.export_multiple_sessions_admin(
-            list(session_ids), db
-        )
+    csv_content = await exporter.export_multiple_sessions_admin(
+        list(session_ids), db
     )
 
     filename = f"user_{user_id}_conversations.csv"
     return Response(
         content=csv_content,
         media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": (
-                f"attachment; filename={filename}"
-            )
-        },
+        headers={"Content-Disposition": (f"attachment; filename={filename}")},
     )
+
+
+@router.get("/admin/user-conversations/{user_id}/sessions")
+async def list_user_sessions(
+    user_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """List completed sessions for individual download."""
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
+    target_user = await db.get(User, user_id)
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    query = (
+        select(
+            Session.id,
+            Session.started_at,
+            Scenario.title.label("scenario_title"),
+            func.count(Message.id).label("message_count"),
+        )
+        .join(
+            Scenario,
+            Session.scenario_id == Scenario.id,
+        )
+        .outerjoin(
+            Message,
+            Message.session_id == Session.id,
+        )
+        .where(
+            Session.teacher_id == user_id,
+            Session.deleted_at.is_(None),
+            Session.ended_at.isnot(None),
+        )
+        .group_by(Session.id, Scenario.title)
+        .order_by(desc(Session.started_at))
+    )
+    result = await db.execute(query)
+    rows = result.all()
+
+    return [
+        {
+            "id": row.id,
+            "started_at": row.started_at.strftime("%Y-%m-%d %H:%M"),
+            "scenario_title": row.scenario_title,
+            "message_count": row.message_count,
+        }
+        for row in rows
+    ]
 
 
 @router.get("/admin/sessions/{session_id}/download")
@@ -236,7 +271,7 @@ async def download_session(
         )
 
     session = await db.get(Session, session_id)
-    if not session:
+    if not session or session.deleted_at is not None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
@@ -249,17 +284,11 @@ async def download_session(
         )
 
     exporter = CSVExporter()
-    csv_content = await exporter.export_session_admin(
-        session_id, db
-    )
+    csv_content = await exporter.export_session_admin(session_id, db)
 
     filename = f"session_{session_id}.csv"
     return Response(
         content=csv_content,
         media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": (
-                f"attachment; filename={filename}"
-            )
-        },
+        headers={"Content-Disposition": (f"attachment; filename={filename}")},
     )
