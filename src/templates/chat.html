@@ -29,15 +29,44 @@
 
     <!-- Tab Navigation -->
     <div class="info-tabs">
-      <button class="info-tab active" data-tab="profile">학생 프로필</button>
+      <button class="info-tab active" data-tab="guide">챗봇 활용<br>방법</button>
+      <button class="info-tab" data-tab="profile">학생 프로필</button>
       <button class="info-tab" data-tab="situation">학습 상황</button>
       <button class="info-tab" data-tab="video">영상</button>
     </div>
 
     <!-- Tab Content Container -->
     <div class="tab-content">
+      <!-- Chatbot Usage Guide Tab -->
+      <div class="tab-pane active" id="tab-guide">
+        <section class="info-section">
+          <div class="guide-content">
+            <p>
+              학습 상황과 영상을 본 후
+              <strong>{{ scenario.student_name or '학생' }}</strong>의
+              오개념을 해결해 봅시다.
+            </p>
+            {% if scenario.subject %}
+            <p>
+              대화가 끝나면 <strong>대화 종료</strong>를 클릭한 후
+              <strong>분석하기</strong>를 클릭해 보세요.
+              대화가 학생의 <strong>{{ scenario.subject }}</strong>적 사고를
+              이끌어내기에 적절했는지 피드백을 받아봅시다.
+            </p>
+            {% else %}
+            <p>
+              대화가 끝나면 <strong>대화 종료</strong>를 클릭한 후
+              <strong>분석하기</strong>를 클릭해 보세요.
+              대화가 학생의 사고를 이끌어내기에 적절했는지
+              피드백을 받아봅시다.
+            </p>
+            {% endif %}
+          </div>
+        </section>
+      </div>
+
       <!-- Student Profile Tab -->
-      <div class="tab-pane active" id="tab-profile">
+      <div class="tab-pane" id="tab-profile">
         {% if scenario.student_profile %}
         <section class="info-section">
           <p>{{ scenario.student_profile }}</p>
@@ -85,6 +114,7 @@
           {% endif %}
         </section>
       </div>
+
     </div>
   </aside>
 
