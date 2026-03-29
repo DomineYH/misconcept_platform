@@ -178,8 +178,8 @@
 
 <script>
   // Enable HTMX debug logging for development
-  console.log('💬 Chat initialized. Session ID:', {{ session_id }});
-  console.log('📋 Polling disabled until first message is sent');
+  console.log('Chat initialized. Session ID:', {{ session_id }});
+  console.log('Polling disabled until first message is sent');
 
   // Server provides session_id via template variable
   window.currentSessionId = {{ session_id }};
@@ -218,7 +218,7 @@
     const originalUrl = {{ scenario.video_url|tojson }};
     const embedUrl = convertToEmbedUrl(originalUrl);
     videoIframe.src = embedUrl;
-    console.log('🎥 Video player initialized:', embedUrl);
+    console.log('Video player initialized:', embedUrl);
   }
   {% endif %}
 
@@ -339,7 +339,7 @@
   function lockChatUI(message, options = {}) {
     const showLoginButton = options.showLoginButton === true;
 
-    console.log('🔒 Locking chat UI');
+    console.log('Locking chat UI');
 
     const textarea = document.getElementById('teacher-input');
     const submitBtn = document.querySelector('#teacher-form button[type="submit"]');
@@ -365,7 +365,7 @@
 
     disablePolling();
 
-    console.log('✅ Chat UI locked');
+    console.log('Chat UI locked');
   }
 
   // ========================================
@@ -452,7 +452,7 @@
     if (authExpiredHandled) return;
     authExpiredHandled = true;
 
-    console.warn('🔐 Session expired detected from:', source);
+    console.warn('Session expired detected from:', source);
     saveDraftMessage();
     lockChatUI('로그인이 만료되었습니다. 다시 로그인해주세요.', {
       showLoginButton: true
@@ -513,7 +513,7 @@
 
       if (response.ok) {
         const data = await safeReadJson(response);
-        console.log('✅ Session closed:', data);
+        console.log('Session closed:', data);
         clearDraftMessage();
         lockChatUI('이 대화는 종료되었습니다.');
 
@@ -581,7 +581,7 @@
 
       if (response.ok) {
         const data = await safeReadJson(response);
-        console.log('✅ Session ended:', data);
+        console.log('Session ended:', data);
         clearDraftMessage();
 
         // Update status banner
@@ -594,7 +594,7 @@
         const analyzeBtn = document.getElementById('analyze-btn');
         if (analyzeBtn) {
           analyzeBtn.disabled = false;
-          console.log('✅ Analyze button enabled');
+          console.log('Analyze button enabled');
         }
 
         // Ensure exit button stays disabled until analysis
@@ -706,7 +706,7 @@
     const messages = document.querySelectorAll('.message[data-message-id]');
 
     if (messages.length === 0) {
-      console.debug('📭 No messages found in DOM');
+      console.debug('No messages found in DOM');
       return 0;
     }
 
@@ -714,7 +714,7 @@
       .map(m => {
         const id = parseInt(m.dataset.messageId);
         if (isNaN(id)) {
-          console.error('⚠️ Invalid message ID found:', m.dataset.messageId, m);
+          console.error('Invalid message ID found:', m.dataset.messageId, m);
           return null;
         }
         return id;
@@ -722,12 +722,12 @@
       .filter(id => id !== null);
 
     if (ids.length === 0) {
-      console.error('❌ No valid message IDs found! All IDs are NaN or null');
+      console.error('No valid message IDs found! All IDs are NaN or null');
       return 0;
     }
 
     const maxId = Math.max(...ids);
-    console.debug(`📊 Found ${ids.length} valid message IDs. Max: ${maxId}`);
+    console.debug(`Found ${ids.length} valid message IDs. Max: ${maxId}`);
     return maxId;
   }
 
@@ -814,7 +814,7 @@
 
     // Pause polling during POST to avoid race conditions
     disablePolling();
-    console.log('⏸️ Polling paused during message send');
+    console.log('Polling paused during message send');
 
     // Clear input immediately
     input.value = '';
@@ -868,10 +868,10 @@
   htmx.on('htmx:afterSwap', (event) => {
     if (event.detail.target.id === 'messages-container') {
       pollingAuthFailCount = 0;
-      console.log('📨 New messages added via HTMX swap');
+      console.log('New messages added via HTMX swap');
 
       const messages = document.querySelectorAll('.message[data-message-id]');
-      console.debug(`📊 Total messages in DOM: ${messages.length}`);
+      console.debug(`Total messages in DOM: ${messages.length}`);
 
       messages.forEach((msg, idx) => {
         const msgId = msg.dataset.messageId;
@@ -884,22 +884,22 @@
 
       if (lastId > 0) {
         document.getElementById('last-message-id').value = lastId;
-        console.log(`✅ Updated last_message_id to: ${lastId}`);
+        console.log(`Updated last_message_id to: ${lastId}`);
 
         const requestPath = event.detail.pathInfo?.requestPath || '';
         if (!requestPath.includes('/messages/updates')) {
           enablePolling();
         }
       } else {
-        console.warn('⚠️ No valid message IDs found after swap!');
+        console.warn('No valid message IDs found after swap!');
       }
 
       const container = document.getElementById('messages-container');
       if (container) {
         container.scrollTop = container.scrollHeight;
-        console.debug('📜 Scrolled to bottom');
+        console.debug('Scrolled to bottom');
       } else {
-        console.error('❌ messages-container element not found! Cannot scroll');
+        console.error('messages-container element not found! Cannot scroll');
       }
     }
   });
@@ -1006,19 +1006,19 @@
     enablePolling();
 
     if (event.detail.target.id === 'teacher-form') {
-      console.error('❌ Network error:', {
+      console.error('Network error:', {
         error: event.detail.error,
         path: event.detail.pathInfo.requestPath,
         fullEvent: event.detail
       });
       alert('Network error. Please check your connection.');
     } else {
-      console.warn('⚠️ Network error on polling (may be temporary)');
+      console.warn('Network error on polling (may be temporary)');
     }
   });
 
   document.body.addEventListener('htmx:timeout', (event) => {
-    console.warn('⏱️ HTMX timeout:', event.detail);
+    console.warn('HTMX timeout:', event.detail);
 
     if (!event.detail.pathInfo.requestPath.includes(
       '/messages/updates'
@@ -1067,9 +1067,9 @@
     if (lastId > 0) {
       document.getElementById('last-message-id').value = lastId;
       enablePolling();
-      console.log(`🚀 Page loaded with ${document.querySelectorAll('.message').length} messages. Polling enabled.`);
+      console.log(`Page loaded with ${document.querySelectorAll('.message').length} messages. Polling enabled.`);
     } else {
-      console.log('🔄 Page loaded with no messages. Polling disabled until first message.');
+      console.log('Page loaded with no messages. Polling disabled until first message.');
     }
   });
 </script>

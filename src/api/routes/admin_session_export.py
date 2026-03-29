@@ -38,7 +38,7 @@ async def export_sessions(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Export filtered sessions as CSV."""
+    """Export filtered sessions as CSV (ended only)."""
     if user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

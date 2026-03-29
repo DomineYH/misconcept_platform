@@ -5,12 +5,12 @@
 {% block content %}
 <div class="container">
   <header class="page-header">
-    <h1>💬 대화 세션 관리</h1>
+    <h1>대화 세션 관리</h1>
     <p class="subtitle">세션 조회, 종료, 삭제</p>
   </header>
 
-  <div class="filters">
-    <form method="get" class="filter-form" id="filter-form">
+  <div class="filters" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+    <form method="get" class="filter-form" id="filter-form" style="display:flex;align-items:center;gap:0.5rem;margin:0;">
       <select name="teacher_id" onchange="submitFilters()">
         <option value="">모든 교사</option>
         {% for teacher in teachers %}
@@ -21,29 +21,35 @@
         {% endfor %}
       </select>
 
-      <select name="status_filter" onchange="submitFilters()">
-        <option value="">모든 상태</option>
-        <option value="completed"
-          {% if current_status == 'completed' %}selected{% endif %}>
-          완료 (다운로드 가능)
-        </option>
-        <option value="active"
-          {% if current_status == 'active' %}selected{% endif %}>
-          진행중
-        </option>
-      </select>
-
-      <input type="date" name="date_from" value="{{ current_date_from }}"
-        onchange="submitFilters()" placeholder="시작일" />
-      <input type="date" name="date_to" value="{{ current_date_to }}"
-        onchange="submitFilters()" placeholder="종료일" />
+      <div class="date-range-box">
+        <input type="date" name="date_from" value="{{ current_date_from }}"
+          onchange="submitFilters()" />
+        <span class="date-range-sep">~</span>
+        <input type="date" name="date_to" value="{{ current_date_to }}"
+          onchange="submitFilters()" />
+      </div>
     </form>
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-left:auto;">
+      <a id="btn-download-all" class="btn btn-sm btn-success"
+         href="/admin/sessions/export{% if current_teacher_id or current_date_from or current_date_to %}?{% endif %}{% if current_teacher_id %}teacher_id={{ current_teacher_id }}&{% endif %}{% if current_date_from %}date_from={{ current_date_from }}&{% endif %}{% if current_date_to %}date_to={{ current_date_to }}{% endif %}"
+         style="text-decoration:none;">전체 다운로드</a>
+      <button id="btn-download-selected" class="btn btn-sm btn-primary"
+         disabled>선택 다운로드</button>
+      <span id="selected-count" aria-live="polite"
+         style="font-size:0.85rem;color:var(--color-text-muted,#888);">0개 선택됨</span>
+    </div>
   </div>
+
+  <link rel="stylesheet" href="/static/css/sessions.css">
 
   <div class="table-container">
     <table class="data-table">
       <thead>
         <tr>
+          <th style="width:2.5rem;text-align:center;">
+            <input type="checkbox" id="select-all"
+                   aria-label="모든 세션 선택">
+          </th>
           <th>ID</th>
           <th>시나리오</th>
           <th>교사</th>
@@ -56,6 +62,16 @@
       <tbody id="sessions-tbody">
         {% for session in sessions %}
         <tr class="{% if session.ended_at %}ended{% else %}active{% endif %}">
+          <td style="text-align:center;">
+            {% if session.ended_at %}
+            <input type="checkbox" class="session-checkbox"
+                   value="{{ session.id }}"
+                   aria-label="세션 {{ session.id }} 선택">
+            {% else %}
+            <input type="checkbox" disabled
+                   aria-label="진행중 세션 다운로드 불가">
+            {% endif %}
+          </td>
           <td>{{ session.id }}</td>
           <td>{{ session.scenario.title if session.scenario else '-' }}</td>
           <td>
@@ -90,16 +106,16 @@
               hx-swap="outerHTML"
               hx-indicator="#loading-{{ session.id }}"
               class="btn btn-sm btn-warning">
-              <span class="htmx-indicator" id="loading-{{ session.id }}">⏳</span>
+              <span class="htmx-indicator" id="loading-{{ session.id }}"><span class="spinner spinner-sm"></span></span>
               <span class="btn-text">종료</span>
             </button>
             {% else %}
             <a href="/admin/sessions/{{ session.id }}/download"
-              class="btn btn-sm btn-success">📥 CSV</a>
+              class="btn btn-sm btn-success">CSV</a>
             {% if session.summary %}
             <button type="button"
               class="btn btn-sm btn-info view-analysis-btn"
-              data-session-id="{{ session.id }}">📊 분석결과</button>
+              data-session-id="{{ session.id }}">분석결과</button>
             {% endif %}
             {% endif %}
             <button type="button"
@@ -108,14 +124,11 @@
               hx-target="closest tr"
               hx-swap="delete"
               class="btn btn-sm btn-danger">삭제</button>
-            <button type="button"
-              class="btn btn-sm btn-secondary view-detail-btn"
-              data-session-id="{{ session.id }}">상세</button>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="7" style="text-align: center; padding: 2rem;">
+          <td colspan="8" style="text-align: center; padding: 2rem;">
             세션이 없습니다.
           </td>
         </tr>
@@ -129,9 +142,9 @@
     <span class="pagination-info">총 {{ total_count }}개 중 {{ current_page }}/{{ total_pages }} 페이지</span>
     <div class="pagination-buttons">
       {% if current_page > 1 %}
-      <a href="?page=1{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+      <a href="?page=1{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
          class="btn btn-sm btn-secondary">처음</a>
-      <a href="?page={{ current_page - 1 }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+      <a href="?page={{ current_page - 1 }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
          class="btn btn-sm btn-secondary">이전</a>
       {% endif %}
 
@@ -139,15 +152,15 @@
         {% if p == current_page %}
         <span class="btn btn-sm btn-primary">{{ p }}</span>
         {% elif p >= current_page - 2 and p <= current_page + 2 %}
-        <a href="?page={{ p }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+        <a href="?page={{ p }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
            class="btn btn-sm btn-secondary">{{ p }}</a>
         {% endif %}
       {% endfor %}
 
       {% if current_page < total_pages %}
-      <a href="?page={{ current_page + 1 }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+      <a href="?page={{ current_page + 1 }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
          class="btn btn-sm btn-secondary">다음</a>
-      <a href="?page={{ total_pages }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_status %}&status_filter={{ current_status }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
+      <a href="?page={{ total_pages }}{% if current_teacher_id %}&teacher_id={{ current_teacher_id }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}"
          class="btn btn-sm btn-secondary">마지막</a>
       {% endif %}
     </div>
@@ -155,155 +168,13 @@
   {% endif %}
 </div>
 
-<div id="session-detail-modal" class="modal-overlay hidden">
-  <div class="modal-container">
-    <div class="modal-header">
-      <h2>세션 상세 정보</h2>
-      <button class="close-modal-btn" onclick="hideModal('session-detail-modal')">×</button>
-    </div>
-    <div class="modal-body">
-    </div>
-  </div>
-</div>
-
 <!-- Analysis Modal -->
 <div id="analysis-modal" class="modal-overlay hidden">
   <div class="modal-container modal-lg">
     <div class="modal-body" id="analysis-modal-body">
-      <!-- Content loaded via fetch -->
     </div>
   </div>
 </div>
 
-<script>
-function submitFilters() {
-  const form = document.getElementById('filter-form');
-  const params = new URLSearchParams();
-  for (const el of form.elements) {
-    if (el.name && el.value !== '') {
-      params.set(el.name, el.value);
-    }
-  }
-  const qs = params.toString();
-  window.location.href = window.location.pathname + (qs ? '?' + qs : '');
-}
-
-const sessionDetailModal = document.getElementById('session-detail-modal');
-const modalBody = sessionDetailModal.querySelector('.modal-body');
-
-function fetchWithRetry(url, retries = 1) {
-  return fetch(url, { credentials: 'same-origin' })
-    .then(response => {
-      if (response.redirected || response.url.includes('/login')) {
-        if (retries > 0) return fetchWithRetry(url, retries - 1);
-        throw new Error('Session expired');
-      }
-      if (!response.ok) throw new Error('Request failed');
-      return response.text();
-    });
-}
-
-// Sanitize HTML by removing script tags (server-rendered HTML from trusted endpoints)
-function sanitizeHTML(html) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  // Remove script tags as a safety measure
-  doc.querySelectorAll('script').forEach(el => el.remove());
-  return doc.body.innerHTML;
-}
-
-function showModal(id) {
-  const modal = document.getElementById(id);
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-}
-
-function hideModal(id) {
-  const modal = document.getElementById(id);
-  modal.classList.add('hidden');
-  modal.classList.remove('flex');
-}
-
-sessionDetailModal.addEventListener('click', function(e) {
-  if (e.target === this) {
-    hideModal('session-detail-modal');
-  }
-});
-
-document.addEventListener('click', function(e) {
-  if (e.target.classList.contains('view-detail-btn') ||
-      e.target.closest('.view-detail-btn')) {
-    const btn = e.target.classList.contains('view-detail-btn')
-      ? e.target
-      : e.target.closest('.view-detail-btn');
-    const sessionId = btn.dataset.sessionId;
-
-    modalBody.innerHTML = '<div style="text-align:center;padding:2rem;"><span class="spinner spinner-md"></span> 로딩 중...</div>';
-    showModal('session-detail-modal');
-
-    fetchWithRetry(`/admin/sessions/${sessionId}/detail`)
-      .then(html => {
-        modalBody.innerHTML = sanitizeHTML(html);
-      })
-      .catch(err => {
-        modalBody.innerHTML = '<p style="color:red;text-align:center;">로드 실패</p>';
-      });
-  }
-});
-
-// Analysis Modal Handlers
-const analysisModal = document.getElementById('analysis-modal');
-const analysisModalBody = document.getElementById('analysis-modal-body');
-
-function showAnalysisModal(sessionId) {
-  analysisModalBody.innerHTML = '<div style="text-align:center;padding:2rem;"><span class="spinner spinner-md"></span> 분석 결과 로딩 중...</div>';
-  analysisModal.classList.remove('hidden');
-  analysisModal.classList.add('flex');
-
-  fetchWithRetry(`/admin/sessions/${sessionId}/analysis_modal`)
-    .then(html => {
-      analysisModalBody.innerHTML = sanitizeHTML(html);
-    })
-    .catch(err => {
-      analysisModalBody.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--color-danger);">분석 결과를 불러올 수 없습니다.</div>';
-    });
-}
-
-function closeAnalysisModal() {
-  analysisModal.classList.add('hidden');
-  analysisModal.classList.remove('flex');
-  analysisModalBody.innerHTML = '';
-}
-
-// Close analysis modal on overlay click
-analysisModal.addEventListener('click', function(e) {
-  if (e.target === this) {
-    closeAnalysisModal();
-  }
-});
-
-// Handle analysis button clicks (event delegation)
-document.addEventListener('click', function(e) {
-  if (e.target.classList.contains('view-analysis-btn') ||
-      e.target.closest('.view-analysis-btn')) {
-    const btn = e.target.classList.contains('view-analysis-btn')
-      ? e.target
-      : e.target.closest('.view-analysis-btn');
-    const sessionId = btn.dataset.sessionId;
-    showAnalysisModal(sessionId);
-  }
-});
-
-// Close modals on Escape key
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') {
-    if (!analysisModal.classList.contains('hidden')) {
-      closeAnalysisModal();
-    }
-    if (!sessionDetailModal.classList.contains('hidden')) {
-      hideModal('session-detail-modal');
-    }
-  }
-});
-</script>
+<script src="/static/js/sessions.js"></script>
 {% endblock %}

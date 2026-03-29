@@ -80,7 +80,7 @@
               {{ scenario.framework.name }}
             </span>
             {% if scenario.tutor_template %}
-            <span class="meta-tag tutor-active">🎓 {{ scenario.tutor_template.template_name }}</span>
+            <span class="meta-tag tutor-active">{{ scenario.tutor_template.template_name }}</span>
             {% endif %}
             {% for gid in scenario_group_map.get(scenario.id, []) %}
               {% for g in groups if g.id == gid %}
@@ -100,7 +100,7 @@
             href="/admin/sessions-page?scenario_id={{ scenario.id }}"
             class="btn btn-sm btn-outline"
           >
-            💬 대화목록
+            대화목록
           </a>
           <button
             type="button"
@@ -124,7 +124,6 @@
     </div>
     {% else %}
     <div class="empty-state">
-      <span class="empty-state-icon">📝</span>
       <h3 class="empty-state-title">시나리오가 없습니다</h3>
       <p>등록된 시나리오가 없습니다.</p>
       <button type="button" class="btn btn-primary" id="open-create-modal-empty">

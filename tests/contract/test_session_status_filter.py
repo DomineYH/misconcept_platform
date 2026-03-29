@@ -1,15 +1,16 @@
 """Contract tests for session status filter functionality."""
 
-import pytest
 from datetime import datetime, timedelta
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.session import Session
-from src.models.scenario import Scenario
-from src.models.user import User
 from src.models.analysis_framework import AnalysisFramework
 from src.models.prompt_template import PromptTemplate
+from src.models.scenario import Scenario
+from src.models.session import Session
+from src.models.user import User
 
 
 @pytest.fixture
@@ -128,102 +129,7 @@ async def mixed_sessions(
 
 
 class TestSessionStatusFilter:
-    """Test session status filter functionality."""
-
-    def test_sessions_page_filter_completed_only(
-        self,
-        test_client: TestClient,
-        admin_user: User,
-        mixed_sessions: list[Session],
-    ):
-        """Test filtering to show only completed sessions."""
-        # Login as admin
-        test_client.post(
-            "/login",
-            data={
-                "username": admin_user.username,
-                "password": "test1234",
-            },
-        )
-
-        response = test_client.get(
-            "/admin/sessions-page",
-            params={"status_filter": "completed"},
-        )
-
-        assert response.status_code == 200
-        html = response.text
-
-        # Should show completed sessions (badge-success)
-        assert "완료" in html
-        # Count completed badges - should be 3
-        assert html.count('badge-success">완료</span>') == 3
-        # Should not show active sessions
-        assert html.count('badge-warning">진행중</span>') == 0
-
-    def test_sessions_page_filter_active_only(
-        self,
-        test_client: TestClient,
-        admin_user: User,
-        mixed_sessions: list[Session],
-    ):
-        """Test filtering to show only active sessions."""
-        # Login as admin
-        test_client.post(
-            "/login",
-            data={
-                "username": admin_user.username,
-                "password": "test1234",
-            },
-        )
-
-        response = test_client.get(
-            "/admin/sessions-page",
-            params={"status_filter": "active"},
-        )
-
-        assert response.status_code == 200
-        html = response.text
-
-        # Should show active sessions (badge-warning)
-        assert "진행중" in html
-        # Count active badges - should be 2
-        assert html.count('badge-warning">진행중</span>') == 2
-        # Should not show completed sessions
-        assert html.count('badge-success">완료</span>') == 0
-
-    def test_sessions_page_filter_with_scenario(
-        self,
-        test_client: TestClient,
-        admin_user: User,
-        mixed_sessions: list[Session],
-        test_scenario: Scenario,
-    ):
-        """Test combining scenario filter with status filter."""
-        # Login as admin
-        test_client.post(
-            "/login",
-            data={
-                "username": admin_user.username,
-                "password": "test1234",
-            },
-        )
-
-        response = test_client.get(
-            "/admin/sessions-page",
-            params={
-                "scenario_id": test_scenario.id,
-                "status_filter": "completed",
-            },
-        )
-
-        assert response.status_code == 200
-        html = response.text
-
-        # Should show only completed sessions for this scenario
-        assert "완료" in html
-        assert html.count('badge-success">완료</span>') == 3
-        assert html.count('badge-warning">진행중</span>') == 0
+    """Test session listing page."""
 
     def test_sessions_page_default_shows_all(
         self,
@@ -253,34 +159,6 @@ class TestSessionStatusFilter:
         assert html.count('badge-success">완료</span>') == 3
         assert html.count('badge-warning">진행중</span>') == 2
 
-    def test_sessions_page_status_filter_preserved_in_context(
-        self,
-        test_client: TestClient,
-        admin_user: User,
-        mixed_sessions: list[Session],
-    ):
-        """Test that status filter is preserved in template context."""
-        # Login as admin
-        test_client.post(
-            "/login",
-            data={
-                "username": admin_user.username,
-                "password": "test1234",
-            },
-        )
-
-        response = test_client.get(
-            "/admin/sessions-page",
-            params={"status_filter": "completed"},
-        )
-
-        assert response.status_code == 200
-        html = response.text
-
-        # Check that the completed option is selected
-        assert 'value="completed"' in html
-        assert "selected" in html
-
     def test_download_button_visible_for_completed_sessions(
         self,
         test_client: TestClient,
@@ -297,14 +175,11 @@ class TestSessionStatusFilter:
             },
         )
 
-        response = test_client.get(
-            "/admin/sessions-page",
-            params={"status_filter": "completed"},
-        )
+        response = test_client.get("/admin/sessions-page")
 
         assert response.status_code == 200
         html = response.text
 
-        # Download button should be visible with new styling
+        # Download button should be visible for completed sessions
         assert "CSV" in html
         assert "btn-success" in html

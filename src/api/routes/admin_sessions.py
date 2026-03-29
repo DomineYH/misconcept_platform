@@ -66,7 +66,6 @@ async def sessions_page(
     teacher_id: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    status_filter: Optional[str] = None,
     page: int = 1,
     user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
@@ -81,10 +80,6 @@ async def sessions_page(
 
     if teacher_id_val:
         base_query = base_query.where(Session.teacher_id == teacher_id_val)
-    if status_filter == "completed":
-        base_query = base_query.where(Session.ended_at.isnot(None))
-    elif status_filter == "active":
-        base_query = base_query.where(Session.ended_at.is_(None))
 
     # Parse date filters with validation
     date_errors = []
@@ -137,7 +132,6 @@ async def sessions_page(
             "current_teacher_id": teacher_id_val,
             "current_date_from": date_from or "",
             "current_date_to": date_to or "",
-            "current_status": status_filter or "",
             "current_page": page,
             "total_pages": total_pages,
             "total_count": total_count,

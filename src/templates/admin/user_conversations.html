@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container">
   <header class="page-header">
-    <h1>👤 사용자 대화 관리</h1>
+    <h1>사용자 대화 관리</h1>
     <p class="subtitle">사용자별 대화 내역 다운로드</p>
   </header>
 
@@ -41,13 +41,13 @@
               <a href="/admin/user-conversations/{{ item.user.id }}/export"
                  class="btn btn-sm btn-primary"
                  title="전체 CSV 다운로드">
-                📥 전체
+                전체
               </a>
               <button type="button"
                  class="btn btn-sm btn-success"
                  onclick="showSessionList({{ item.user.id }})"
                  title="개별 세션 다운로드">
-                📋 개별
+                개별
               </button>
             </div>
             {% else %}
@@ -71,7 +71,7 @@
 <div id="sessionModal" class="modal-overlay">
   <div class="modal-container modal-lg">
     <div class="modal-header">
-      <h2>📋 개별 세션 다운로드</h2>
+      <h2>개별 세션 다운로드</h2>
       <button class="close-modal-btn"
               onclick="closeModal('sessionModal')">
         &times;
@@ -134,7 +134,7 @@ function showSessionList(userId) {
       html += '<a href="/admin/sessions/' +
         encodeURIComponent(s.id) + '/download" ';
       html += 'class="btn btn-sm btn-primary">';
-      html += '📥</a>';
+      html += 'CSV</a>';
       html += '</td></tr>';
     });
     html += '</tbody></table>';
