@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from src.api.dependencies import get_admin_user, get_db_session, templates
-from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.user import User
 
@@ -64,7 +63,6 @@ def parse_date_filter(
 @router.get("/admin/sessions-page", response_class=HTMLResponse)
 async def sessions_page(
     request: Request,
-    scenario_id: Optional[str] = None,
     teacher_id: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
@@ -77,18 +75,9 @@ async def sessions_page(
     per_page = 10
     offset = (page - 1) * per_page
 
-    scenario_id_val = safe_int(scenario_id)
     teacher_id_val = safe_int(teacher_id)
 
     base_query = select(Session).where(Session.deleted_at.is_(None))
-
-    # Fetch scenario title if filtering by scenario
-    scenario_title = None
-    if scenario_id_val:
-        scenario = await db.get(Scenario, scenario_id_val)
-        if scenario:
-            scenario_title = scenario.title
-        base_query = base_query.where(Session.scenario_id == scenario_id_val)
 
     if teacher_id_val:
         base_query = base_query.where(Session.teacher_id == teacher_id_val)
@@ -145,8 +134,6 @@ async def sessions_page(
             "user": user,
             "sessions": sessions,
             "teachers": teachers,
-            "scenario_id": scenario_id_val,
-            "scenario_title": scenario_title,
             "current_teacher_id": teacher_id_val,
             "current_date_from": date_from or "",
             "current_date_to": date_to or "",
