@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import (
     APIRouter,
@@ -12,9 +12,9 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse, JSONResponse
-from sqlalchemy import func, select, desc
-from sqlalchemy.orm import joinedload
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from src.api.dependencies import get_admin_user, get_db_session, templates
 from src.models.scenario import Scenario
@@ -23,6 +23,16 @@ from src.models.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def safe_int(value: Optional[str]) -> Optional[int]:
+    """Convert string to int, returning None for empty or invalid values."""
+    if not value:
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
 
 
 def parse_date_filter(
@@ -41,9 +51,7 @@ def parse_date_filter(
         return None, None
     try:
         return (
-            datetime.fromisoformat(
-                date_str.replace("Z", "")
-            ),
+            datetime.fromisoformat(date_str.replace("Z", "")),
             None,
         )
     except ValueError:
@@ -53,13 +61,11 @@ def parse_date_filter(
         )
 
 
-@router.get(
-    "/admin/sessions-page", response_class=HTMLResponse
-)
+@router.get("/admin/sessions-page", response_class=HTMLResponse)
 async def sessions_page(
     request: Request,
-    scenario_id: Optional[int] = None,
-    teacher_id: Optional[int] = None,
+    scenario_id: Optional[str] = None,
+    teacher_id: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     status_filter: Optional[str] = None,
@@ -71,60 +77,43 @@ async def sessions_page(
     per_page = 10
     offset = (page - 1) * per_page
 
-    base_query = select(Session).where(
-        Session.deleted_at.is_(None)
-    )
+    scenario_id_val = safe_int(scenario_id)
+    teacher_id_val = safe_int(teacher_id)
+
+    base_query = select(Session).where(Session.deleted_at.is_(None))
 
     # Fetch scenario title if filtering by scenario
     scenario_title = None
-    if scenario_id:
-        scenario = await db.get(Scenario, scenario_id)
+    if scenario_id_val:
+        scenario = await db.get(Scenario, scenario_id_val)
         if scenario:
             scenario_title = scenario.title
-        base_query = base_query.where(
-            Session.scenario_id == scenario_id
-        )
+        base_query = base_query.where(Session.scenario_id == scenario_id_val)
 
-    if teacher_id:
-        base_query = base_query.where(
-            Session.teacher_id == teacher_id
-        )
+    if teacher_id_val:
+        base_query = base_query.where(Session.teacher_id == teacher_id_val)
     if status_filter == "completed":
-        base_query = base_query.where(
-            Session.ended_at.isnot(None)
-        )
+        base_query = base_query.where(Session.ended_at.isnot(None))
     elif status_filter == "active":
-        base_query = base_query.where(
-            Session.ended_at.is_(None)
-        )
+        base_query = base_query.where(Session.ended_at.is_(None))
 
     # Parse date filters with validation
     date_errors = []
     if date_from:
-        dt_from, err = parse_date_filter(
-            date_from, "date_from"
-        )
+        dt_from, err = parse_date_filter(date_from, "date_from")
         if err:
             date_errors.append(err)
         elif dt_from:
-            base_query = base_query.where(
-                Session.started_at >= dt_from
-            )
+            base_query = base_query.where(Session.started_at >= dt_from)
     if date_to:
-        dt_to, err = parse_date_filter(
-            date_to, "date_to"
-        )
+        dt_to, err = parse_date_filter(date_to, "date_to")
         if err:
             date_errors.append(err)
         elif dt_to:
-            base_query = base_query.where(
-                Session.started_at <= dt_to
-            )
+            base_query = base_query.where(Session.started_at <= dt_to)
 
     count_result = await db.execute(
-        select(func.count()).select_from(
-            base_query.subquery()
-        )
+        select(func.count()).select_from(base_query.subquery())
     )
     total_count = count_result.scalar() or 0
     total_pages = (total_count + per_page - 1) // per_page
@@ -144,11 +133,7 @@ async def sessions_page(
 
     teachers_result = await db.execute(
         select(User)
-        .where(
-            User.id.in_(
-                select(Session.teacher_id).distinct()
-            )
-        )
+        .where(User.id.in_(select(Session.teacher_id).distinct()))
         .order_by(User.nickname)
     )
     teachers = teachers_result.scalars().all()
@@ -160,9 +145,9 @@ async def sessions_page(
             "user": user,
             "sessions": sessions,
             "teachers": teachers,
-            "scenario_id": scenario_id,
+            "scenario_id": scenario_id_val,
             "scenario_title": scenario_title,
-            "current_teacher_id": teacher_id,
+            "current_teacher_id": teacher_id_val,
             "current_date_from": date_from or "",
             "current_date_to": date_to or "",
             "current_status": status_filter or "",
@@ -174,18 +159,19 @@ async def sessions_page(
     )
 
 
-@router.get(
-    "/admin/sessions", response_class=JSONResponse
-)
+@router.get("/admin/sessions", response_class=JSONResponse)
 async def list_sessions_api(
-    scenario_id: Optional[int] = None,
-    teacher_id: Optional[int] = None,
+    scenario_id: Optional[str] = None,
+    teacher_id: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """List all sessions with optional filtering (API)."""
+    scenario_id_val = safe_int(scenario_id)
+    teacher_id_val = safe_int(teacher_id)
+
     query = (
         select(Session)
         .options(
@@ -196,43 +182,31 @@ async def list_sessions_api(
         .order_by(desc(Session.started_at))
     )
 
-    if scenario_id:
-        query = query.where(
-            Session.scenario_id == scenario_id
-        )
+    if scenario_id_val:
+        query = query.where(Session.scenario_id == scenario_id_val)
 
-    if teacher_id:
-        query = query.where(
-            Session.teacher_id == teacher_id
-        )
+    if teacher_id_val:
+        query = query.where(Session.teacher_id == teacher_id_val)
 
     if date_from:
-        dt, err = parse_date_filter(
-            date_from, "date_from"
-        )
+        dt, err = parse_date_filter(date_from, "date_from")
         if err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=err,
             )
         if dt:
-            query = query.where(
-                Session.started_at >= dt
-            )
+            query = query.where(Session.started_at >= dt)
 
     if date_to:
-        dt, err = parse_date_filter(
-            date_to, "date_to"
-        )
+        dt, err = parse_date_filter(date_to, "date_to")
         if err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=err,
             )
         if dt:
-            query = query.where(
-                Session.started_at <= dt
-            )
+            query = query.where(Session.started_at <= dt)
 
     result = await db.execute(query)
     sessions = result.scalars().all()
@@ -243,28 +217,16 @@ async def list_sessions_api(
                 "id": s.id,
                 "scenario_id": s.scenario_id,
                 "scenario_title": (
-                    s.scenario.title
-                    if s.scenario
-                    else "Unknown"
+                    s.scenario.title if s.scenario else "Unknown"
                 ),
                 "teacher_id": s.teacher_id,
                 "teacher_nickname": (
-                    s.teacher.nickname
-                    if s.teacher
-                    else "Unknown"
+                    s.teacher.nickname if s.teacher else "Unknown"
                 ),
                 "started_at": s.started_at.isoformat(),
-                "ended_at": (
-                    s.ended_at.isoformat()
-                    if s.ended_at
-                    else None
-                ),
-                "status": (
-                    "ended" if s.ended_at else "active"
-                ),
+                "ended_at": (s.ended_at.isoformat() if s.ended_at else None),
+                "status": ("ended" if s.ended_at else "active"),
             }
             for s in sessions
         ]
     }
-
-

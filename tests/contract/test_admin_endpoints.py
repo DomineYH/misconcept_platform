@@ -280,7 +280,7 @@ class TestScenarioCreation:
 
 
 class TestScenarioUpdate:
-    """Test PUT /admin/scenarios/{id} endpoint contract compliance (T074)."""
+    """Test POST /admin/scenarios/{id}/update contract (T074)."""
 
     def test_update_scenario_success(
         self,
@@ -299,8 +299,8 @@ class TestScenarioUpdate:
         )
 
         # Update scenario
-        response = test_client.put(
-            f"/admin/scenarios/{test_scenario.id}",
+        response = test_client.post(
+            f"/admin/scenarios/{test_scenario.id}/update",
             json={
                 "title": "Updated Title",
                 "prompt": "Updated prompt content here.",
@@ -330,8 +330,8 @@ class TestScenarioUpdate:
         )
 
         # Toggle to inactive
-        response = test_client.put(
-            f"/admin/scenarios/{test_scenario.id}", json={"is_active": 0}
+        response = test_client.post(
+            f"/admin/scenarios/{test_scenario.id}/update", json={"is_active": 0}
         )
 
         # Contract: 200 OK with updated status
@@ -339,8 +339,8 @@ class TestScenarioUpdate:
         assert response.json()["is_active"] == 0
 
         # Toggle back to active
-        response = test_client.put(
-            f"/admin/scenarios/{test_scenario.id}", json={"is_active": 1}
+        response = test_client.post(
+            f"/admin/scenarios/{test_scenario.id}/update", json={"is_active": 1}
         )
 
         assert response.status_code == 200
@@ -360,8 +360,8 @@ class TestScenarioUpdate:
         )
 
         # Try to update nonexistent scenario
-        response = test_client.put(
-            "/admin/scenarios/99999",
+        response = test_client.post(
+            "/admin/scenarios/99999/update",
             json={"title": "Updated Title"},
         )
 
@@ -385,8 +385,8 @@ class TestScenarioUpdate:
         )
 
         # Try to update scenario
-        response = test_client.put(
-            f"/admin/scenarios/{test_scenario.id}",
+        response = test_client.post(
+            f"/admin/scenarios/{test_scenario.id}/update",
             json={"title": "Updated Title"},
         )
 
@@ -819,6 +819,31 @@ class TestSessionLogs:
         assert "sessions" in data
         # Should have session1, session3, session4 (not session2)
         assert len(data["sessions"]) >= 3
+
+    def test_list_sessions_with_empty_params(
+        self,
+        test_client: TestClient,
+        admin_user: User,
+        test_sessions: list[Session],
+    ):
+        """Verify empty string params don't cause 422.
+
+        HTML forms send empty strings for unset select
+        fields (e.g. teacher_id=&status_filter=).
+        """
+        test_client.post(
+            "/login",
+            data={
+                "username": admin_user.username,
+                "password": "test1234",
+            },
+        )
+
+        # Simulate HTML form: all fields sent, some empty
+        response = test_client.get(
+            "/admin/sessions" "?teacher_id=" "&date_from=&date_to="
+        )
+        assert response.status_code == 200
 
     def test_list_sessions_with_teacher_filter(
         self,

@@ -21,7 +21,7 @@
       {% if scenario_id %}
       <input type="hidden" name="scenario_id" value="{{ scenario_id }}" />
       {% endif %}
-      <select name="teacher_id" onchange="this.form.submit()">
+      <select name="teacher_id" onchange="submitFilters()">
         <option value="">모든 교사</option>
         {% for teacher in teachers %}
         <option value="{{ teacher.id }}"
@@ -31,7 +31,7 @@
         {% endfor %}
       </select>
 
-      <select name="status_filter" onchange="this.form.submit()">
+      <select name="status_filter" onchange="submitFilters()">
         <option value="">모든 상태</option>
         <option value="completed"
           {% if current_status == 'completed' %}selected{% endif %}>
@@ -44,9 +44,9 @@
       </select>
 
       <input type="date" name="date_from" value="{{ current_date_from }}"
-        onchange="this.form.submit()" placeholder="시작일" />
+        onchange="submitFilters()" placeholder="시작일" />
       <input type="date" name="date_to" value="{{ current_date_to }}"
-        onchange="this.form.submit()" placeholder="종료일" />
+        onchange="submitFilters()" placeholder="종료일" />
     </form>
   </div>
 
@@ -113,7 +113,7 @@
             {% endif %}
             {% endif %}
             <button type="button"
-              hx-delete="/admin/sessions/{{ session.id }}"
+              hx-post="/admin/sessions/{{ session.id }}/delete"
               hx-confirm="세션을 삭제하시겠습니까? (복구 불가)"
               hx-target="closest tr"
               hx-swap="delete"
@@ -186,6 +186,18 @@
 </div>
 
 <script>
+function submitFilters() {
+  const form = document.getElementById('filter-form');
+  const params = new URLSearchParams();
+  for (const el of form.elements) {
+    if (el.name && el.value !== '') {
+      params.set(el.name, el.value);
+    }
+  }
+  const qs = params.toString();
+  window.location.href = window.location.pathname + (qs ? '?' + qs : '');
+}
+
 const sessionDetailModal = document.getElementById('session-detail-modal');
 const modalBody = sessionDetailModal.querySelector('.modal-body');
 

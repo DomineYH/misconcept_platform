@@ -1,4 +1,5 @@
 """Admin user management routes."""
+
 import logging
 
 from fastapi import (
@@ -6,7 +7,6 @@ from fastapi import (
     Depends,
     HTTPException,
     Request,
-    status,
 )
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func, select, update
@@ -35,14 +35,10 @@ async def list_users(
 ):
     """GET /admin/users - User management page."""
 
-    result = await db.execute(
-        select(User).order_by(User.id.desc())
-    )
+    result = await db.execute(select(User).order_by(User.id.desc()))
     users = result.scalars().all()
 
-    groups_result = await db.execute(
-        select(UserGroup).order_by(UserGroup.name)
-    )
+    groups_result = await db.execute(select(UserGroup).order_by(UserGroup.name))
     groups = groups_result.scalars().all()
 
     return templates.TemplateResponse(
@@ -68,15 +64,12 @@ async def create_user(
     if not data.username.replace("_", "").isalnum():
         raise HTTPException(
             status_code=400,
-            detail="사용자 ID는 영문, 숫자, "
-            "언더스코어만 사용 가능합니다.",
+            detail="사용자 ID는 영문, 숫자, " "언더스코어만 사용 가능합니다.",
         )
 
     # Check unique username
     existing = await db.execute(
-        select(User).where(
-            User.username == data.username
-        )
+        select(User).where(User.username == data.username)
     )
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -128,14 +121,14 @@ async def create_user(
     )
 
 
-@router.put("/admin/users/{user_id}")
+@router.post("/admin/users/{user_id}/update")
 async def update_user(
     user_id: int,
     data: UserUpdate,
     user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """PUT /admin/users/{id} - Update user."""
+    """POST /admin/users/{id}/update - Update user."""
 
     target = await db.get(User, user_id)
     if not target:
@@ -147,9 +140,7 @@ async def update_user(
     if data.nickname is not None:
         target.nickname = data.nickname
     if data.role is not None:
-        if data.role not in (
-            "teacher", "admin"
-        ):
+        if data.role not in ("teacher", "admin"):
             raise HTTPException(
                 status_code=400,
                 detail="유효하지 않은 역할입니다.",
@@ -159,9 +150,7 @@ async def update_user(
         if data.group_id == 0:
             target.group_id = None
         else:
-            group = await db.get(
-                UserGroup, data.group_id
-            )
+            group = await db.get(UserGroup, data.group_id)
             if not group:
                 raise HTTPException(
                     status_code=400,
@@ -190,13 +179,13 @@ async def update_user(
     )
 
 
-@router.delete("/admin/users/{user_id}")
+@router.post("/admin/users/{user_id}/delete")
 async def delete_user(
     user_id: int,
     user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """DELETE /admin/users/{id} - Delete user."""
+    """POST /admin/users/{id}/delete - Delete user."""
 
     if user_id == user.id:
         raise HTTPException(

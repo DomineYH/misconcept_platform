@@ -396,11 +396,11 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
     if (!confirm(`"${name}" 프레임워크를 삭제하시겠습니까?`)) return;
 
     try {
-      const response = await fetch(`/admin/frameworks/${id}`, {
-        method: "DELETE",
+      const response = await fetch(`/admin/frameworks/${id}/delete`, {
+        method: "POST",
         headers: { "x-csrf-token": getCsrfToken() }
       });
-      if (response.ok || response.status === 204) {
+      if (response.ok) {
         alert("프레임워크가 삭제되었습니다!");
         window.location.reload();
       } else {
@@ -517,8 +517,8 @@ document.getElementById("edit-form").addEventListener("submit", async (e) => {
   }
 
   try {
-    const response = await fetch(`/admin/frameworks/${id}`, {
-      method: "PUT",
+    const response = await fetch(`/admin/frameworks/${id}/update`, {
+      method: "POST",
       headers: { "Content-Type": "application/json", "x-csrf-token": getCsrfToken() },
       body: JSON.stringify({ name, description, labels }),
     });

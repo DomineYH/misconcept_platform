@@ -50,12 +50,12 @@ async def prompts_page(
     prompts = await PromptManager.list_prompts(db)
 
     # 기본 프롬프트 텍스트 로드
-    default_student_text = (
-        _PROMPTS_DIR / "student_system.txt"
-    ).read_text(encoding="utf-8")
-    default_tutor_text = (
-        _PROMPTS_DIR / "tutor_system.txt"
-    ).read_text(encoding="utf-8")
+    default_student_text = (_PROMPTS_DIR / "student_system.txt").read_text(
+        encoding="utf-8"
+    )
+    default_tutor_text = (_PROMPTS_DIR / "tutor_system.txt").read_text(
+        encoding="utf-8"
+    )
 
     return templates.TemplateResponse(
         "admin/prompts.html",
@@ -123,12 +123,10 @@ async def create_prompt(
 
     except Exception as e:
         logger.error(f"Failed to create prompt: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to create prompt"
-        )
+        raise HTTPException(status_code=500, detail="Failed to create prompt")
 
 
-@router.put("/prompts/{prompt_id}")
+@router.post("/prompts/{prompt_id}/update")
 async def update_prompt(
     prompt_id: int,
     req: PromptUpdateRequest,
@@ -166,7 +164,7 @@ async def update_prompt(
         raise HTTPException(status_code=500, detail="Failed to update prompt")
 
 
-@router.delete("/prompts/{prompt_id}")
+@router.post("/prompts/{prompt_id}/delete")
 async def delete_prompt(
     prompt_id: int,
     user: User = Depends(get_admin_user),

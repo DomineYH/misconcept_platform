@@ -684,8 +684,8 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
   };
 
   try {
-    const response = await fetch(`/admin/scenarios/${id}`, {
-      method: 'PUT',
+    const response = await fetch(`/admin/scenarios/${id}/update`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCsrfToken() },
       body: JSON.stringify(data),
     });
@@ -714,8 +714,8 @@ document.querySelectorAll('.status-toggle').forEach(toggle => {
     const badgeText = badge.querySelector('.badge-text');
 
     try {
-      const response = await fetch(`/admin/scenarios/${id}`, {
-        method: 'PUT',
+      const response = await fetch(`/admin/scenarios/${id}/update`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCsrfToken() },
         body: JSON.stringify({ is_active: isActive }),
       });
@@ -767,8 +767,8 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
     btn.textContent = '삭제 중...';
 
     try {
-      const response = await fetch(`/admin/scenarios/${id}`, {
-        method: 'DELETE',
+      const response = await fetch(`/admin/scenarios/${id}/delete`, {
+        method: 'POST',
         headers: { 'x-csrf-token': getCsrfToken() }
       });
 

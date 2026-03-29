@@ -1,13 +1,13 @@
 """Integration tests for scenario deletion (soft delete)."""
-import pytest
+
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.user import User
 from src.models.analysis_framework import AnalysisFramework
+from src.models.prompt_template import PromptTemplate
 from src.models.scenario import Scenario
 from src.models.session import Session
-from src.models.prompt_template import PromptTemplate
+from src.models.user import User
 
 
 class TestScenarioDelete:
@@ -45,9 +45,7 @@ class TestScenarioDelete:
         scenario_id = create_resp.json()["id"]
 
         # Delete scenario
-        delete_resp = test_client.delete(
-            f"/admin/scenarios/{scenario_id}"
-        )
+        delete_resp = test_client.post(f"/admin/scenarios/{scenario_id}/delete")
         assert delete_resp.status_code == 200
         assert delete_resp.json()["status"] == "deleted"
 
@@ -79,9 +77,7 @@ class TestScenarioDelete:
         await db_session.refresh(scenario)
 
         # Create active session
-        session = Session(
-            scenario_id=scenario.id, teacher_id=teacher_user.id
-        )
+        session = Session(scenario_id=scenario.id, teacher_id=teacher_user.id)
         db_session.add(session)
         await db_session.commit()
         await db_session.refresh(session)
@@ -95,9 +91,7 @@ class TestScenarioDelete:
             },
         )
 
-        delete_resp = test_client.delete(
-            f"/admin/scenarios/{scenario.id}"
-        )
+        delete_resp = test_client.post(f"/admin/scenarios/{scenario.id}/delete")
         assert delete_resp.status_code == 200
         assert delete_resp.json()["status"] == "deleted"
 
@@ -116,7 +110,7 @@ class TestScenarioDelete:
         test_student_template: PromptTemplate,
         db_session: AsyncSession,
     ):
-        """Admin can force delete scenario with completed session (soft delete)."""
+        """Admin can force delete scenario with session."""
         # Create scenario
         scenario = Scenario(
             title="With Ended Session",
@@ -130,9 +124,7 @@ class TestScenarioDelete:
         await db_session.refresh(scenario)
 
         # Create ended session
-        session = Session(
-            scenario_id=scenario.id, teacher_id=teacher_user.id
-        )
+        session = Session(scenario_id=scenario.id, teacher_id=teacher_user.id)
         db_session.add(session)
         await db_session.commit()
         await db_session.refresh(session)
@@ -152,9 +144,7 @@ class TestScenarioDelete:
             },
         )
 
-        delete_resp = test_client.delete(
-            f"/admin/scenarios/{scenario.id}"
-        )
+        delete_resp = test_client.post(f"/admin/scenarios/{scenario.id}/delete")
         assert delete_resp.status_code == 200
         assert delete_resp.json()["status"] == "deleted"
 
@@ -194,9 +184,7 @@ class TestScenarioDelete:
             },
         )
 
-        delete_resp = test_client.delete(
-            f"/admin/scenarios/{scenario.id}"
-        )
+        delete_resp = test_client.post(f"/admin/scenarios/{scenario.id}/delete")
         assert delete_resp.status_code == 403
 
     async def test_deleted_scenario_hidden_from_lists(

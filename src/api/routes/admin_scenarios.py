@@ -189,8 +189,8 @@ async def create_scenario(
     return scenario
 
 
-@router.put(
-    "/admin/scenarios/{scenario_id}",
+@router.post(
+    "/admin/scenarios/{scenario_id}/update",
     response_model=AdminScenarioResponse,
 )
 async def update_scenario(
@@ -199,7 +199,7 @@ async def update_scenario(
     user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """PUT /admin/scenarios/{id} - Update scenario (T079, T080)."""
+    """POST /admin/scenarios/{id}/update - Update scenario (T079, T080)."""
 
     # Get scenario
     scenario = await db.get(Scenario, scenario_id)
@@ -320,7 +320,7 @@ async def update_scenario(
     return scenario
 
 
-@router.delete("/admin/scenarios/{scenario_id}")
+@router.post("/admin/scenarios/{scenario_id}/delete")
 async def delete_scenario(
     scenario_id: int,
     user: User = Depends(get_admin_user),

@@ -190,8 +190,8 @@ document.getElementById('edit-form').addEventListener('submit', async e => {
     description: fd.get('description') || null
   };
   try {
-    const res = await fetch(`/admin/groups/${id}`, {
-      method: 'PUT',
+    const res = await fetch(`/admin/groups/${id}/update`, {
+      method: 'POST',
       headers: {'Content-Type': 'application/json', 'x-csrf-token': getCsrfToken()},
       body: JSON.stringify(data)
     });
@@ -218,8 +218,8 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
     if (!confirm(`"${name}" 그룹을 삭제하시겠습니까?`)) return;
     btn.disabled = true;
     try {
-      const res = await fetch(`/admin/groups/${id}`, {
-        method: 'DELETE',
+      const res = await fetch(`/admin/groups/${id}/delete`, {
+        method: 'POST',
         headers: {'x-csrf-token': getCsrfToken()}
       });
       if (res.ok) {
