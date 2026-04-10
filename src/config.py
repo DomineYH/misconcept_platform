@@ -1,14 +1,18 @@
 """Configuration module for loading environment variables."""
 
+import os
+
 from pydantic import computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+IS_TEST_ENV = os.getenv("TESTING", "").lower() == "true"
 
 
 class Config(BaseSettings):
     """Application configuration from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=None if IS_TEST_ENV else ".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
     )
@@ -82,6 +86,8 @@ class Config(BaseSettings):
     @classmethod
     def validate_openai_key(cls, v):
         """Validate OpenAI API key is set."""
+        if IS_TEST_ENV:
+            return v
         if not v or v.startswith("sk-your"):
             raise ValueError("OPENAI_API_KEY must be set in .env file")
         return v
@@ -90,6 +96,8 @@ class Config(BaseSettings):
     @classmethod
     def validate_session_secret(cls, v):
         """Validate session secret strength."""
+        if IS_TEST_ENV:
+            return v
         blocked = [
             "change-this",
             "your-secret",

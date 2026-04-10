@@ -115,7 +115,8 @@ def _validate_header(fieldnames: Iterable[str] | None) -> None:
     names = list(fieldnames or [])
     if names != CSV_HEADER:
         raise ValueError(
-            "CSV 헤더는 username,nickname,password,role,group_name 이어야 합니다."
+            "CSV 헤더는 "
+            "username,nickname,password,role,group_name 이어야 합니다."
         )
 
 

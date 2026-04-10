@@ -83,7 +83,11 @@ async def test_create_pattern_users_skips_collisions_and_sets_defaults(
         "teacher_003",
         "teacher_004",
     ]
-    created = {user.username: user for user in users if user.username != "teacher_002"}
+    created = {
+        user.username: user
+        for user in users
+        if user.username != "teacher_002"
+    }
     assert all(user.nickname == username for username, user in created.items())
     assert all(user.verify_password("0000") for user in created.values())
     assert all(user.group_id == group.id for user in created.values())
@@ -93,7 +97,7 @@ async def test_create_pattern_users_skips_collisions_and_sets_defaults(
 async def test_import_csv_users_tracks_success_and_row_failures(
     db_session: AsyncSession,
 ):
-    """CSV mode should create valid rows and report duplicates/unknown groups."""
+    """CSV mode should create valid rows and report bad rows."""
     group = UserGroup(name="Alpha")
     db_session.add(group)
 
@@ -114,7 +118,10 @@ async def test_import_csv_users_tracks_success_and_row_failures(
     assert summary.created_count == 1
     assert summary.failed_count == 2
     assert summary.created_usernames == ["fresh_user"]
-    assert {error.username for error in summary.errors} == {"dup_user", "ghost_user"}
+    assert {error.username for error in summary.errors} == {
+        "dup_user",
+        "ghost_user",
+    }
 
     created_user = await db_session.scalar(
         select(User).where(User.username == "fresh_user")
@@ -151,7 +158,7 @@ def test_render_bulk_template_csv_has_exact_header():
 
 
 def test_bulk_password_schema_is_separate_from_legacy_user_create():
-    """Bulk CSV rows accept 0000 while legacy single-user create keeps length 8."""
+    """Bulk CSV rows accept 0000 without widening legacy rules."""
     row = BulkCsvRow(
         username="bulk_001",
         nickname="벌크",
