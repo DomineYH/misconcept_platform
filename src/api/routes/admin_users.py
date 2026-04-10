@@ -20,6 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_admin_user, get_db_session, templates
 from src.api.schemas import (
     AdminUserResponse,
+    BulkPreviewResponse,
+    BulkRegisterRequest,
+    BulkRegisterResponse,
     UserCreate,
     UserUpdate,
 )
@@ -309,6 +312,70 @@ async def _create_users_from_csv(
                 )
 
     return _build_bulk_summary(created_usernames, failures)
+
+
+@router.get("/admin/users/bulk/template")
+async def download_bulk_template(
+    user: User = Depends(get_admin_user),
+):
+    """GET /admin/users/bulk/template — CSV template."""
+    csv_content = "\ufeffusername,nickname,role,group\n"
+    return Response(
+        content=csv_content.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                "attachment; "
+                "filename=bulk_users_template.csv"
+            )
+        },
+    )
+
+
+@router.post(
+    "/admin/users/bulk/preview",
+    response_model=BulkPreviewResponse,
+)
+async def preview_bulk_upload(
+    file: UploadFile = File(...),
+    user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """POST /admin/users/bulk/preview — Parse and validate CSV."""
+    from src.services.admin_user_bulk import (
+        parse_csv,
+        validate_bulk_users,
+    )
+
+    content = await file.read()
+
+    try:
+        rows = parse_csv(content)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, detail=str(e)
+        )
+
+    result = await validate_bulk_users(rows, db)
+    return result
+
+
+@router.post(
+    "/admin/users/bulk/register",
+    response_model=BulkRegisterResponse,
+)
+async def register_bulk_users_endpoint(
+    data: BulkRegisterRequest,
+    user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """POST /admin/users/bulk/register — Create users."""
+    from src.services.admin_user_bulk import (
+        register_bulk_users,
+    )
+
+    result = await register_bulk_users(data.users, db)
+    return result
 
 
 @router.get("/admin/users", response_class=HTMLResponse)
