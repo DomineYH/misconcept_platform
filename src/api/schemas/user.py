@@ -78,3 +78,54 @@ class AdminUserResponse(BaseModel):
     group_id: int | None = None
     group_name: str | None = None
     created_at: datetime | None = None
+
+
+class BulkPreviewRow(BaseModel):
+    """Single row in bulk upload preview."""
+
+    row_num: int
+    username: str
+    nickname: str
+    role: str = "teacher"
+    group_name: str | None = None
+    group_id: int | None = None
+    errors: list[str] = []
+
+
+class BulkPreviewResponse(BaseModel):
+    """Response from CSV preview endpoint."""
+
+    rows: list[BulkPreviewRow]
+    groups: list[dict]
+    summary: dict
+
+
+class BulkUserEntry(BaseModel):
+    """Single user entry for bulk registration."""
+
+    username: str
+    nickname: str
+    role: str = "teacher"
+    group_id: int | None = None
+
+
+class BulkRegisterRequest(BaseModel):
+    """Request body for bulk user registration."""
+
+    users: list[BulkUserEntry]
+
+
+class BulkFailure(BaseModel):
+    """Single failure entry in bulk registration result."""
+
+    username: str
+    nickname: str
+    reason: str
+
+
+class BulkRegisterResponse(BaseModel):
+    """Response from bulk registration endpoint."""
+
+    success_count: int
+    fail_count: int
+    failures: list[BulkFailure]
