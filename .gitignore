@@ -40,3 +40,4 @@ htmlcov/
 # Temporary files
 *.tmp
 *.bak
+.omx/
