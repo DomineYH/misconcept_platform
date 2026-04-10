@@ -1075,6 +1075,12 @@ document.addEventListener('keydown', e => {
   let bulkPreviewData = [];
   let bulkGroups = [];
 
+  function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
+
   document.getElementById('open-bulk-modal').addEventListener('click', () => {
     resetBulkModal();
     openModal('bulk-modal');
@@ -1169,8 +1175,8 @@ document.addEventListener('keydown', e => {
       if (hasErr) tr.style.background = 'rgba(239,68,68,0.1)';
       tr.innerHTML = `
         <td>${idx + 1}</td>
-        <td><input type="text" value="${row.username}" class="bulk-input" data-idx="${idx}" data-field="username" style="width:120px;"></td>
-        <td><input type="text" value="${row.nickname}" class="bulk-input" data-idx="${idx}" data-field="nickname" style="width:100px;"></td>
+        <td><input type="text" value="${escHtml(row.username)}" class="bulk-input" data-idx="${idx}" data-field="username" style="width:120px;"></td>
+        <td><input type="text" value="${escHtml(row.nickname)}" class="bulk-input" data-idx="${idx}" data-field="nickname" style="width:100px;"></td>
         <td>
           <select class="filter-select bulk-select" data-idx="${idx}" data-field="role">
             <option value="teacher"${row.role==='teacher'?' selected':''}>교사</option>
@@ -1183,7 +1189,7 @@ document.addEventListener('keydown', e => {
           </select>
         </td>
         <td>${hasErr
-          ? '<span style="color:#ef4444;font-size:0.8rem;">⚠ ' + row.errors.join(', ') + '</span>'
+          ? '<span style="color:#ef4444;font-size:0.8rem;">⚠ ' + escHtml(row.errors.join(', ')) + '</span>'
           : '<span style="color:#22c55e;font-size:0.8rem;">✓ 정상</span>'
         }</td>
         <td><button type="button" class="btn btn-sm btn-danger" onclick="removeBulkRow(${idx})">✕</button></td>
@@ -1301,8 +1307,8 @@ document.addEventListener('keydown', e => {
       tbody.innerHTML = '';
       data.failures.forEach(f => {
         tbody.innerHTML += `<tr style="background:rgba(239,68,68,0.1);">
-          <td>${f.username}</td><td>${f.nickname}</td>
-          <td style="color:#fca5a5;">${f.reason}</td>
+          <td>${escHtml(f.username)}</td><td>${escHtml(f.nickname)}</td>
+          <td style="color:#fca5a5;">${escHtml(f.reason)}</td>
         </tr>`;
       });
     }

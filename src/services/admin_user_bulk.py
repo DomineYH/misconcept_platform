@@ -5,6 +5,7 @@ import io
 import re
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.user import (
@@ -206,11 +207,11 @@ async def register_bulk_users(
         db.add(new_user)
 
         try:
-            await db.flush()
+            async with db.begin_nested():
+                await db.flush()
             existing.add(entry.username)
             success_count += 1
-        except Exception:
-            await db.rollback()
+        except IntegrityError:
             failures.append(BulkFailure(
                 username=entry.username,
                 nickname=entry.nickname,
