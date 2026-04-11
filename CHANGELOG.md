@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0.1] - 2026-04-11
+
+### Fixed
+- CSV 일괄 업로드 ��� 구분자 자동 감지 (탭, 세미콜론 지원)
+- BOM 중복 시 첫 번째 컬럼 인식 실패 문제 해결
+- 한국어 컬럼명(사용자, 닉네임 등)을 영문 컬럼명으로 자동 변환
+- 필수 컬럼 누락 에러 메시지에 발견된 컬럼명 표시
+
 ## [0.1.0.0] - 2026-04-11
 
 ### Added
