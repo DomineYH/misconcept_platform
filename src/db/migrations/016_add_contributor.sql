@@ -1,6 +1,3 @@
--- Migration 016: Add contributor table for About page
--- Developer/maintainer information management
-
 CREATE TABLE IF NOT EXISTS contributor (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,

@@ -1,16 +1,9 @@
-{% extends "layout.html" %}
-
-{% block title %}소개 - 오개념 교정 대화 시뮬레이터{% endblock %}
-
-{% block content %}
-<div class="container">
-  <header class="page-header">
-    <h1>소개</h1>
-    <p class="subtitle">
-      오개념 교정 대화 시뮬레이터 개발자 및 관리자 안내
-    </p>
-  </header>
-
+<div class="modal-header">
+  <h2>About</h2>
+  <button type="button" class="modal-close"
+          aria-label="닫기" onclick="closeAboutModal()">×</button>
+</div>
+<div class="modal-body">
   {% if contributors %}
   <div class="contributors-grid">
     {% for c in contributors %}
@@ -41,12 +34,7 @@
   </div>
   {% else %}
   <div class="empty-state-page">
-    <p>등록된 소개 정보가 없습니다.</p>
-    {% if user and user.role == 'admin' %}
-    <a href="/admin/about" class="btn btn-primary">
-      소개 정보 등록하기
-    </a>
-    {% endif %}
+    <p>등록된 정보가 없습니다.</p>
   </div>
   {% endif %}
 </div>
@@ -55,9 +43,9 @@
   .contributors-grid {
     display: grid;
     gap: var(--spacing-xl);
-    margin-top: var(--spacing-xl);
+    margin-top: var(--spacing-md);
     grid-template-columns: repeat(
-      auto-fill, minmax(320px, 1fr)
+      auto-fill, minmax(280px, 1fr)
     );
   }
   .contributor-card {
@@ -115,10 +103,5 @@
     text-align: center;
     padding: var(--spacing-2xl);
     color: var(--color-text-secondary);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--spacing-lg);
   }
 </style>
-{% endblock %}

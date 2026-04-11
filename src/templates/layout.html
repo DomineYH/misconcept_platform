@@ -36,9 +36,12 @@
       <ul class="nav-menu">
         {% if user %}
         <li><span class="nav-username">{{ user.nickname }}</span></li>
-        {% endif %}
         <li><a href="/scenarios">시나리오</a></li>
-        <li><a href="/about">소개</a></li>
+        {% endif %}
+        <li>
+          <button type="button" class="btn-nav-about"
+                  id="open-about-modal">about</button>
+        </li>
         {% if user and user.role == 'admin' %}
         <li><a href="/admin">관리자</a></li>
         {% endif %}
@@ -147,6 +150,59 @@
         hamburger.setAttribute('aria-expanded', !expanded);
       });
     }
+
+    // About modal
+    var aboutLoaded = false;
+    function openAboutModal() {
+      var overlay = document.getElementById('about-modal-overlay');
+      overlay.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      if (!aboutLoaded) {
+        fetch('/about/content')
+          .then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.text();
+          })
+          .then(function(html) {
+            document.getElementById('about-modal-container')
+              .innerHTML = html;
+            aboutLoaded = true;
+          })
+          .catch(function() {
+            closeAboutModal();
+          });
+      }
+    }
+    function closeAboutModal() {
+      var overlay = document.getElementById('about-modal-overlay');
+      overlay.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    document.getElementById('open-about-modal')
+      .addEventListener('click', openAboutModal);
+    document.getElementById('about-modal-overlay')
+      .addEventListener('click', function(e) {
+        if (e.target === this) closeAboutModal();
+      });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var overlay = document.getElementById(
+          'about-modal-overlay'
+        );
+        if (overlay.classList.contains('active')) {
+          closeAboutModal();
+        }
+      }
+    });
   </script>
+
+  <!-- About Modal -->
+  <div id="about-modal-overlay" class="modal-overlay"
+       role="dialog" aria-modal="true"
+       aria-label="About">
+    <div id="about-modal-container"
+         class="modal-container modal-xl">
+    </div>
+  </div>
 </body>
 </html>

@@ -51,14 +51,13 @@
           </td>
           <td class="bio-cell">{{ c.bio }}</td>
           <td>
-            <button type="button" class="btn btn-sm btn-secondary edit-btn"
-                    data-id="{{ c.id }}"
-                    data-name="{{ c.name }}"
-                    data-affiliation="{{ c.affiliation }}"
-                    data-bio="{{ c.bio }}"
-                    data-phone="{{ c.phone or '' }}"
-                    data-email="{{ c.email or '' }}"
-                    data-sort-order="{{ c.sort_order }}">
+            <script type="application/json"
+                    class="contributor-data">
+              {{ {"id": c.id, "name": c.name, "affiliation": c.affiliation, "bio": c.bio, "phone": c.phone, "email": c.email, "sort_order": c.sort_order} | tojson }}
+            </script>
+            <button type="button"
+                    class="btn btn-sm btn-secondary edit-btn"
+                    data-id="{{ c.id }}">
               수정
             </button>
             <button type="button" class="btn btn-sm btn-danger delete-btn"
@@ -298,16 +297,20 @@
 
   document.querySelectorAll('.edit-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      var d = btn.dataset;
-      document.getElementById('edit-id').value = d.id;
-      document.getElementById('edit-name').value = d.name;
+      var jsonEl = btn.closest('tr')
+        .querySelector('.contributor-data');
+      var c = JSON.parse(jsonEl.textContent);
+      document.getElementById('edit-id').value = c.id;
+      document.getElementById('edit-name').value = c.name;
       document.getElementById('edit-affiliation').value =
-        d.affiliation;
-      document.getElementById('edit-bio').value = d.bio;
-      document.getElementById('edit-phone').value = d.phone;
-      document.getElementById('edit-email').value = d.email;
+        c.affiliation;
+      document.getElementById('edit-bio').value = c.bio;
+      document.getElementById('edit-phone').value =
+        c.phone || '';
+      document.getElementById('edit-email').value =
+        c.email || '';
       document.getElementById('edit-sort-order').value =
-        d.sortOrder;
+        c.sort_order;
       editModal.style.display = 'flex';
     });
   });
