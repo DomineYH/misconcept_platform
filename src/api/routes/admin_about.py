@@ -57,8 +57,8 @@ async def create_contributor(
         name=data.name,
         affiliation=data.affiliation,
         bio=data.bio,
-        phone=data.phone or None,
-        email=data.email or None,
+        phone=data.phone,
+        email=data.email,
         sort_order=data.sort_order,
     )
     db.add(contributor)
@@ -90,9 +90,9 @@ async def update_contributor(
     if data.bio is not None:
         target.bio = data.bio
     if data.phone is not None:
-        target.phone = data.phone or None
+        target.phone = data.phone
     if data.email is not None:
-        target.email = data.email or None
+        target.email = data.email
     if data.sort_order is not None:
         target.sort_order = data.sort_order
 
