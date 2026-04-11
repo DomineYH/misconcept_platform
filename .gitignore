@@ -41,3 +41,4 @@ htmlcov/
 *.tmp
 *.bak
 .omx/
+*.db
