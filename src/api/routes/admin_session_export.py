@@ -15,7 +15,10 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db_session
-from src.api.routes.admin_sessions import parse_date_filter
+from src.api.routes.admin_sessions import (
+    parse_date_filter,
+    safe_int,
+)
 from src.models.message import Message
 from src.models.scenario import Scenario
 from src.models.session import Session
@@ -28,19 +31,22 @@ router = APIRouter()
 
 @router.get("/admin/sessions/export")
 async def export_sessions(
-    scenario_id: Optional[int] = None,
-    teacher_id: Optional[int] = None,
+    scenario_id: Optional[str] = None,
+    teacher_id: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Export filtered sessions as CSV."""
+    """Export filtered sessions as CSV (ended only)."""
     if user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin role required",
         )
+
+    scenario_id_val = safe_int(scenario_id)
+    teacher_id_val = safe_int(teacher_id)
 
     query = (
         select(Session.id)
@@ -49,10 +55,10 @@ async def export_sessions(
         .order_by(desc(Session.started_at))
     )
 
-    if scenario_id:
-        query = query.where(Session.scenario_id == scenario_id)
-    if teacher_id:
-        query = query.where(Session.teacher_id == teacher_id)
+    if scenario_id_val:
+        query = query.where(Session.scenario_id == scenario_id_val)
+    if teacher_id_val:
+        query = query.where(Session.teacher_id == teacher_id_val)
     if date_from:
         dt, err = parse_date_filter(date_from, "date_from")
         if err:

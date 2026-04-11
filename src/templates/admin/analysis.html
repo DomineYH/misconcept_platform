@@ -12,7 +12,9 @@
 
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <form method="get" class="flex flex-wrap gap-4 items-end">
+        <form method="get" id="analysis-filter-form"
+              class="flex flex-wrap gap-4 items-end"
+              onsubmit="return submitAnalysisFilters(event)">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">시나리오</label>
                 <select name="scenario_id" class="rounded border-gray-300 text-sm">
@@ -141,9 +143,15 @@
 
     <!-- Pagination -->
     {% if pagination.total_pages > 1 %}
+    {%- set filter_qs -%}
+      {%- if current_filters.scenario_id %}&scenario_id={{ current_filters.scenario_id }}{% endif -%}
+      {%- if current_filters.label %}&label={{ current_filters.label }}{% endif -%}
+      {%- if current_filters.date_from %}&date_from={{ current_filters.date_from }}{% endif -%}
+      {%- if current_filters.date_to %}&date_to={{ current_filters.date_to }}{% endif -%}
+    {%- endset -%}
     <div class="flex justify-center gap-2 mt-6">
         {% if pagination.has_prev %}
-        <a href="?page={{ pagination.page - 1 }}&scenario_id={{ current_filters.scenario_id or '' }}&label={{ current_filters.label or '' }}&date_from={{ current_filters.date_from or '' }}&date_to={{ current_filters.date_to or '' }}"
+        <a href="?page={{ pagination.page - 1 }}{{ filter_qs }}"
            class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition text-sm">
             이전
         </a>
@@ -154,7 +162,7 @@
         </span>
 
         {% if pagination.has_next %}
-        <a href="?page={{ pagination.page + 1 }}&scenario_id={{ current_filters.scenario_id or '' }}&label={{ current_filters.label or '' }}&date_from={{ current_filters.date_from or '' }}&date_to={{ current_filters.date_to or '' }}"
+        <a href="?page={{ pagination.page + 1 }}{{ filter_qs }}"
            class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition text-sm">
             다음
         </a>
@@ -169,6 +177,20 @@
 </div>
 
 <script>
+function submitAnalysisFilters(e) {
+  e.preventDefault();
+  const form = document.getElementById('analysis-filter-form');
+  const params = new URLSearchParams();
+  for (const el of form.elements) {
+    if (el.name && el.value !== '') {
+      params.set(el.name, el.value);
+    }
+  }
+  const qs = params.toString();
+  window.location.href = window.location.pathname + (qs ? '?' + qs : '');
+  return false;
+}
+
 // Show modal when content is loaded via HTMX
 htmx.on('htmx:afterSwap', function(e) {
     if (e.detail.target.id === 'detail-modal') {

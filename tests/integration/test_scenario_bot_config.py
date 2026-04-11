@@ -3,14 +3,11 @@
 Tests the extended POST/PUT endpoints in admin_scenarios.py to ensure
 scenario-level bot configuration overrides work correctly.
 """
-import pytest
+
 from fastapi.testclient import TestClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.analysis_framework import AnalysisFramework
 from src.models.prompt_template import PromptTemplate
-from src.models.scenario import Scenario
 from src.models.user import User
 
 
@@ -18,8 +15,12 @@ class TestScenarioBotConfigAPI:
     """Test scenario bot configuration API endpoints."""
 
     def test_create_scenario_with_bot_config(
-        self, test_client: TestClient, admin_user: User, test_framework: AnalysisFramework,
-        test_student_template: PromptTemplate, test_tutor_template: PromptTemplate
+        self,
+        test_client: TestClient,
+        admin_user: User,
+        test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
+        test_tutor_template: PromptTemplate,
     ):
         """POST /admin/scenarios - Create scenario with bot config overrides."""
         # Login as admin
@@ -60,10 +61,13 @@ class TestScenarioBotConfigAPI:
         assert data["tutor_intervention_threshold"] == 3
 
     def test_create_scenario_without_bot_config(
-        self, test_client: TestClient, admin_user: User, test_framework: AnalysisFramework,
-        test_student_template: PromptTemplate
+        self,
+        test_client: TestClient,
+        admin_user: User,
+        test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
     ):
-        """POST /admin/scenarios - Create scenario without tutor (student only)."""
+        """POST /admin/scenarios - Create without tutor."""
         # Login as admin
         test_client.post(
             "/login",
@@ -96,8 +100,11 @@ class TestScenarioBotConfigAPI:
         assert data["tutor_intervention_threshold"] == 3
 
     def test_create_scenario_invalid_model_name(
-        self, test_client: TestClient, admin_user: User, test_framework: AnalysisFramework,
-        test_student_template: PromptTemplate
+        self,
+        test_client: TestClient,
+        admin_user: User,
+        test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
     ):
         """POST /admin/scenarios - Reject invalid model name."""
         # Login as admin
@@ -126,8 +133,11 @@ class TestScenarioBotConfigAPI:
         assert "chat_model" in error["loc"]
 
     def test_create_scenario_invalid_temperature(
-        self, test_client: TestClient, admin_user: User, test_framework: AnalysisFramework,
-        test_student_template: PromptTemplate
+        self,
+        test_client: TestClient,
+        admin_user: User,
+        test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
     ):
         """POST /admin/scenarios - Reject invalid temperature."""
         # Login as admin
@@ -156,8 +166,11 @@ class TestScenarioBotConfigAPI:
         assert "chat_temperature" in error["loc"]
 
     def test_create_scenario_invalid_threshold(
-        self, test_client: TestClient, admin_user: User, test_framework: AnalysisFramework,
-        test_student_template: PromptTemplate
+        self,
+        test_client: TestClient,
+        admin_user: User,
+        test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
     ):
         """POST /admin/scenarios - Reject invalid intervention threshold."""
         # Login as admin
@@ -186,10 +199,14 @@ class TestScenarioBotConfigAPI:
         assert "tutor_intervention_threshold" in error["loc"]
 
     def test_update_scenario_bot_config(
-        self, test_client: TestClient, admin_user: User, test_framework: AnalysisFramework,
-        test_student_template: PromptTemplate, test_tutor_template: PromptTemplate
+        self,
+        test_client: TestClient,
+        admin_user: User,
+        test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
+        test_tutor_template: PromptTemplate,
     ):
-        """PUT /admin/scenarios/{id} - Update scenario bot config."""
+        """POST /admin/scenarios/{id}/update - Update scenario bot config."""
         # Login as admin
         test_client.post(
             "/login",
@@ -217,8 +234,8 @@ class TestScenarioBotConfigAPI:
         scenario_id = create_response.json()["id"]
 
         # Update bot config (disable tutor)
-        update_response = test_client.put(
-            f"/admin/scenarios/{scenario_id}",
+        update_response = test_client.post(
+            f"/admin/scenarios/{scenario_id}/update",
             json={
                 "chat_model": "gpt-4o-mini",
                 "chat_temperature": 1.2,
@@ -235,10 +252,14 @@ class TestScenarioBotConfigAPI:
         assert data["tutor_intervention_threshold"] == 8
 
     def test_update_scenario_partial_bot_config(
-        self, test_client: TestClient, admin_user: User, test_framework: AnalysisFramework,
-        test_student_template: PromptTemplate, test_tutor_template: PromptTemplate
+        self,
+        test_client: TestClient,
+        admin_user: User,
+        test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
+        test_tutor_template: PromptTemplate,
     ):
-        """PUT /admin/scenarios/{id} - Update only some bot config fields."""
+        """POST scenarios/{id}/update - Partial bot config."""
         # Login as admin
         test_client.post(
             "/login",
@@ -266,8 +287,8 @@ class TestScenarioBotConfigAPI:
         scenario_id = create_response.json()["id"]
 
         # Update only temperature and threshold
-        update_response = test_client.put(
-            f"/admin/scenarios/{scenario_id}",
+        update_response = test_client.post(
+            f"/admin/scenarios/{scenario_id}/update",
             json={
                 "chat_temperature": 1.5,
                 "tutor_intervention_threshold": 3,
@@ -284,8 +305,11 @@ class TestScenarioBotConfigAPI:
         assert data["tutor_intervention_threshold"] == 3
 
     def test_valid_model_names(
-        self, test_client: TestClient, admin_user: User, test_framework: AnalysisFramework,
-        test_student_template: PromptTemplate
+        self,
+        test_client: TestClient,
+        admin_user: User,
+        test_framework: AnalysisFramework,
+        test_student_template: PromptTemplate,
     ):
         """POST /admin/scenarios - Accept all valid model names."""
         # Login as admin

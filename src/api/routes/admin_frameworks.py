@@ -132,8 +132,8 @@ async def create_framework_web(
     return new_framework
 
 
-@router.put(
-    "/admin/frameworks/{framework_id}",
+@router.post(
+    "/admin/frameworks/{framework_id}/update",
     response_model=AdminFrameworkResponse,
 )
 async def update_framework_web(
@@ -142,7 +142,7 @@ async def update_framework_web(
     user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """PUT /admin/frameworks/{id} - Update framework."""
+    """POST /admin/frameworks/{id}/update - Update framework."""
 
     framework = await db.get(AnalysisFramework, framework_id)
     if not framework:
@@ -203,16 +203,15 @@ async def update_framework_web(
     return framework
 
 
-@router.delete(
-    "/admin/frameworks/{framework_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+@router.post(
+    "/admin/frameworks/{framework_id}/delete",
 )
 async def delete_framework_web(
     framework_id: int,
     user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """DELETE /admin/frameworks/{id} - Delete framework."""
+    """POST /admin/frameworks/{id}/delete - Delete framework."""
 
     framework = await db.get(AnalysisFramework, framework_id)
     if not framework:
@@ -269,4 +268,7 @@ async def delete_framework_web(
         f"Framework deleted: id={framework_id}, " f"name={framework.name}"
     )
 
-    return None
+    return {
+        "status": "deleted",
+        "framework_id": framework_id,
+    }

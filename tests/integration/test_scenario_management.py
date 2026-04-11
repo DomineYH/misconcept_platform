@@ -1,15 +1,13 @@
 """Integration tests for scenario lifecycle management (T075)."""
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.user import User
 from src.models.analysis_framework import AnalysisFramework
-from src.models.scenario import Scenario
-from src.models.session import Session
 from src.models.prompt_template import PromptTemplate
+from src.models.user import User
 from src.models.user_group import UserGroup
-from src.models.scenario_group import ScenarioGroup
 
 
 @pytest.fixture
@@ -100,9 +98,7 @@ class TestScenarioLifecycle:
         assert "Lifecycle Test Scenario" in scenarios_html
 
         # Verify scenario detail page is accessible
-        detail_response = test_client.get(
-            f"/scenarios/{scenario_id}"
-        )
+        detail_response = test_client.get(f"/scenarios/{scenario_id}")
         assert detail_response.status_code == 200
 
         # Step 4: Admin deactivates scenario
@@ -114,8 +110,8 @@ class TestScenarioLifecycle:
             },
         )
 
-        deactivate_response = test_client.put(
-            f"/admin/scenarios/{scenario_id}",
+        deactivate_response = test_client.post(
+            f"/admin/scenarios/{scenario_id}/update",
             json={"is_active": 0},
         )
         assert deactivate_response.status_code == 200
@@ -131,22 +127,13 @@ class TestScenarioLifecycle:
         )
 
         # Step 6: Verify scenario is hidden from teachers
-        scenarios_hidden_response = test_client.get(
-            "/scenarios"
-        )
+        scenarios_hidden_response = test_client.get("/scenarios")
         assert scenarios_hidden_response.status_code == 200
-        scenarios_hidden_html = (
-            scenarios_hidden_response.text
-        )
-        assert (
-            "Lifecycle Test Scenario"
-            not in scenarios_hidden_html
-        )
+        scenarios_hidden_html = scenarios_hidden_response.text
+        assert "Lifecycle Test Scenario" not in scenarios_hidden_html
 
         # Verify detail page is not accessible (404)
-        detail_hidden_response = test_client.get(
-            f"/scenarios/{scenario_id}"
-        )
+        detail_hidden_response = test_client.get(f"/scenarios/{scenario_id}")
         assert detail_hidden_response.status_code == 404
 
         # Step 7: Admin reactivates scenario
@@ -158,14 +145,12 @@ class TestScenarioLifecycle:
             },
         )
 
-        reactivate_response = test_client.put(
-            f"/admin/scenarios/{scenario_id}",
+        reactivate_response = test_client.post(
+            f"/admin/scenarios/{scenario_id}/update",
             json={"is_active": 1},
         )
         assert reactivate_response.status_code == 200
-        assert (
-            reactivate_response.json()["is_active"] == 1
-        )
+        assert reactivate_response.json()["is_active"] == 1
 
         # Step 8: Teacher verifies scenario is visible again
         test_client.post(
@@ -176,17 +161,10 @@ class TestScenarioLifecycle:
             },
         )
 
-        scenarios_visible_response = test_client.get(
-            "/scenarios"
-        )
+        scenarios_visible_response = test_client.get("/scenarios")
         assert scenarios_visible_response.status_code == 200
-        scenarios_visible_html = (
-            scenarios_visible_response.text
-        )
-        assert (
-            "Lifecycle Test Scenario"
-            in scenarios_visible_html
-        )
+        scenarios_visible_html = scenarios_visible_response.text
+        assert "Lifecycle Test Scenario" in scenarios_visible_html
 
     def test_multiple_scenarios_filtering(
         self,
@@ -218,23 +196,19 @@ class TestScenarioLifecycle:
                     "prompt": f"Prompt for scenario {i+1}",
                     "student_profile": f"Profile {i+1}",
                     "framework_id": test_framework.id,
-                    "student_template_id": (
-                        test_student_template.id
-                    ),
+                    "student_template_id": (test_student_template.id),
                     "group_ids": [test_group.id],
                 },
             )
             scenario_ids.append(resp.json()["id"])
 
         # Get all scenario IDs
-        admin_scenarios_response = test_client.get(
-            "/admin/scenarios"
-        )
+        admin_scenarios_response = test_client.get("/admin/scenarios")
         assert admin_scenarios_response.status_code == 200
 
         # Deactivate scenario 2
-        test_client.put(
-            f"/admin/scenarios/{scenario_ids[1]}",
+        test_client.post(
+            f"/admin/scenarios/{scenario_ids[1]}/update",
             json={"is_active": 0},
         )
 
@@ -248,9 +222,7 @@ class TestScenarioLifecycle:
         )
 
         # Verify only active scenarios visible
-        teacher_scenarios_response = test_client.get(
-            "/scenarios"
-        )
+        teacher_scenarios_response = test_client.get("/scenarios")
         assert teacher_scenarios_response.status_code == 200
         teacher_html = teacher_scenarios_response.text
 

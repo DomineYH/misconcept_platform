@@ -1,4 +1,5 @@
 """Admin group management routes."""
+
 import logging
 
 from fastapi import (
@@ -6,7 +7,6 @@ from fastapi import (
     Depends,
     HTTPException,
     Request,
-    status,
 )
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func, select
@@ -27,9 +27,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Admin Groups"])
 
 
-@router.get(
-    "/admin/groups", response_class=HTMLResponse
-)
+@router.get("/admin/groups", response_class=HTMLResponse)
 async def list_groups(
     request: Request,
     user: User = Depends(get_admin_user),
@@ -37,18 +35,14 @@ async def list_groups(
 ):
     """GET /admin/groups - Group management page."""
 
-    result = await db.execute(
-        select(UserGroup).order_by(UserGroup.name)
-    )
+    result = await db.execute(select(UserGroup).order_by(UserGroup.name))
     groups = result.scalars().all()
 
     # Get counts for each group
     groups_data = []
     for group in groups:
         member_count = await db.scalar(
-            select(func.count(User.id)).where(
-                User.group_id == group.id
-            )
+            select(func.count(User.id)).where(User.group_id == group.id)
         )
         scenario_count = await db.scalar(
             select(func.count(ScenarioGroup.id)).where(
@@ -83,9 +77,7 @@ async def create_group(
 
     # Check unique name
     existing = await db.execute(
-        select(UserGroup).where(
-            UserGroup.name == data.name
-        )
+        select(UserGroup).where(UserGroup.name == data.name)
     )
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -111,14 +103,14 @@ async def create_group(
     )
 
 
-@router.put("/admin/groups/{group_id}")
+@router.post("/admin/groups/{group_id}/update")
 async def update_group(
     group_id: int,
     data: GroupUpdate,
     user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """PUT /admin/groups/{id} - Update group."""
+    """POST /admin/groups/{id}/update - Update group."""
 
     group = await db.get(UserGroup, group_id)
     if not group:
@@ -149,9 +141,7 @@ async def update_group(
     await db.refresh(group)
 
     member_count = await db.scalar(
-        select(func.count(User.id)).where(
-            User.group_id == group.id
-        )
+        select(func.count(User.id)).where(User.group_id == group.id)
     )
     scenario_count = await db.scalar(
         select(func.count(ScenarioGroup.id)).where(
@@ -169,13 +159,13 @@ async def update_group(
     )
 
 
-@router.delete("/admin/groups/{group_id}")
+@router.post("/admin/groups/{group_id}/delete")
 async def delete_group(
     group_id: int,
     user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """DELETE /admin/groups/{id} - Delete group."""
+    """POST /admin/groups/{id}/delete - Delete group."""
 
     group = await db.get(UserGroup, group_id)
     if not group:
@@ -186,9 +176,7 @@ async def delete_group(
 
     # Block if has members
     member_count = await db.scalar(
-        select(func.count(User.id)).where(
-            User.group_id == group.id
-        )
+        select(func.count(User.id)).where(User.group_id == group.id)
     )
     if member_count and member_count > 0:
         raise HTTPException(

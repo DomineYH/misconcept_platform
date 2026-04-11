@@ -4,12 +4,13 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import func, select, desc
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_admin_user, get_db_session, templates
+from src.api.routes.admin_sessions import safe_int
 from src.models.message import Message
 from src.models.question_analysis import QuestionAnalysis
 from src.models.scenario import Scenario
@@ -25,7 +26,7 @@ router = APIRouter(tags=["Admin Analysis"])
 @router.get("/admin/analysis-page", response_class=HTMLResponse)
 async def analysis_page(
     request: Request,
-    scenario_id: Optional[int] = None,
+    scenario_id: Optional[str] = None,
     label: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
@@ -35,6 +36,7 @@ async def analysis_page(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Admin analysis management page with filtering."""
+    scenario_id_val = safe_int(scenario_id)
 
     # Build base query
     query = (
@@ -46,8 +48,8 @@ async def analysis_page(
     )
 
     # Apply filters
-    if scenario_id:
-        query = query.where(Session.scenario_id == scenario_id)
+    if scenario_id_val:
+        query = query.where(Session.scenario_id == scenario_id_val)
     if label:
         query = query.where(QuestionAnalysis.label == label)
     if date_from:
@@ -95,9 +97,7 @@ async def analysis_page(
     scenarios = scenarios_result.scalars().all()
 
     # Get available labels for filter
-    labels_result = await db.execute(
-        select(QuestionAnalysis.label).distinct()
-    )
+    labels_result = await db.execute(select(QuestionAnalysis.label).distinct())
     available_labels = [r[0] for r in labels_result.all()]
 
     # Calculate stats
@@ -143,7 +143,7 @@ async def analysis_page(
             "stats": stats,
             "pagination": pagination,
             "current_filters": {
-                "scenario_id": scenario_id,
+                "scenario_id": scenario_id_val,
                 "label": label,
                 "date_from": date_from,
                 "date_to": date_to,
@@ -152,9 +152,7 @@ async def analysis_page(
     )
 
 
-@router.get(
-    "/admin/analysis/{analysis_id}/detail", response_class=HTMLResponse
-)
+@router.get("/admin/analysis/{analysis_id}/detail", response_class=HTMLResponse)
 async def analysis_detail_modal(
     request: Request,
     analysis_id: int,

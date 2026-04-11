@@ -50,7 +50,7 @@ URL_TYPE=$(sqlite3 "$DB_FILE" "PRAGMA table_info(scenario);" | grep "video_url" 
 if [ "$URL_TYPE" = "VARCHAR(500)" ]; then
     echo -e "${GREEN}✓ video_url type is VARCHAR(500)${NC}"
 else
-    echo -e "${YELLOW}⚠ video_url type is '$URL_TYPE' (expected VARCHAR(500))${NC}"
+    echo -e "${YELLOW}WARNING: video_url type is '$URL_TYPE' (expected VARCHAR(500))${NC}"
 fi
 
 # Check video_transcript type
@@ -58,7 +58,7 @@ TRANSCRIPT_TYPE=$(sqlite3 "$DB_FILE" "PRAGMA table_info(scenario);" | grep "vide
 if [ "$TRANSCRIPT_TYPE" = "TEXT" ]; then
     echo -e "${GREEN}✓ video_transcript type is TEXT${NC}"
 else
-    echo -e "${YELLOW}⚠ video_transcript type is '$TRANSCRIPT_TYPE' (expected TEXT)${NC}"
+    echo -e "${YELLOW}WARNING: video_transcript type is '$TRANSCRIPT_TYPE' (expected TEXT)${NC}"
 fi
 
 echo ""
@@ -118,7 +118,7 @@ if [ "$SCENARIO_COUNT" -gt "0" ]; then
     sqlite3 "$DB_FILE" "UPDATE scenario SET video_url = NULL, video_transcript = NULL WHERE id = $TEST_ID;"
     echo -e "${GREEN}✓ Test data reverted${NC}"
 else
-    echo -e "${YELLOW}⚠ No scenarios to test (empty table)${NC}"
+    echo -e "${YELLOW}WARNING: No scenarios to test (empty table)${NC}"
 fi
 
 echo ""

@@ -62,8 +62,8 @@ async def test_framework_switching_workflow(
     assert new_labels[0]["name"] == "HighQuality"
 
     # Step 2: Switch scenario to use new framework
-    update_response = test_client.put(
-        f"/admin/scenarios/{test_scenario.id}",
+    update_response = test_client.post(
+        f"/admin/scenarios/{test_scenario.id}/update",
         json={"framework_id": new_framework_id},
     )
 
@@ -244,8 +244,8 @@ async def test_framework_switching_affects_new_sessions_only(
     )
     new_framework_id = new_framework_response.json()["id"]
 
-    test_client.put(
-        f"/admin/scenarios/{test_scenario.id}",
+    test_client.post(
+        f"/admin/scenarios/{test_scenario.id}/update",
         json={"framework_id": new_framework_id},
     )
 

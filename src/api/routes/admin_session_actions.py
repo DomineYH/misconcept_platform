@@ -1,4 +1,5 @@
 """Admin session action routes."""
+
 import logging
 from datetime import datetime, timezone
 
@@ -11,8 +12,8 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from src.api.dependencies import get_admin_user, get_db_session, templates
 from src.models import (
@@ -71,21 +72,16 @@ async def end_session(
     # Trigger analysis
     try:
         scenario_result = await db.execute(
-            select(Scenario).where(
-                Scenario.id == session.scenario_id
-            )
+            select(Scenario).where(Scenario.id == session.scenario_id)
         )
         scenario = scenario_result.scalar_one_or_none()
         if scenario and scenario.framework_id:
             framework_result = await db.execute(
                 select(AnalysisFramework).where(
-                    AnalysisFramework.id
-                    == scenario.framework_id
+                    AnalysisFramework.id == scenario.framework_id
                 )
             )
-            framework = (
-                framework_result.scalar_one_or_none()
-            )
+            framework = framework_result.scalar_one_or_none()
             if framework:
                 await analyze_session(
                     session_id,
@@ -95,9 +91,7 @@ async def end_session(
                     db,
                 )
     except Exception as e:
-        logger.warning(
-            f"Analysis failed for session {session_id}: {e}"
-        )
+        logger.warning(f"Analysis failed for session {session_id}: {e}")
 
     # Reload with summary
     await db.refresh(session, ["summary"])
@@ -108,8 +102,8 @@ async def end_session(
     )
 
 
-@router.delete(
-    "/admin/sessions/{session_id}",
+@router.post(
+    "/admin/sessions/{session_id}/delete",
     response_class=HTMLResponse,
 )
 async def delete_session(
@@ -199,16 +193,11 @@ async def analysis_modal(
     if not session.ended_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Session must be ended before"
-                " viewing analysis"
-            ),
+            detail=("Session must be ended before" " viewing analysis"),
         )
 
     summary_result = await db.execute(
-        select(SessionSummary).where(
-            SessionSummary.session_id == session_id
-        )
+        select(SessionSummary).where(SessionSummary.session_id == session_id)
     )
     summary = summary_result.scalar_one_or_none()
 
@@ -238,16 +227,8 @@ async def analysis_modal(
         questions.append(
             {
                 "content": msg.content,
-                "label": (
-                    analysis.label
-                    if analysis
-                    else "Unclassified"
-                ),
-                "confidence": (
-                    analysis.confidence
-                    if analysis
-                    else None
-                ),
+                "label": (analysis.label if analysis else "Unclassified"),
+                "confidence": (analysis.confidence if analysis else None),
                 "reasoning": reasoning,
             }
         )

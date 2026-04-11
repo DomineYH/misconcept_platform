@@ -17,6 +17,12 @@ from src.api.schemas.group import (
 )
 from src.api.schemas.user import (
     AdminUserResponse,
+    BulkFailure,
+    BulkPreviewResponse,
+    BulkPreviewRow,
+    BulkRegisterRequest,
+    BulkRegisterResponse,
+    BulkUserEntry,
     UserCreate,
     UserUpdate,
 )
@@ -225,6 +231,12 @@ __all__ = [
     "UserCreate",
     "UserUpdate",
     "AdminUserResponse",
+    "BulkPreviewRow",
+    "BulkPreviewResponse",
+    "BulkUserEntry",
+    "BulkRegisterRequest",
+    "BulkFailure",
+    "BulkRegisterResponse",
     "GroupCreate",
     "GroupUpdate",
     "AdminGroupResponse",
