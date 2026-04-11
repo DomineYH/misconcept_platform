@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0.0] - 2026-04-11
+
+### Added
+- CSV 기반 일괄 사용자 추가 기능
+  - CSV 양식 다운로드 (username, nickname, role, group)
+  - 업로드 후 미리보기에서 검증 결과 확인 (중복 ID, 없는 그룹, 형식 오류)
+  - 미리보기에서 역할/그룹 일괄 및 개별 지정
+  - 미리보기에서 행 추가, 수정, 삭제 가능
+  - 등록 결과 성공/실패 카운트 및 실패 사유 표시
+- 3개 API 엔드포인트: GET /admin/users/bulk/template, POST /admin/users/bulk/preview, POST /admin/users/bulk/register
+- 서비스 모듈 admin_user_bulk.py (CSV 파싱, 검증, 등록)
+- 33개 테스트 (스키마 7, 파싱 8, 검증 8, 등록 3, 엔드포인트 7)
+
+### Fixed
+- 관리자 API를 POST로 통일하고 세션 날짜 필터 422 에러 수정
+- 세션 관리 페이지에서 시나리오 필터링 기능 제거 (성능 개선)
+- 코드베이스 이모지 제거 및 세션 관리 페이지 코드 정리
+
+### Security
+- 일괄 등록 시 savepoint 패턴으로 개별 실패 격리 (전체 롤백 방지)
+- CSV 미리보기 innerHTML XSS 방지 (escHtml 헬퍼)
+- 등록 엔드포인트에 서버사이드 입력 검증 추가
+- BulkRegisterRequest 최대 100명 제한
+
+### Removed
+- 이전 일괄 사용자 생성 코드 (패턴 모드, 직접 CSV 모드) 620줄 제거
+
 ## [Unreleased]
 
 ### Changed
