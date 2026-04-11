@@ -197,6 +197,35 @@ async def register_bulk_users(
             ))
             continue
 
+        # Validate fields
+        if (
+            len(entry.username) < 3
+            or len(entry.username) > 50
+            or not USERNAME_PATTERN.match(entry.username)
+        ):
+            failures.append(BulkFailure(
+                username=entry.username,
+                nickname=entry.nickname,
+                reason="유효하지 않은 사용자 ID 형식",
+            ))
+            continue
+
+        if len(entry.nickname) < 2 or len(entry.nickname) > 30:
+            failures.append(BulkFailure(
+                username=entry.username,
+                nickname=entry.nickname,
+                reason="닉네임은 2자 이상 30자 이하여야 합니다.",
+            ))
+            continue
+
+        if entry.role not in ("teacher", "admin"):
+            failures.append(BulkFailure(
+                username=entry.username,
+                nickname=entry.nickname,
+                reason="유효하지 않은 역할",
+            ))
+            continue
+
         new_user = User(
             username=entry.username,
             nickname=entry.nickname,

@@ -112,7 +112,9 @@ class BulkUserEntry(BaseModel):
 class BulkRegisterRequest(BaseModel):
     """Request body for bulk user registration."""
 
-    users: list[BulkUserEntry]
+    users: list[BulkUserEntry] = Field(
+        ..., max_length=100
+    )
 
 
 class BulkFailure(BaseModel):
