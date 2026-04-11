@@ -23,6 +23,14 @@ MAX_ROWS = 100
 DEFAULT_PASSWORD = "00000000"
 REQUIRED_COLUMNS = {"username", "nickname"}
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
+COLUMN_ALIASES: dict[str, str] = {
+    "사용자": "username",
+    "사용자id": "username",
+    "사용자 id": "username",
+    "닉네임": "nickname",
+    "역할": "role",
+    "그룹": "group",
+}
 
 
 def parse_csv(file_content: bytes) -> list[dict]:
@@ -48,16 +56,36 @@ def parse_csv(file_content: bytes) -> list[dict]:
             "UTF-8 또는 EUC-KR을 사용해주세요."
         )
 
-    reader = csv.DictReader(io.StringIO(text))
+    # Strip any remaining BOM characters after decoding
+    text = text.lstrip("\ufeff")
+
+    # Auto-detect delimiter (comma, tab, semicolon)
+    first_line = text.split("\n", 1)[0]
+    delimiter = ","
+    for candidate in ("\t", ";"):
+        if candidate in first_line:
+            delimiter = candidate
+            break
+
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
     if reader.fieldnames is None:
         raise ValueError("CSV 헤더를 읽을 수 없습니다.")
 
-    cleaned_fields = [f.strip().lower() for f in reader.fieldnames]
+    # Normalize: strip, lowercase, apply Korean aliases
+    cleaned_fields = []
+    for f in reader.fieldnames:
+        key = f.strip().lower()
+        key = COLUMN_ALIASES.get(key, key)
+        cleaned_fields.append(key)
+
     missing = REQUIRED_COLUMNS - set(cleaned_fields)
     if missing:
+        found = [f.strip() for f in reader.fieldnames]
         raise ValueError(
-            f"필수 컬럼이 누락되었습니다: {', '.join(sorted(missing))}"
+            "필수 컬럼이 누락되었습니다: "
+            f"{', '.join(sorted(missing))}. "
+            f"(발견된 컬럼: {', '.join(found)})"
         )
 
     rows = []
@@ -66,12 +94,14 @@ def parse_csv(file_content: bytes) -> list[dict]:
         for orig_key, clean_key in zip(reader.fieldnames, cleaned_fields):
             val = (raw_row.get(orig_key) or "").strip()
             row[clean_key] = val
-        rows.append({
-            "username": row.get("username", ""),
-            "nickname": row.get("nickname", ""),
-            "role": row.get("role", ""),
-            "group": row.get("group", ""),
-        })
+        rows.append(
+            {
+                "username": row.get("username", ""),
+                "nickname": row.get("nickname", ""),
+                "role": row.get("role", ""),
+                "group": row.get("group", ""),
+            }
+        )
 
     if len(rows) == 0:
         raise ValueError("CSV 파일이 비어 있습니다.")
@@ -117,7 +147,9 @@ async def validate_bulk_users(
         if len(username) < 3 or len(username) > 50:
             errors.append("사용자 ID는 3자 이상 50자 이하여야 합니다.")
         elif not USERNAME_PATTERN.match(username):
-            errors.append("사용자 ID는 영문, 숫자, 언더스코어만 사용 가능합니다.")
+            errors.append(
+                "사용자 ID는 영문, 숫자, 언더스코어만 사용 가능합니다."
+            )
 
         if len(nickname) < 2 or len(nickname) > 30:
             errors.append("닉네임은 2자 이상 30자 이하여야 합니다.")
@@ -149,20 +181,26 @@ async def validate_bulk_users(
         else:
             valid_count += 1
 
-        preview_rows.append(BulkPreviewRow(
-            row_num=i,
-            username=username,
-            nickname=nickname,
-            role=role,
-            group_name=resolved_group_name,
-            group_id=group_id,
-            errors=errors,
-        ))
+        preview_rows.append(
+            BulkPreviewRow(
+                row_num=i,
+                username=username,
+                nickname=nickname,
+                role=role,
+                group_name=resolved_group_name,
+                group_id=group_id,
+                errors=errors,
+            )
+        )
 
     return BulkPreviewResponse(
         rows=preview_rows,
         groups=groups_list,
-        summary={"total": len(rows), "valid": valid_count, "error": error_count},
+        summary={
+            "total": len(rows),
+            "valid": valid_count,
+            "error": error_count,
+        },
     )
 
 
@@ -190,11 +228,13 @@ async def register_bulk_users(
 
     for entry in users:
         if entry.username in existing:
-            failures.append(BulkFailure(
-                username=entry.username,
-                nickname=entry.nickname,
-                reason="이미 존재하는 사용자 ID",
-            ))
+            failures.append(
+                BulkFailure(
+                    username=entry.username,
+                    nickname=entry.nickname,
+                    reason="이미 존재하는 사용자 ID",
+                )
+            )
             continue
 
         # Validate fields
@@ -203,27 +243,33 @@ async def register_bulk_users(
             or len(entry.username) > 50
             or not USERNAME_PATTERN.match(entry.username)
         ):
-            failures.append(BulkFailure(
-                username=entry.username,
-                nickname=entry.nickname,
-                reason="유효하지 않은 사용자 ID 형식",
-            ))
+            failures.append(
+                BulkFailure(
+                    username=entry.username,
+                    nickname=entry.nickname,
+                    reason="유효하지 않은 사용자 ID 형식",
+                )
+            )
             continue
 
         if len(entry.nickname) < 2 or len(entry.nickname) > 30:
-            failures.append(BulkFailure(
-                username=entry.username,
-                nickname=entry.nickname,
-                reason="닉네임은 2자 이상 30자 이하여야 합니다.",
-            ))
+            failures.append(
+                BulkFailure(
+                    username=entry.username,
+                    nickname=entry.nickname,
+                    reason="닉네임은 2자 이상 30자 이하여야 합니다.",
+                )
+            )
             continue
 
         if entry.role not in ("teacher", "admin"):
-            failures.append(BulkFailure(
-                username=entry.username,
-                nickname=entry.nickname,
-                reason="유효하지 않은 역할",
-            ))
+            failures.append(
+                BulkFailure(
+                    username=entry.username,
+                    nickname=entry.nickname,
+                    reason="유효하지 않은 역할",
+                )
+            )
             continue
 
         new_user = User(
@@ -241,11 +287,13 @@ async def register_bulk_users(
             existing.add(entry.username)
             success_count += 1
         except IntegrityError:
-            failures.append(BulkFailure(
-                username=entry.username,
-                nickname=entry.nickname,
-                reason="사용자 등록 중 오류가 발생했습니다.",
-            ))
+            failures.append(
+                BulkFailure(
+                    username=entry.username,
+                    nickname=entry.nickname,
+                    reason="사용자 등록 중 오류가 발생했습니다.",
+                )
+            )
 
     return BulkRegisterResponse(
         success_count=success_count,
