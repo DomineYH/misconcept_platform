@@ -17,6 +17,7 @@ from src.api.routes.admin_groups import router as groups_router
 from src.api.routes.admin_scenarios import router as scenarios_router
 from src.api.routes.admin_sessions import router as sessions_router
 from src.api.routes.admin_users import router as users_router
+from src.api.routes.admin_about import router as about_router
 
 router = APIRouter(tags=["Admin"])
 
@@ -25,6 +26,7 @@ router.include_router(frameworks_router)
 router.include_router(sessions_router)
 router.include_router(users_router)
 router.include_router(groups_router)
+router.include_router(about_router)
 
 
 @router.get("/admin", response_class=HTMLResponse)

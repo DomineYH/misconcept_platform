@@ -339,6 +339,7 @@ app.mount(
 
 # Register route blueprints
 from src.api.routes import (  # noqa: E402
+    about,
     admin,
     admin_analysis,
     admin_api_usage,
@@ -356,6 +357,7 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(scenarios.router)
 app.include_router(sessions.router)
+app.include_router(about.router)
 app.include_router(admin.router)
 app.include_router(admin_analysis.router)
 app.include_router(admin_api_usage.router)
