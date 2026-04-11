@@ -10,14 +10,13 @@ from fastapi import (
 from fastapi.responses import HTMLResponse
 
 from src.api.dependencies import get_current_user, templates
-from src.models.user import User
-
+from src.api.routes.admin_about import router as about_router
 from src.api.routes.admin_frameworks import router as frameworks_router
 from src.api.routes.admin_groups import router as groups_router
 from src.api.routes.admin_scenarios import router as scenarios_router
 from src.api.routes.admin_sessions import router as sessions_router
 from src.api.routes.admin_users import router as users_router
-from src.api.routes.admin_about import router as about_router
+from src.models.user import User
 
 router = APIRouter(tags=["Admin"])
 

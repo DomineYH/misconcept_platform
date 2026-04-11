@@ -321,8 +321,8 @@
         name: fd.get('name'),
         affiliation: fd.get('affiliation'),
         bio: fd.get('bio'),
-        phone: fd.get('phone') || null,
-        email: fd.get('email') || null,
+        phone: fd.get('phone') || '',
+        email: fd.get('email') || '',
         sort_order: parseInt(fd.get('sort_order') || '0', 10)
       };
       fetch('/admin/about/' + id + '/update', {

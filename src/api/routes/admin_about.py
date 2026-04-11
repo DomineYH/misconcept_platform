@@ -30,9 +30,7 @@ async def admin_about_page(
 ):
     """GET /admin/about - Manage contributor info."""
     result = await db.execute(
-        select(Contributor).order_by(
-            Contributor.sort_order, Contributor.id
-        )
+        select(Contributor).order_by(Contributor.sort_order, Contributor.id)
     )
     contributors = result.scalars().all()
 
@@ -90,9 +88,9 @@ async def update_contributor(
     if data.bio is not None:
         target.bio = data.bio
     if data.phone is not None:
-        target.phone = data.phone
+        target.phone = data.phone or None
     if data.email is not None:
-        target.email = data.email
+        target.email = data.email or None
     if data.sort_order is not None:
         target.sort_order = data.sort_order
 
