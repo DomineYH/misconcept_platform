@@ -2,6 +2,7 @@
 
 from src.models.analysis_framework import AnalysisFramework
 from src.models.api_usage import ApiUsageLog, calculate_cost
+from src.models.contributor import Contributor
 from src.models.message import Message
 from src.models.prompt_template import PromptTemplate
 from src.models.question_analysis import QuestionAnalysis
@@ -24,5 +25,6 @@ __all__ = [
     "SessionSummary",
     "ApiUsageLog",
     "PromptTemplate",
+    "Contributor",
     "calculate_cost",
 ]

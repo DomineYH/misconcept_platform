@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1.0] - 2026-04-11
+
+### Added
+- About 페이지: 개발자/관리자 프로필 등록 및 모달 표시
+  - Contributor 모델, 마이그레이션, CRUD API 엔드포인트
+  - 관리자 전용 등록/수정/삭제 관리 페이지
+  - 모든 페이지에서 "about" 버튼 클릭으로 모달 표시
+  - 비로그인 사용자도 about 모달 접근 가능
+- Contract 테스트 8건 (생성, 수정, 삭제, 권한, 유효성 검증)
+
+### Fixed
+- pytest-asyncio 호환성 수정 (deprecated event_loop fixture 제거)
+- 관리자 편집 시 phone/email 필드 초기화 불가 버그 수정
+- Bio 데이터 다중행 손상 방지 (data-attribute → JSON script 태그)
+- 모달 로더 에러 응답 캐싱 방지
+- 마이그레이션 016 주석으로 인한 CREATE TABLE 스킵 수정
+
+### Changed
+- .gitignore에 *.db 패턴 추가
+
 ## [0.1.0.1] - 2026-04-11
 
 ### Fixed

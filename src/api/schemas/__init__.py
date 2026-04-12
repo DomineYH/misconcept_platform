@@ -10,6 +10,11 @@ from pydantic import (
     field_validator,
 )
 
+from src.api.schemas.contributor import (
+    ContributorCreate,
+    ContributorResponse,
+    ContributorUpdate,
+)
 from src.api.schemas.group import (
     AdminGroupResponse,
     GroupCreate,
@@ -240,4 +245,7 @@ __all__ = [
     "GroupCreate",
     "GroupUpdate",
     "AdminGroupResponse",
+    "ContributorCreate",
+    "ContributorUpdate",
+    "ContributorResponse",
 ]
