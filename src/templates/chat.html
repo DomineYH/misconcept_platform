@@ -30,8 +30,8 @@
     <!-- Tab Navigation -->
     <div class="info-tabs">
       <button class="info-tab active" data-tab="guide">챗봇 활용<br>방법</button>
-      <button class="info-tab" data-tab="profile">학생 프로필</button>
-      <button class="info-tab" data-tab="situation">학습 상황</button>
+      <button class="info-tab" data-tab="profile">학생 정보</button>
+      <button class="info-tab" data-tab="situation">문제 상황</button>
       <button class="info-tab" data-tab="video">영상</button>
     </div>
 
@@ -42,7 +42,7 @@
         <section class="info-section">
           <div class="guide-content">
             <p>
-              학습 상황과 영상을 본 후
+              문제 상황과 영상을 본 후
               <strong>{{ scenario.student_name or '학생' }}</strong>의
               오개념을 해결해 봅시다.
             </p>
@@ -73,7 +73,7 @@
         </section>
         {% else %}
         <section class="info-section">
-          <p class="text-muted">학생 프로필 정보가 없습니다.</p>
+          <p class="text-muted">학생 정보가 없습니다.</p>
         </section>
         {% endif %}
       </div>
