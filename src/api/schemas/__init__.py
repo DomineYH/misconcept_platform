@@ -82,6 +82,7 @@ class ScenarioCreate(BaseModel):
     student_profile: str = Field(..., min_length=3, max_length=5000)
     student_name: str | None = Field(None, max_length=50)
     subject: str | None = Field(None, max_length=100)
+    problem_situation: str | None = Field(None, max_length=5000)
     framework_id: int
     is_active: bool = True
 
@@ -157,6 +158,7 @@ class ScenarioUpdate(BaseModel):
     student_profile: str | None = Field(None, min_length=3, max_length=5000)
     student_name: str | None = Field(None, max_length=50)
     subject: str | None = Field(None, max_length=100)
+    problem_situation: str | None = Field(None, max_length=5000)
     framework_id: int | None = None
     is_active: int | None = Field(None, ge=0, le=1)
 
@@ -199,6 +201,7 @@ class AdminScenarioResponse(BaseModel):
     student_profile: str
     student_name: str | None = None
     subject: str | None = None
+    problem_situation: str | None = None
     framework_id: int
     is_active: int
 

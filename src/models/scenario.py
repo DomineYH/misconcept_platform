@@ -50,6 +50,14 @@ class Scenario(Base):
         nullable=True,
         comment="과목명 (채팅 UI 표시용)",
     )
+    problem_situation: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment=(
+            "예비교사에게 노출되는 문제 상황 텍스트 "
+            "(시스템 프롬프트와 분리)"
+        ),
+    )
 
     # Video fields
     video_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

@@ -14,7 +14,11 @@
     <div class="scenario-card">
       <h3 class="scenario-title">{{ scenario.title }}</h3>
       <p class="scenario-description">
-        {{ scenario.prompt[:100] }}{% if scenario.prompt|length > 100 %}...{% endif %}
+        {% if scenario.problem_situation %}
+        {{ scenario.problem_situation[:100] }}{% if scenario.problem_situation|length > 100 %}...{% endif %}
+        {% else %}
+        <span class="text-muted">문제 상황 미등록</span>
+        {% endif %}
       </p>
       <a href="/scenarios/{{ scenario.id }}" class="btn-primary">
         대화 시작
