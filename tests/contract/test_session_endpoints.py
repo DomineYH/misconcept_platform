@@ -1,5 +1,8 @@
 """Contract tests for session endpoints (T018, T019)."""
+
 from fastapi.testclient import TestClient
+
+from tests.conftest import requires_openai_api_key
 
 
 class TestSessionCreationEndpoint:
@@ -73,6 +76,7 @@ class TestMessageCreationEndpoint:
         assert response.status_code == 303
         assert "/login" in response.headers["location"]
 
+    @requires_openai_api_key
     def test_send_message_returns_chatbot_responses(
         self, test_client: TestClient
     ):
@@ -139,13 +143,12 @@ class TestSessionEndEndpoint:
 
     def test_end_session_requires_authentication(self, test_client: TestClient):
         """Verify unauthenticated request redirects to login."""
-        response = test_client.post(
-            "/sessions/1/end", follow_redirects=False
-        )
+        response = test_client.post("/sessions/1/end", follow_redirects=False)
         # App redirects to /login (303) rather than returning 401
         assert response.status_code == 303
         assert "/login" in response.headers["location"]
 
+    @requires_openai_api_key
     def test_end_session_returns_ended_status(self, test_client: TestClient):
         """Verify session end returns ended status (analysis is separate)."""
         # Login and create session
@@ -235,6 +238,7 @@ class TestSessionAnalyzeEndpoint:
         assert response.status_code == 303
         assert "/login" in response.headers["location"]
 
+    @requires_openai_api_key
     def test_analyze_session_returns_summary(self, test_client: TestClient):
         """Verify analyze returns SessionSummary with distribution."""
         # Login and create session
@@ -304,9 +308,7 @@ class TestSessionAnalyzeEndpoint:
         cookies = login_response.cookies
 
         # Try to analyze nonexistent session
-        response = test_client.post(
-            "/sessions/99999/analyze", cookies=cookies
-        )
+        response = test_client.post("/sessions/99999/analyze", cookies=cookies)
         assert response.status_code == 404
 
 
@@ -324,6 +326,7 @@ class TestSessionExportEndpoint:
         assert response.status_code == 303
         assert "/login" in response.headers["location"]
 
+    @requires_openai_api_key
     def test_export_session_returns_csv_with_correct_headers(
         self, test_client: TestClient
     ):
@@ -413,6 +416,7 @@ class TestSessionExportEndpoint:
             hash_pattern = re.compile(r"[a-f0-9]{64}")
             assert hash_pattern.search(csv_content) is not None
 
+    @requires_openai_api_key
     def test_export_csv_timestamp_format(self, test_client: TestClient):
         """Verify CSV timestamps are properly formatted."""
         # Login and create session
@@ -470,13 +474,13 @@ class TestSessionExportEndpoint:
 
 
 class TestSessionCloseEndpoint:
-    """Test POST /sessions/{id}/close endpoint contract (lightweight termination)."""
+    """Test POST /sessions/{id}/close endpoint contract (lightweight)."""
 
-    def test_close_session_requires_authentication(self, test_client: TestClient):
+    def test_close_session_requires_authentication(
+        self, test_client: TestClient
+    ):
         """Verify unauthenticated request redirects to login."""
-        response = test_client.post(
-            "/sessions/1/close", follow_redirects=False
-        )
+        response = test_client.post("/sessions/1/close", follow_redirects=False)
         # App redirects to /login (303) rather than returning 401
         assert response.status_code == 303
         assert "/login" in response.headers["location"]
@@ -508,7 +512,7 @@ class TestSessionCloseEndpoint:
         assert data["already_ended"] is False
 
     def test_close_session_idempotent(self, test_client: TestClient):
-        """Verify closing already closed session returns 200 with already_ended=true."""
+        """Verify closing already-closed session returns 200 already_ended."""
         # Login and create session
         login_response = test_client.post(
             "/login",
@@ -619,9 +623,7 @@ class TestEndedSessionValidation:
         data = response.json()
         assert "already ended" in data["detail"].lower()
 
-    def test_end_session_after_close_returns_400(
-        self, test_client: TestClient
-    ):
+    def test_end_session_after_close_returns_400(self, test_client: TestClient):
         """Verify calling /end after /close returns 400."""
         # Login and create session
         login_response = test_client.post(

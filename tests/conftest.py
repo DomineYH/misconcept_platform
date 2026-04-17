@@ -1,12 +1,31 @@
 """Pytest configuration and shared fixtures."""
 
 import os
-import pytest
 from datetime import datetime, timedelta
 from typing import AsyncGenerator
 
+import pytest
+
 # Set testing mode BEFORE any imports
 os.environ["TESTING"] = "true"
+
+
+def _has_real_openai_key() -> bool:
+    """Return True when a usable OpenAI key is present in the shell env.
+
+    TESTING mode disables .env loading (src/config.py), so tests that
+    exercise real LLM calls only work when OPENAI_API_KEY is exported
+    in the shell. In pre-commit runs that is typically not the case.
+    """
+    key = os.environ.get("OPENAI_API_KEY", "")
+    return key.startswith("sk-") and "test" not in key.lower() and len(key) > 20
+
+
+requires_openai_api_key = pytest.mark.skipif(
+    not _has_real_openai_key(),
+    reason="Requires a real OPENAI_API_KEY exported in the shell",
+)
+
 
 # Import and configure BEFORE importing main
 from src.config import config
@@ -14,21 +33,20 @@ from src.config import config
 config.TESTING = True
 
 from fastapi.testclient import TestClient
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+from src.api.dependencies import get_db_session
 from src.db.connection import Base
 from src.main import app
-from src.api.dependencies import get_db_session
-from src.models.user import User
+from src.models.analysis_framework import AnalysisFramework
+from src.models.message import Message
+from src.models.question_analysis import QuestionAnalysis
 from src.models.scenario import Scenario
 from src.models.session import Session
-from src.models.message import Message
-from src.models.analysis_framework import AnalysisFramework
-from src.models.question_analysis import QuestionAnalysis
 from src.models.session_summary import SessionSummary
-
+from src.models.user import User
 
 # Test database URL
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"

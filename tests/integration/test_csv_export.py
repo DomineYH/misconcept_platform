@@ -14,6 +14,7 @@ from src.models.scenario import Scenario
 from src.models.scenario_group import ScenarioGroup
 from src.models.user import User
 from src.models.user_group import UserGroup
+from tests.conftest import requires_openai_api_key
 
 
 @pytest.fixture(autouse=True)
@@ -82,6 +83,7 @@ async def seed_csv_test_data(db_session: AsyncSession):
     await db_session.commit()
 
 
+@requires_openai_api_key
 class TestCSVExportWorkflow:
     """Test complete CSV export workflow (T054)."""
 
