@@ -130,15 +130,51 @@ class AdminScenarioHostCompatTest(unittest.TestCase):
                     "student_template_id": (seeded["student_template_id"]),
                     "tutor_template_id": seeded["tutor_template_id"],
                     "group_ids": [],
+                    "problem_situation": "Updated problem situation",
                 },
             )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["title"], "Updated Title")
+        self.assertEqual(
+            response.json()["problem_situation"],
+            "Updated problem situation",
+        )
 
         scenario = asyncio.run(load_scenario(seeded["scenario_id"]))
         self.assertEqual(scenario.title, "Updated Title")
         self.assertEqual(scenario.prompt, "Updated prompt text")
+        self.assertEqual(
+            scenario.problem_situation, "Updated problem situation"
+        )
+
+    def test_post_update_endpoint_updates_problem_situation(
+        self,
+    ) -> None:
+        seeded = asyncio.run(seed_scenario())
+
+        with TestClient(app) as client:
+            response = client.post(
+                f"/admin/scenarios/{seeded['scenario_id']}/update",
+                json={
+                    "framework_id": seeded["framework_id"],
+                    "student_template_id": (seeded["student_template_id"]),
+                    "tutor_template_id": seeded["tutor_template_id"],
+                    "group_ids": [],
+                    "problem_situation": "New problem situation text",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["problem_situation"],
+            "New problem situation text",
+        )
+
+        scenario = asyncio.run(load_scenario(seeded["scenario_id"]))
+        self.assertEqual(
+            scenario.problem_situation, "New problem situation text"
+        )
 
     def test_post_delete_endpoint_soft_deletes_data(self) -> None:
         seeded = asyncio.run(seed_scenario())
