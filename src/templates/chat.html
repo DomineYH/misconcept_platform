@@ -81,7 +81,13 @@
       <!-- Learning Situation Tab -->
       <div class="tab-pane" id="tab-situation">
         <section class="info-section">
-          <div class="scenario-prompt">{{ scenario.prompt }}</div>
+          <div class="scenario-prompt">
+            {% if scenario.problem_situation %}
+            {{ scenario.problem_situation }}
+            {% else %}
+            <span class="text-muted">문제 상황이 아직 등록되지 않았습니다. 관리자에게 문의하세요.</span>
+            {% endif %}
+          </div>
         </section>
       </div>
 
