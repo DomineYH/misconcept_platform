@@ -696,6 +696,7 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
   const data = {
     title: formData.get('title'),
     prompt: formData.get('prompt'),
+    problem_situation: formData.get('problem_situation') || null,
     student_profile: formData.get('student_profile'),
     student_name: formData.get('student_name') || null,
     subject: formData.get('subject') || null,
