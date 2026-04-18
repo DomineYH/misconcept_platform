@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1.1] - 2026-04-19
+
+### Removed
+- dead CSS: `.messages-list`, `.message-item`, `.message-role` (역할 중첩 포함), `.message-time`, `.message-content` 계열 삭제 (#17)
+  - `static/css/styles.css` 52줄 정리 (사용처 0건 확인)
+  - 실제 사용 중인 역할 셀렉터 `.message-teacher/.message-student/.message-tutor/.message-mentor` 및 `.message-bubble/.message-sender/.message-content-wrapper`는 그대로 유지
+
 ## [0.2.1.0] - 2026-04-18
 
 ### Changed
