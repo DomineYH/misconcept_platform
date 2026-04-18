@@ -259,6 +259,18 @@
         </div>
 
         <div class="form-group">
+          <label for="new-greeting-message">인사말 (채팅 시작 시 멘토 안내 메시지)</label>
+          <textarea
+            id="new-greeting-message"
+            name="greeting_message"
+            rows="4"
+            maxlength="5000"
+            placeholder="예) 선생님, 안녕하세요! 먼저 지수가 문제를 해결하는 과정을 영상으로 확인해 주세요. 영상을 보신 후, 지수와 대화를 나누며 지수의 생각을 탐색해 주세요. 대화를 마치시면 대화 종료 및 분석버튼을 눌러주세요."
+          ></textarea>
+          <small class="form-help">채팅 진입 시 최상단에 멘토 스타일 메시지로 노출됩니다. 비워두면 표시되지 않습니다.</small>
+        </div>
+
+        <div class="form-group">
           <label for="new-profile">학생 프로필 <span class="required">*</span></label>
           <textarea
             id="new-profile"
@@ -443,6 +455,17 @@
       </div>
 
       <div class="form-group">
+        <label for="edit-greeting-message">인사말 (채팅 시작 시 멘토 안내 메시지)</label>
+        <textarea
+          id="edit-greeting-message"
+          name="greeting_message"
+          rows="4"
+          maxlength="5000"
+        ></textarea>
+        <small class="form-help">채팅 진입 시 최상단에 멘토 스타일 메시지로 노출됩니다. 비워두면 표시되지 않습니다.</small>
+      </div>
+
+      <div class="form-group">
         <label for="edit-profile">학생 프로필 <span class="required">*</span></label>
         <textarea
           id="edit-profile"
@@ -526,6 +549,7 @@ const scenariosData = {
     framework_id: {{ scenario.framework_id }},
     prompt: `{{ scenario.prompt|replace('\n', '\\n')|replace('\r', '')|e }}`,
     problem_situation: {{ (scenario.problem_situation or '')|tojson }},
+    greeting_message: {{ (scenario.greeting_message or '')|tojson }},
     student_profile: `{{ scenario.student_profile|replace('\n', '\\n')|replace('\r', '')|e }}`,
     student_name: "{{ (scenario.student_name or '')|e }}",
     subject: "{{ (scenario.subject or '')|e }}",
@@ -593,6 +617,7 @@ function openEditPanel(scenarioId) {
   document.getElementById('edit-framework').value = data.framework_id;
   document.getElementById('edit-prompt').value = data.prompt;
   document.getElementById('edit-problem-situation').value = data.problem_situation || '';
+  document.getElementById('edit-greeting-message').value = data.greeting_message || '';
   document.getElementById('edit-profile').value = data.student_profile;
   document.getElementById('edit-student-name').value = data.student_name || '';
   document.getElementById('edit-subject').value = data.subject || '';
@@ -653,6 +678,7 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
     title: formData.get('title'),
     prompt: formData.get('prompt'),
     problem_situation: formData.get('problem_situation') || null,
+    greeting_message: formData.get('greeting_message') ?? '',
     student_profile: formData.get('student_profile'),
     student_name: formData.get('student_name') || null,
     subject: formData.get('subject') || null,
@@ -697,6 +723,7 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
     title: formData.get('title'),
     prompt: formData.get('prompt'),
     problem_situation: formData.get('problem_situation') || null,
+    greeting_message: formData.get('greeting_message') ?? '',
     student_profile: formData.get('student_profile'),
     student_name: formData.get('student_name') || null,
     subject: formData.get('subject') || null,

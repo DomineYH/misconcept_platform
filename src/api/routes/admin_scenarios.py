@@ -174,6 +174,8 @@ async def create_scenario(
         video_transcript=scenario_data.video_transcript,
         # Problem situation for preservice teachers
         problem_situation=scenario_data.problem_situation,
+        # Greeting message for mentor introduction
+        greeting_message=scenario_data.greeting_message,
     )
 
     db.add(scenario)
@@ -237,6 +239,12 @@ async def update_scenario(
         scenario.problem_situation = (
             scenario_data.problem_situation.strip()
             if scenario_data.problem_situation
+            else None
+        )
+    if scenario_data.greeting_message is not None:
+        scenario.greeting_message = (
+            scenario_data.greeting_message.strip()
+            if scenario_data.greeting_message
             else None
         )
     if scenario_data.student_name is not None:

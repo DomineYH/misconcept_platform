@@ -882,6 +882,11 @@ textarea {
   white-space: nowrap;
 }
 
+.avatar.mentor {
+  background-color: #6b7280;
+  color: #ffffff;
+}
+
 /* Message Content */
 .message-content-wrapper {
   display: flex;
@@ -975,6 +980,22 @@ textarea {
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border-medium);
   font-size: 0.9rem;
+}
+
+/* Mentor (Greeting) - Left aligned, neutral gray */
+.message-mentor {
+  align-self: flex-start;
+}
+
+.message-mentor .message-bubble {
+  background-color: #f3f4f6;
+  color: #111827;
+  border-left: 3px solid #6b7280;
+}
+
+.greeting-message .message-sender {
+  font-weight: 600;
+  color: #374151;
 }
 
 /* Typing Indicator */
