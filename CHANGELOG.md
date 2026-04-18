@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1.0] - 2026-04-18
+
+### Changed
+- 채팅창 학생(지수)과 멘토 메시지가 시각적으로 명확히 구분됩니다 (#15)
+  - 멘토 메시지: 연한 파란 배경에 짙은 파란 포인트 바, 파란 이름 레이블
+  - 학생 메시지: 흰 배경에 회색 테두리
+  - 다크 모드에서 역할별 색상이 자동으로 대응 (라이트/다크 각 12개 토큰)
+
+### Fixed
+- 다크 모드에서 멘토 메시지 배경이 밝은 회색으로 노출되던 버그 해소 (#15)
+  - 이전: `#f3f4f6` 하드코딩이 다크 테마에 그대로 누출되어 대비가 깨짐
+  - 이후: 다크 모드에서 `#1A2A3D` 네이비 배경 + 밝은 파란 액센트로 정상 렌더
+
 ## [0.2.0.0] - 2026-04-18
 
 ### Added
