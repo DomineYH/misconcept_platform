@@ -66,12 +66,32 @@ def _extract_dark_root(css: str) -> str:
     return match.group(1)
 
 
-def _extract_rule(css: str, selector: str) -> str:
-    """Extract the first rule body for `selector` (order-sensitive)."""
+def _extract_all_rules(css: str, selector: str) -> list[str]:
+    """Return every rule body for `selector` across the whole stylesheet
+    in source order. Callers should assert their invariants against ALL
+    occurrences so a later override introduced higher in the cascade
+    cannot produce a false-green test.
+    """
     pattern = re.escape(selector) + r"\s*\{([^}]*)\}"
-    match = re.search(pattern, css)
-    assert match, f"Rule {selector!r} not found"
-    return match.group(1)
+    matches = [m.group(1) for m in re.finditer(pattern, css)]
+    assert matches, f"Rule {selector!r} not found"
+    return matches
+
+
+def _extract_token_from_light_root(css: str, token: str) -> str:
+    """Return the value of `token` declared in the top-level :root block."""
+    root = _extract_light_root(css)
+    match = re.search(re.escape(token) + r"\s*:\s*([^;]+);", root)
+    assert match, f"Token {token} not found in light :root"
+    return match.group(1).strip().upper()
+
+
+def _extract_token_from_dark_root(css: str, token: str) -> str:
+    """Return the value of `token` declared in the dark-mode :root block."""
+    root = _extract_dark_root(css)
+    match = re.search(re.escape(token) + r"\s*:\s*([^;]+);", root)
+    assert match, f"Token {token} not found in dark :root"
+    return match.group(1).strip().upper()
 
 
 def _assert_token(block: str, name: str, expected: str) -> None:
@@ -125,26 +145,32 @@ def test_student_tokens_defined_both_modes(css_source: str) -> None:
 
 
 def test_mentor_bubble_no_hardcoded_hex(css_source: str) -> None:
-    """REGRESSION GUARD: the old mentor hex values must not appear in the
-    .message-mentor .message-bubble rule. These were the source of the
-    dark-mode leak before token-ification."""
-    body = _extract_rule(css_source, ".message-mentor .message-bubble")
+    """REGRESSION GUARD: the old mentor hex values must not appear in
+    ANY .message-mentor .message-bubble rule, including later cascade
+    overrides. Iterating all occurrences so a re-added hex elsewhere in
+    the sheet cannot produce a false-green test."""
+    bodies = _extract_all_rules(css_source, ".message-mentor .message-bubble")
     forbidden = ("#f3f4f6", "#111827", "#6b7280")
-    for hex_value in forbidden:
-        assert hex_value.lower() not in body.lower(), (
-            f"Forbidden hex {hex_value} found in .message-mentor .message-bubble"
-        )
+    for i, body in enumerate(bodies):
+        for hex_value in forbidden:
+            assert hex_value.lower() not in body.lower(), (
+                f"Forbidden hex {hex_value} found in occurrence #{i} of "
+                f".message-mentor .message-bubble"
+            )
 
 
 def test_mentor_bubble_uses_role_tokens(css_source: str) -> None:
-    """.message-mentor .message-bubble must reference the mentor tokens."""
-    body = _extract_rule(css_source, ".message-mentor .message-bubble")
+    """.message-mentor .message-bubble must reference the mentor tokens.
+    The primary (first) occurrence must wire bg and border to tokens."""
+    bodies = _extract_all_rules(css_source, ".message-mentor .message-bubble")
+    body = bodies[0]
     assert "var(--color-mentor-bg)" in body
     assert "var(--color-mentor-border)" in body
 
 
 def test_student_bubble_uses_role_tokens(css_source: str) -> None:
-    body = _extract_rule(css_source, ".message-student .message-bubble")
+    bodies = _extract_all_rules(css_source, ".message-student .message-bubble")
+    body = bodies[0]
     assert "var(--color-student-bg)" in body
     assert "var(--color-student-text)" in body
     assert "var(--color-student-border)" in body
@@ -152,7 +178,8 @@ def test_student_bubble_uses_role_tokens(css_source: str) -> None:
 
 def test_tutor_bubble_uses_role_tokens(css_source: str) -> None:
     """Tutor bubble parity fix — was using --color-gray-100 before."""
-    body = _extract_rule(css_source, ".message-tutor .message-bubble")
+    bodies = _extract_all_rules(css_source, ".message-tutor .message-bubble")
+    body = bodies[0]
     assert "var(--color-tutor-bg)" in body
     assert "var(--color-tutor-text)" in body
     assert "var(--color-tutor-border)" in body
@@ -160,7 +187,8 @@ def test_tutor_bubble_uses_role_tokens(css_source: str) -> None:
 
 def test_mentor_sender_rule_exists(css_source: str) -> None:
     """New rule .message-mentor .message-sender must set mentor-text color."""
-    body = _extract_rule(css_source, ".message-mentor .message-sender")
+    bodies = _extract_all_rules(css_source, ".message-mentor .message-sender")
+    body = bodies[0]
     assert "var(--color-mentor-text)" in body
 
 
@@ -191,26 +219,57 @@ def _extract_dark_media_block(css: str) -> str:
 
 def test_redundant_dark_student_override_removed(css_source: str) -> None:
     """The .message-student .message-bubble override anywhere inside the
-    dark @media block is gone — its values now match the new tokens
-    exactly. Uses balanced-brace extraction so any re-introduction after
-    the nested :root {} is still detected."""
+    dark @media block is gone. Uses a selector-shape regex so that any
+    re-introduction — including higher-specificity rewrites like
+    `.message.message-student .message-bubble` or
+    `.messages-container .message-student .message-bubble` — is also
+    detected. The earlier literal-substring check only caught the exact
+    two-class form.
+    """
     dark_block = _extract_dark_media_block(css_source)
-    assert ".message-student .message-bubble" not in dark_block, (
-        "Redundant dark-mode override for .message-student still present"
+    override_pattern = re.compile(
+        r"\.message-student\b[^{}]*\.message-bubble\s*\{"
+    )
+    match = override_pattern.search(dark_block)
+    assert match is None, (
+        "Redundant dark-mode override for .message-student still present: "
+        f"matched {match.group(0) if match else ''!r}"
     )
 
 
-@pytest.mark.parametrize(
-    "mode,fg,bg,label",
-    [
-        ("light mentor body", "#000000", LIGHT_TOKENS["--color-mentor-bg"], "body"),
-        ("light mentor label", LIGHT_TOKENS["--color-mentor-text"], LIGHT_TOKENS["--color-mentor-bg"], "label"),
-        ("dark mentor body", "#FFFFFF", DARK_TOKENS["--color-mentor-bg"], "body"),
-        ("dark mentor label", DARK_TOKENS["--color-mentor-text"], DARK_TOKENS["--color-mentor-bg"], "label"),
-    ],
-)
-def test_wcag_aa_contrast_ratios(mode: str, fg: str, bg: str, label: str) -> None:
-    """WCAG AA requires ≥ 4.5:1 for normal text. All four mentor combinations
-    exceed AA per the issue-15 contrast table."""
-    ratio = _contrast_ratio(fg, bg)
-    assert ratio >= 4.5, f"{mode}: contrast {ratio:.2f}:1 < 4.5:1 (WCAG AA)"
+def _mentor_contrast_cases(css: str) -> list[tuple[str, str, str]]:
+    """Build the four WCAG check cases from the *actual* tokens in CSS
+    rather than hardcoded hexes. If `--color-text-primary` drifts in
+    either mode, the contrast test follows the drift and can flag a
+    real regression.
+
+    Rendered pairs guarded:
+      light body  : .message-mentor .message-bubble color
+                   (= --color-text-primary, light) on --color-mentor-bg
+      light label : .message-mentor .message-sender color
+                   (= --color-mentor-text) on --color-mentor-bg
+      dark body   : --color-text-primary, dark on --color-mentor-bg dark
+      dark label  : --color-mentor-text dark on --color-mentor-bg dark
+    """
+    light_bg = _extract_token_from_light_root(css, "--color-mentor-bg")
+    light_label_fg = _extract_token_from_light_root(css, "--color-mentor-text")
+    light_body_fg = _extract_token_from_light_root(css, "--color-text-primary")
+    dark_bg = _extract_token_from_dark_root(css, "--color-mentor-bg")
+    dark_label_fg = _extract_token_from_dark_root(css, "--color-mentor-text")
+    dark_body_fg = _extract_token_from_dark_root(css, "--color-text-primary")
+    return [
+        ("light mentor body", light_body_fg, light_bg),
+        ("light mentor label", light_label_fg, light_bg),
+        ("dark mentor body", dark_body_fg, dark_bg),
+        ("dark mentor label", dark_label_fg, dark_bg),
+    ]
+
+
+def test_wcag_aa_contrast_ratios(css_source: str) -> None:
+    """WCAG AA requires ≥ 4.5:1 for normal text. All four rendered mentor
+    combinations (derived from the CSS itself, not hardcoded hexes) must
+    clear AA. If a token value drifts in the future, this catches the
+    resulting contrast regression."""
+    for mode, fg, bg in _mentor_contrast_cases(css_source):
+        ratio = _contrast_ratio(fg, bg)
+        assert ratio >= 4.5, f"{mode}: contrast {ratio:.2f}:1 (fg {fg} / bg {bg}) < 4.5:1 (WCAG AA)"
