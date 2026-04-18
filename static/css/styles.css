@@ -990,7 +990,7 @@ textarea {
   font-size: 0.9rem;
 }
 
-/* Mentor (Greeting) - Left aligned, neutral gray */
+/* Mentor (Greeting) - Left aligned, blue accent (tokenized) */
 .message-mentor {
   align-self: flex-start;
 }

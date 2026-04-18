@@ -164,16 +164,37 @@ def test_mentor_sender_rule_exists(css_source: str) -> None:
     assert "var(--color-mentor-text)" in body
 
 
+def _extract_dark_media_block(css: str) -> str:
+    """Return the full body of the `@media (prefers-color-scheme: dark)`
+    block via balanced-brace counting. Python's re module cannot match
+    balanced braces, and a naive lazy `.*?\\n}` would stop at the first
+    nested `}` (typically the end of the inner `:root {}`), giving a
+    false-negative window for regressions inside the @media scope.
+    """
+    opener_re = re.compile(r"@media\s*\(prefers-color-scheme:\s*dark\)\s*\{")
+    opener = opener_re.search(css)
+    assert opener, "Dark @media block opener not found"
+    start = opener.end()
+    depth = 1
+    i = start
+    while i < len(css) and depth > 0:
+        ch = css[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return css[start:i]
+        i += 1
+    raise AssertionError("Dark @media block never closed")
+
+
 def test_redundant_dark_student_override_removed(css_source: str) -> None:
-    """The .message-student .message-bubble override inside the dark @media
-    block is gone — its values now match the new tokens exactly."""
-    match = re.search(
-        r"@media\s*\(prefers-color-scheme:\s*dark\)\s*\{(.*?)\n\}",
-        css_source,
-        flags=re.DOTALL,
-    )
-    assert match, "Dark @media block not found"
-    dark_block = match.group(1)
+    """The .message-student .message-bubble override anywhere inside the
+    dark @media block is gone — its values now match the new tokens
+    exactly. Uses balanced-brace extraction so any re-introduction after
+    the nested :root {} is still detected."""
+    dark_block = _extract_dark_media_block(css_source)
     assert ".message-student .message-bubble" not in dark_block, (
         "Redundant dark-mode override for .message-student still present"
     )
