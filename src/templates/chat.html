@@ -145,6 +145,15 @@
       <div id="messages-container" class="messages-container"
         hx-get="/sessions/{{ session_id }}/messages/updates"
         hx-trigger="none" hx-swap="beforeend" hx-include="#last-message-id">
+        {% if scenario.greeting_message %}
+        <div class="message message-mentor greeting-message">
+          <div class="avatar mentor">멘</div>
+          <div class="message-content-wrapper">
+            <div class="message-sender">멘토</div>
+            <div class="message-bubble">{{ scenario.greeting_message }}</div>
+          </div>
+        </div>
+        {% endif %}
         {% for message in messages %}
         {% include 'partials/message.html' %}
         {% endfor %}

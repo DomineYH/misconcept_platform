@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS scenario (
   student_name VARCHAR(50) NULL,
   subject VARCHAR(100) NULL,
   problem_situation TEXT NULL,
+  greeting_message TEXT NULL,
   video_url VARCHAR(500) NULL,
   video_transcript TEXT NULL,
   is_active INTEGER NOT NULL DEFAULT 1

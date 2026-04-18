@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0.0] - 2026-04-18
+
+### Added
+- 시나리오 인사말(greeting) 기능 (#12)
+  - 시나리오별 멘토 인사말 텍스트 저장 (최대 5000자)
+  - 관리자 시나리오 생성/수정 폼에 "인사말" 필드 추가
+  - 채팅 진입 시 채팅창 최상단에 멘토 스타일 메시지로 인사말 표시
+  - 인사말이 없으면(NULL/빈 문자열) 컨테이너 미출력
+  - 템플릿 전용 렌더링: message 테이블에 저장되지 않으며
+    분석/튜터봇/학생봇 프롬프트에 주입되지 않음
+- greeting_message 컬럼 추가 마이그레이션 (018)
+- 6개 Success Criteria 회귀 테스트 (12건)
+
+### Fixed
+- 관리자 편집 폼에서 인사말 필드를 비워 저장해도 기존 값이
+  유지되던 버그 수정: 빈 textarea는 이제 빈 문자열로 전송되어
+  백엔드 strip→None 경로로 정상 삭제됨
+
 ## [0.1.1.1] - 2026-04-14
 
 ### Changed

@@ -54,9 +54,13 @@ class Scenario(Base):
         Text,
         nullable=True,
         comment=(
-            "예비교사에게 노출되는 문제 상황 텍스트 "
-            "(시스템 프롬프트와 분리)"
+            "예비교사에게 노출되는 문제 상황 텍스트 " "(시스템 프롬프트와 분리)"
         ),
+    )
+    greeting_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="채팅 시작 시 멘토 안내 메시지",
     )
 
     # Video fields
