@@ -3142,11 +3142,6 @@ textarea#teacher-input {
     background-color: var(--color-bg-tertiary);
   }
 
-  .message-student .message-bubble {
-    background-color: var(--color-bg-secondary);
-    border-color: var(--color-border-light);
-  }
-
   .message-teacher .message-bubble {
     background-color: var(--color-white);
     color: var(--color-bg-body);
