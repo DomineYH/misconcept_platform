@@ -63,6 +63,12 @@ class Config(BaseSettings):
     # Admin seed password (used by src/db/seed.py)
     ADMIN_DEFAULT_PASSWORD: str = ""
 
+    # Run ensure_default_admin_account() during FastAPI lifespan startup.
+    # Default off so production deployments with read-only DB roles or
+    # external seed jobs don't fail to boot. Set to true in dev .env to
+    # bootstrap the admin on first run.
+    BOOTSTRAP_ADMIN_ON_STARTUP: bool = False
+
     # Testing
     TESTING: bool = False
 
@@ -72,10 +78,10 @@ class Config(BaseSettings):
         """Check if running in production mode."""
         return self.ENV == "production"
 
-    @field_validator("TESTING", mode="before")
+    @field_validator("TESTING", "BOOTSTRAP_ADMIN_ON_STARTUP", mode="before")
     @classmethod
-    def parse_testing(cls, v):
-        """Parse TESTING from string to bool."""
+    def parse_bool(cls, v):
+        """Parse boolean flags from string ("true"/"false") to bool."""
         if isinstance(v, bool):
             return v
         if isinstance(v, str):
@@ -118,8 +124,7 @@ class Config(BaseSettings):
                 )
         if len(v) < 32:
             raise ValueError(
-                "SESSION_SECRET must be at least "
-                "32 characters long"
+                "SESSION_SECRET must be at least " "32 characters long"
             )
         return v
 
@@ -158,9 +163,7 @@ class Config(BaseSettings):
             )
         return v
 
-    @field_validator(
-        "CHAT_MODEL", "ANALYSIS_MODEL", "DIALOGUE_ANALYSIS_MODEL"
-    )
+    @field_validator("CHAT_MODEL", "ANALYSIS_MODEL", "DIALOGUE_ANALYSIS_MODEL")
     @classmethod
     def validate_model_name(cls, v, info):
         """Validate model names are from supported families."""
@@ -169,8 +172,7 @@ class Config(BaseSettings):
         if v.startswith("gpt-4") or v.startswith("gpt-5"):
             return v
         raise ValueError(
-            f"{info.field_name} must be a gpt-4 or gpt-5 "
-            f"model, got {v}"
+            f"{info.field_name} must be a gpt-4 or gpt-5 " f"model, got {v}"
         )
 
     @field_validator("CONTEXT_WINDOW_TURNS")
@@ -179,8 +181,7 @@ class Config(BaseSettings):
         """Validate context window size range."""
         if not (4 <= v <= 200):
             raise ValueError(
-                "CONTEXT_WINDOW_TURNS must be between "
-                f"4 and 200, got {v}"
+                "CONTEXT_WINDOW_TURNS must be between " f"4 and 200, got {v}"
             )
         return v
 

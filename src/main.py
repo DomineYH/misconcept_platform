@@ -22,6 +22,7 @@ from starlette_csrf import CSRFMiddleware
 from src.api.dependencies import AuthenticationRequired
 from src.config import config
 from src.db.connection import close_db, init_db
+from src.db.seed import ensure_default_admin_account
 
 # Configure structured JSON logging
 logger = logging.getLogger()
@@ -195,6 +196,11 @@ async def lifespan(app: FastAPI):
     if not config.TESTING:
         config.validate()
     await init_db()
+    # Admin bootstrap is opt-in: production deployments with read-only DB
+    # roles or external seed jobs would otherwise fail to boot. Set
+    # BOOTSTRAP_ADMIN_ON_STARTUP=true in .env for dev first-run seeding.
+    if not config.TESTING and config.BOOTSTRAP_ADMIN_ON_STARTUP:
+        await ensure_default_admin_account()
     print("Database initialized")
     yield
     # Shutdown
