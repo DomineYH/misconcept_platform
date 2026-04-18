@@ -52,6 +52,14 @@
   --color-tutor-border: #E0E0E0;
   --color-tutor-text: #333333;
 
+  /* Role Colors - Message Bubbles (Student/Mentor) */
+  --color-student-bg: #FFFFFF;
+  --color-student-border: #EEEEEE;
+  --color-student-text: #000000;
+  --color-mentor-bg: #E3F2FD;
+  --color-mentor-border: #1565C0;
+  --color-mentor-text: #0D47A1;
+
   /* Status Colors - Muted */
   --color-success: #2E7D32;
   --color-success-text: #1B5E20;
@@ -3048,6 +3056,13 @@ textarea#teacher-input {
     --color-tutor-bg: #1A1A1A;
     --color-tutor-border: #3A3A3A;
     --color-tutor-text: #CCCCCC;
+
+    --color-student-bg: #121212;
+    --color-student-border: #2A2A2A;
+    --color-student-text: #FFFFFF;
+    --color-mentor-bg: #1A2A3D;
+    --color-mentor-border: #64B5F6;
+    --color-mentor-text: #BBDEFB;
 
     --color-success: #4CAF50;
     --color-success-text: #81C784;
