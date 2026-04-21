@@ -3,7 +3,9 @@
 import asyncio
 import json
 import secrets
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import bcrypt
 from sqlalchemy import text
@@ -13,12 +15,179 @@ from src.db.connection import AsyncSessionLocal
 from src.db.init_schema import init_schema
 
 
+def _resolve_admin_password() -> str:
+    """Return the configured default admin password."""
+    admin_password = config.ADMIN_DEFAULT_PASSWORD
+    if admin_password:
+        return admin_password
+
+    admin_password = secrets.token_urlsafe(16)
+    print(
+        f"WARNING: ADMIN_DEFAULT_PASSWORD not set. "
+        f"Generated random password: {admin_password}"
+    )
+    return admin_password
+
+
+def _hash_password(plain: str) -> str:
+    """Hash a password with bcrypt."""
+    return bcrypt.hashpw(
+        plain.encode("utf-8"),
+        bcrypt.gensalt(),
+    ).decode("utf-8")
+
+
+async def _ensure_default_group(session) -> int:
+    """Ensure the default group exists and return its id."""
+    result = await session.execute(
+        text("SELECT id FROM user_group WHERE name = :name"),
+        {"name": "default"},
+    )
+    group_id = result.scalar_one_or_none()
+    if group_id is not None:
+        return group_id
+
+    # INSERT OR IGNORE: idempotent under concurrent worker startup —
+    # a racing worker's UNIQUE(name) insert becomes a no-op instead of
+    # raising IntegrityError and aborting boot.
+    await session.execute(
+        text(
+            """
+            INSERT OR IGNORE INTO user_group (name, description)
+            VALUES (:name, :desc)
+            """
+        ),
+        {
+            "name": "default",
+            "desc": "기본 그룹",
+        },
+    )
+    result = await session.execute(
+        text("SELECT id FROM user_group WHERE name = :name"),
+        {"name": "default"},
+    )
+    return result.scalar_one()
+
+
+async def ensure_default_admin_user(
+    session, *, default_group_id: Optional[int] = None
+) -> int:
+    """Ensure the default admin account exists and is usable."""
+    if default_group_id is None:
+        default_group_id = await _ensure_default_group(session)
+
+    result = await session.execute(
+        text(
+            """
+            SELECT id, role, password_hash, group_id
+            FROM user
+            WHERE username = :username
+            """
+        ),
+        {"username": "admin"},
+    )
+    admin_row = result.mappings().first()
+
+    if admin_row is None:
+        # INSERT OR IGNORE: idempotent under concurrent worker startup —
+        # if another worker won the race, this is a no-op and the canonical
+        # row is re-read below.
+        await session.execute(
+            text(
+                """
+                INSERT OR IGNORE INTO user
+                (username, nickname, password_hash,
+                 role, group_id, created_at)
+                VALUES (:username, :nickname, :pw_hash,
+                        :role, :group_id, :created_at)
+                """
+            ),
+            {
+                "username": "admin",
+                "nickname": "Administrator",
+                "pw_hash": _hash_password(_resolve_admin_password()),
+                "role": "admin",
+                "group_id": default_group_id,
+                "created_at": datetime.now(timezone.utc),
+            },
+        )
+        result = await session.execute(
+            text(
+                """
+                SELECT id, role, password_hash, group_id
+                FROM user
+                WHERE username = :username
+                """
+            ),
+            {"username": "admin"},
+        )
+        admin_row = result.mappings().first()
+        # After INSERT OR IGNORE, the row is guaranteed to exist (ours
+        # or the winner's). Fall through to the unified UPDATE-if-needed
+        # path below so a race-losing worker still reconciles role /
+        # password_hash / group_id like it does for any pre-existing row.
+
+    # SECURITY: Never auto-promote a non-admin row to admin. If someone
+    # created a regular user named "admin" (via the admin UI or a manual
+    # DB edit), this seed path must NOT silently grant them admin
+    # privileges or reset their password. Bootstrap only touches rows
+    # that are already admins.
+    if admin_row["role"] != "admin":
+        return admin_row["id"]
+
+    # Recovery path: the row is already an admin. If the password_hash
+    # was cleared (operator empties it in the DB to trigger a reseed)
+    # or the group_id is missing, repair in place.
+    next_hash = admin_row["password_hash"]
+    next_group_id = admin_row["group_id"] or default_group_id
+
+    if not admin_row["password_hash"]:
+        next_hash = _hash_password(_resolve_admin_password())
+
+    if (
+        next_hash != admin_row["password_hash"]
+        or next_group_id != admin_row["group_id"]
+    ):
+        await session.execute(
+            text(
+                """
+                UPDATE user
+                SET password_hash = :password_hash,
+                    group_id = :group_id
+                WHERE id = :id
+                """
+            ),
+            {
+                "id": admin_row["id"],
+                "password_hash": next_hash,
+                "group_id": next_group_id,
+            },
+        )
+
+    return admin_row["id"]
+
+
+async def ensure_default_admin_account() -> None:
+    """Create the default admin account when it is missing."""
+    async with AsyncSessionLocal() as session:
+        default_group_id = await _ensure_default_group(session)
+        await ensure_default_admin_user(
+            session, default_group_id=default_group_id
+        )
+        await session.commit()
+
+
 async def seed_database():
     """Populate database with default data."""
     # First ensure schema exists
     await init_schema()
 
     async with AsyncSessionLocal() as session:
+        default_group_id = await _ensure_default_group(session)
+        admin_id = await ensure_default_admin_user(
+            session, default_group_id=default_group_id
+        )
+
         # Check if data already exists
         result = await session.execute(
             text("SELECT COUNT(*) FROM analysis_framework")
@@ -26,28 +195,9 @@ async def seed_database():
         count = result.scalar()
 
         if count > 0:
-            print("Database already seeded, skipping")
+            await session.commit()
+            print("Database already seeded, ensured default admin only")
             return
-
-        # Seed default user group
-        await session.execute(
-            text(
-                """
-                INSERT INTO user_group (name, description)
-                VALUES (:name, :desc)
-                """
-            ),
-            {
-                "name": "default",
-                "desc": "기본 그룹",
-            },
-        )
-
-        # Get default group id
-        group_result = await session.execute(
-            text("SELECT id FROM user_group " "WHERE name = 'default'")
-        )
-        default_group_id = group_result.scalar()
 
         # Seed default analysis framework
         framework_labels = json.dumps(
@@ -80,50 +230,12 @@ async def seed_database():
             },
         )
 
-        # Seed admin user with bcrypt password
-        admin_password = config.ADMIN_DEFAULT_PASSWORD
-        if not admin_password:
-            admin_password = secrets.token_urlsafe(16)
-            print(
-                f"WARNING: ADMIN_DEFAULT_PASSWORD not set. "
-                f"Generated random password: {admin_password}"
-            )
-        admin_hash = bcrypt.hashpw(
-            admin_password.encode("utf-8"),
-            bcrypt.gensalt(),
-        ).decode("utf-8")
-
-        await session.execute(
-            text(
-                """
-                INSERT INTO user
-                (username, nickname, password_hash,
-                 role, group_id)
-                VALUES (:username, :nickname, :pw_hash,
-                        :role, :group_id)
-                """
-            ),
-            {
-                "username": "admin",
-                "nickname": "Administrator",
-                "pw_hash": admin_hash,
-                "role": "admin",
-                "group_id": default_group_id,
-            },
-        )
-
         # Get framework_id and admin user_id
         framework_result = await session.execute(
             text("SELECT id FROM analysis_framework " "WHERE name = :name"),
             {"name": "High/Low Leverage"},
         )
         framework_id = framework_result.scalar()
-
-        admin_result = await session.execute(
-            text("SELECT id FROM user " "WHERE username = :username"),
-            {"username": "admin"},
-        )
-        admin_id = admin_result.scalar()
 
         # Seed prompt templates (before scenario)
         student_template_id = await _seed_prompt_templates(session, admin_id)
@@ -330,8 +442,10 @@ async def seed_prompts():
             print("Prompt templates already seeded, skipping")
             return
 
+        admin_id = await ensure_default_admin_user(session)
         admin_result = await session.execute(
-            text("SELECT id FROM user " "WHERE role = 'admin' LIMIT 1")
+            text("SELECT id FROM user WHERE id = :id"),
+            {"id": admin_id},
         )
         admin_id = admin_result.scalar()
         await _seed_prompt_templates(session, admin_id)

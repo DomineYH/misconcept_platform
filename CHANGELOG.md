@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2.0] - 2026-04-19
+
+### Fixed
+- 관리자 시드 과정에서 발생하던 다중 워커 동시 기동 경쟁 조건 제거
+  - `_ensure_default_group`, `ensure_default_admin_user`의 `SELECT → INSERT` 패턴을 `INSERT OR IGNORE`로 변경해 두 워커가 동시에 기본 그룹 / 기본 관리자 계정을 생성해도 UNIQUE 제약 위반으로 부팅이 실패하지 않음
+  - `INSERT OR IGNORE` 이후 정식 row를 다시 읽어 경쟁에서 진 워커가 승자 row를 기준으로 후속 로직을 수행
+- 기본 관리자 시드가 기존 비관리자 `admin` 사용자를 조용히 관리자로 승격시키던 보안 문제 차단
+  - 이미 `admin` 이름으로 teacher 역할 사용자가 존재할 경우 시드 경로가 역할 / 비밀번호를 절대 덮어쓰지 않음
+  - 역할이 이미 `admin`인 row에 한해 비밀번호 해시가 비어 있을 때만 재시드 (잠금 해제 복구 경로는 유지)
+
+### Added
+- `BOOTSTRAP_ADMIN_ON_STARTUP` 설정 플래그 (기본 `false`) 도입
+  - FastAPI lifespan에서 기본 관리자 부트스트랩을 수행할지 여부를 환경 변수로 선택 가능
+  - 읽기 전용 DB 역할이나 별도 시드 잡을 사용하는 프로덕션 배포가 부팅 시 실패하지 않도록 기본 비활성화
+  - `src/config.py`의 `parse_testing` validator를 `parse_bool`로 일반화해 두 플래그 모두 처리
+- 경쟁 조건 / 권한 승격 / 복구 경로 회귀 테스트 3종 추가 (`tests/unit/test_seed_default_admin.py`)
+
 ## [0.2.1.1] - 2026-04-19
 
 ### Removed
