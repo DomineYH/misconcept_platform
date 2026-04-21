@@ -64,3 +64,12 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+
+      - id: verify-design-tokens
+        name: verify-design-tokens
+        description: "Ensure every CSS token in styles.css is documented in DESIGN.md (issue #16)"
+        entry: .venv/bin/python scripts/verify_design_tokens.py
+        language: system
+        pass_filenames: false
+        files: ^(static/css/styles\.css|DESIGN\.md|scripts/verify_design_tokens\.py)$
+        stages: [pre-commit]
