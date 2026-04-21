@@ -348,15 +348,26 @@ Nothing bubbly. `--radius-xl` (8px) is the ceiling for rectangular surfaces.
 
 ## Shadows
 
-Light (same tokens defined in `:root`; dark redefines `sm/md/lg/modal` with higher alpha):
+Light:
 
-| Token | Light value | Dark value | Usage |
-|-------|-------------|------------|-------|
-| `--shadow-none` | `none` | (not overridden) | Default — flat surfaces. |
-| `--shadow-sm` | `0 1px 2px rgba(0, 0, 0, 0.04)` | `0 1px 2px rgba(0, 0, 0, 0.3)` | Subtle lift (hover cards). |
-| `--shadow-md` | `0 2px 8px rgba(0, 0, 0, 0.08)` | `0 2px 8px rgba(0, 0, 0, 0.4)` | Card resting state. |
-| `--shadow-lg` | `0 4px 16px rgba(0, 0, 0, 0.12)` | `0 4px 16px rgba(0, 0, 0, 0.5)` | Dropdown, popover. |
-| `--shadow-modal` | `0 8px 32px rgba(0, 0, 0, 0.16)` | `0 8px 32px rgba(0, 0, 0, 0.6)` | Modal dialog. |
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--shadow-none` | `none` | Default — flat surfaces. |
+| `--shadow-sm` | `0 1px 2px rgba(0, 0, 0, 0.04)` | Subtle lift (hover cards). |
+| `--shadow-md` | `0 2px 8px rgba(0, 0, 0, 0.08)` | Card resting state. |
+| `--shadow-lg` | `0 4px 16px rgba(0, 0, 0, 0.12)` | Dropdown, popover. |
+| `--shadow-modal` | `0 8px 32px rgba(0, 0, 0, 0.16)` | Modal dialog. |
+
+Dark:
+
+| Token | Value |
+|-------|-------|
+| `--shadow-sm` | `0 1px 2px rgba(0, 0, 0, 0.3)` |
+| `--shadow-md` | `0 2px 8px rgba(0, 0, 0, 0.4)` |
+| `--shadow-lg` | `0 4px 16px rgba(0, 0, 0, 0.5)` |
+| `--shadow-modal` | `0 8px 32px rgba(0, 0, 0, 0.6)` |
+
+(`--shadow-none` is not overridden in dark — `none` stays `none`.)
 
 Dark shadows are deeper because the surface and the shadow source both move toward black; without higher alpha the lift disappears.
 
@@ -403,7 +414,7 @@ No motion tokens for enter/exit, no spring curves, no scroll-driven motion. Keep
 
 ## Verification Script
 
-Automated coverage of the token inventory is enforced by a pre-commit hook. The script verifies that every `--*` token declared in `static/css/styles.css` (both `:root` and the dark-mode `@media` override) appears as a literal string in this document.
+Automated coverage of the token inventory is enforced by a pre-commit hook. The script verifies that every `--*` token declared in `static/css/styles.css` is documented, and — separately — that every token redeclared in the dark-mode override appears under a `Dark:` labelled section of this document. This prevents silent dark-theme drift: adding a dark override in CSS without updating the dark table in `DESIGN.md` fails the hook.
 
 ### Location
 
@@ -412,9 +423,10 @@ Automated coverage of the token inventory is enforced by a pre-commit hook. The 
 
 ### Behavior
 
-1. Parses `static/css/styles.css`. Extracts all `--token-name` declarations from both the `:root` block and the `@media (prefers-color-scheme: dark) { :root { ... } }` block.
-2. For each token, asserts the literal `--token-name` appears at least once in `DESIGN.md`.
-3. Emits a per-token `PASS` / `FAIL` report. Exit code `0` on full coverage, `1` on any miss.
+1. Splits `static/css/styles.css` at `@media (prefers-color-scheme: dark)`. Collects token sets for the top-level `:root` (light) and the dark-mode `:root` override.
+2. **Light check:** every light-declared token must appear somewhere in `DESIGN.md`.
+3. **Dark check:** every dark-redeclared token must appear inside a section that begins with a `Dark:` label line and ends at the next `Light:` / `Dark:` label or markdown heading. This enforces that the dark value is actually listed in the dark table, not just mentioned in prose.
+4. Emits a per-token `PASS` / `FAIL` report (light tokens first, then dark override tokens). Exit code `0` on full coverage, `1` on any miss.
 
 ### When it runs
 
@@ -452,6 +464,7 @@ When a token is missing, stderr lists every missing `--name` and the commit is r
 | 2026-04-21 | Musinsa-inspired monochrome aesthetic locked in. | Existing aesthetic; avoid scope creep into rebrand. | deep-interview Round 2 |
 | 2026-04-21 | WCAG AA contrast computed with real values, not described. | Verifiability over assertion; also exposes two unsafe tokens (`text-tertiary`, `text-muted`) and one borderline pair (warning-text/warning-bg) that previously were implicit. | deep-interview AC #5 |
 | 2026-04-21 | Token coverage enforced by script, not review checklist. | 80+ tokens × light+dark makes manual review unreliable. | deep-interview Round 3 |
+| 2026-04-21 | Verification script tightened to check light and dark sections separately. | Initial script only checked whether a token name appeared anywhere in DESIGN.md, missing the case where a dark override exists in CSS but the `Dark:` table in DESIGN.md is stale or absent. Script now splits CSS at the `@media` boundary and requires dark-redeclared tokens to appear inside a `Dark:` labelled section. This catch itself exposed that the Shadows section was a combined `Light|Dark` table with no `Dark:` label, which has been split into matching `Light:` / `Dark:` tables for consistency with the color sections. | Codex review finding (P2) on PR #22 |
 | 2026-04-19 | Mentor/student message bubble tokens added. | Visual distinction between expert intervention and student voice in the dialogue view. | PR #18 / issue #15 |
 
 ---
