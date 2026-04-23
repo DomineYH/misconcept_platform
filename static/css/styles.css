@@ -1201,6 +1201,8 @@ textarea#teacher-input {
   overflow-y: auto;
   background-color: var(--color-white);
   border-right: 1px solid var(--color-border-light);
+  position: relative;
+  transition: flex-basis 0.3s ease, padding 0.3s ease;
 }
 
 .chat-panel {
@@ -1341,6 +1343,70 @@ textarea#teacher-input {
 
 .panel-hidden {
   display: none !important;
+}
+
+/* ========================================
+   Scenario Panel Collapse Toggle (Desktop)
+   ======================================== */
+.panel-toggle {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-white);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease,
+              transform 0.3s ease;
+}
+
+.panel-toggle:hover,
+.panel-toggle:focus-visible {
+  background: var(--color-gray-100);
+  color: var(--color-black);
+  outline: none;
+}
+
+.panel-toggle:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-black);
+}
+
+.panel-toggle-icon {
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+/* When the panel is collapsed, chevron points the other way
+   (▶) so it invites expansion. */
+.scenario-panel[data-collapsed="true"] .panel-toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* Collapsed state: panel shrinks to a slim rail that only shows the
+   toggle. The chat-panel naturally expands because of flex. */
+.scenario-panel[data-collapsed="true"] {
+  flex: 0 0 48px;
+  padding: 0.75rem 0;
+  overflow: hidden;
+}
+
+.scenario-panel[data-collapsed="true"] > *:not(.panel-toggle) {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+}
+
+.scenario-panel > *:not(.panel-toggle) {
+  transition: opacity 0.2s ease;
 }
 
 /* ========================================
@@ -2821,6 +2887,25 @@ textarea#teacher-input {
   .scenario-panel {
     border-right: none;
     border-bottom: 1px solid var(--color-border-light);
+  }
+
+  /* Mobile: collapse toggle is hidden; panel always acts as expanded */
+  .panel-toggle {
+    display: none !important;
+  }
+
+  .scenario-panel[data-collapsed="true"] {
+    flex: none;
+    width: 100%;
+    height: 100%;
+    padding: 2rem;
+    overflow-y: auto;
+  }
+
+  .scenario-panel[data-collapsed="true"] > *:not(.panel-toggle) {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .scenario-header {

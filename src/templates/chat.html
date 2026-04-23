@@ -12,6 +12,20 @@
 <div class="split-layout">
   <!-- Left Panel: Scenario Information -->
   <aside class="scenario-panel panel-hidden" id="scenario-panel">
+    <button type="button"
+            class="panel-toggle"
+            id="scenario-panel-toggle"
+            aria-expanded="true"
+            aria-controls="scenario-panel"
+            aria-label="정보 패널 접기/펼치기"
+            title="정보 패널 접기/펼치기 (Ctrl+B)">
+      <svg class="panel-toggle-icon" xmlns="http://www.w3.org/2000/svg"
+           width="18" height="18" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2.5"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+    </button>
     <div class="scenario-header">
       <h1>{{ scenario.title }}</h1>
       <div class="header-actions">
@@ -282,6 +296,86 @@
     });
   });
 
+  // ========================================
+  // Scenario Panel Collapse (Desktop Only)
+  // ========================================
+  const SCENARIO_PANEL_COLLAPSE_KEY = 'chat.scenarioPanel.collapsed';
+
+  function isDesktopViewport() {
+    return window.innerWidth > 768;
+  }
+
+  function applyScenarioPanelCollapsed(collapsed) {
+    const panel = document.getElementById('scenario-panel');
+    const toggle = document.getElementById('scenario-panel-toggle');
+    if (!panel || !toggle) return;
+
+    if (collapsed) {
+      panel.setAttribute('data-collapsed', 'true');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', '정보 패널 펼치기');
+    } else {
+      panel.removeAttribute('data-collapsed');
+      toggle.setAttribute('aria-expanded', 'true');
+      toggle.setAttribute('aria-label', '정보 패널 접기');
+    }
+  }
+
+  function getStoredScenarioPanelCollapsed() {
+    try {
+      return localStorage.getItem(SCENARIO_PANEL_COLLAPSE_KEY) === 'true';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function setStoredScenarioPanelCollapsed(collapsed) {
+    try {
+      localStorage.setItem(SCENARIO_PANEL_COLLAPSE_KEY, collapsed ? 'true' : 'false');
+    } catch (e) {
+      // Storage unavailable (private mode etc.) — silently ignore.
+    }
+  }
+
+  function toggleScenarioPanel() {
+    if (!isDesktopViewport()) return;
+    const panel = document.getElementById('scenario-panel');
+    if (!panel) return;
+    const nextCollapsed = panel.getAttribute('data-collapsed') !== 'true';
+    applyScenarioPanelCollapsed(nextCollapsed);
+    setStoredScenarioPanelCollapsed(nextCollapsed);
+  }
+
+  function initializeScenarioPanelCollapse() {
+    const toggle = document.getElementById('scenario-panel-toggle');
+    if (!toggle) return;
+
+    toggle.addEventListener('click', toggleScenarioPanel);
+
+    // Keyboard shortcut: Ctrl+B (or Cmd+B) to toggle. Skip when focus is in
+    // an input/textarea to avoid conflicting with browser text editing.
+    document.addEventListener('keydown', (event) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key !== 'b' && event.key !== 'B') return;
+      const active = document.activeElement;
+      const tag = active && active.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (active && active.isContentEditable)) return;
+      event.preventDefault();
+      toggleScenarioPanel();
+    });
+
+    syncScenarioPanelWithViewport();
+  }
+
+  function syncScenarioPanelWithViewport() {
+    if (isDesktopViewport()) {
+      applyScenarioPanelCollapsed(getStoredScenarioPanelCollapsed());
+    } else {
+      // On mobile, always force expanded state; mobile tabs drive visibility.
+      applyScenarioPanelCollapsed(false);
+    }
+  }
+
   // Initialize panels based on screen size
   function initializePanels() {
     const scenarioPanel = document.getElementById('scenario-panel');
@@ -301,6 +395,7 @@
   // Handle resize events
   window.addEventListener('resize', () => {
     initializePanels();
+    syncScenarioPanelWithViewport();
     // Reset tab states on resize
     if (window.innerWidth > 768) {
       document.querySelectorAll('.mobile-tab').forEach(t => {
@@ -312,6 +407,7 @@
 
   // Initialize on load
   initializePanels();
+  initializeScenarioPanelCollapse();
 
   // ========================================
   // Polling Functions
