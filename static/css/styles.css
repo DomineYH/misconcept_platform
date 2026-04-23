@@ -3132,3 +3132,34 @@ textarea#teacher-input {
     border-top-color: var(--color-white);
   }
 }
+
+/* ===== Issue #24: Unified Session Button ===== */
+
+@keyframes omc-i24-spin {
+  to { transform: rotate(360deg); }
+}
+
+#end-session-btn {
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+
+/* data-state="active" | "ending" | "analyzing" | "done" — all inherit btn-primary;
+   transition is applied above via the base selector. */
+
+#end-session-btn[aria-busy="true"] {
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+#end-session-btn[aria-busy="true"]::before {
+  content: "";
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.5em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: omc-i24-spin 0.8s linear infinite;
+  vertical-align: -2px;
+}

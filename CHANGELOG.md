@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3.0] - 2026-04-23
+
+### Changed
+- 채팅 화면 상단 액션 버튼을 단일 버튼으로 통합 (closes #24)
+  - `대화 종료` + `분석하기` 두 버튼을 `대화 종료 후 분석 보기` 단일 primary 버튼으로 합쳐, 클릭 한 번으로 세션 종료 → 분석 호출이 자동으로 이어짐
+  - 버튼 라벨이 `대화 종료 후 분석 보기 → 분석 준비 중... → 분석 중... → 분석 다시 보기` 순으로 전이되는 상태머신(`data-state=active/ending/analyzing/done/ready-to-analyze`)
+  - 분석 완료 후 `분석 다시 보기`로 모달 재열람 가능, 실패 시 `분석 보기`로 복귀해 재시도 가능
+  - `aria-busy`, 인라인 스피너, 부드러운 색상 전이로 로딩 상태를 시각·보조기술 모두에 전달
+  - `src/templates/chat.html` 안내 문구(tab-guide)를 신규 버튼 라벨에 맞춰 갱신
+  - 중복 클릭 방지 및 기존 AUTH_EXPIRED / CSRF 경로 보존
+
+### Fixed
+- 분석 모달 로딩 경쟁 조건 해소 (codex P2 follow-up, `a45e400`)
+  - `/sessions/{id}/analyze` 성공 직후 상태를 `done`으로 전환하기 전에 `htmx.ajax('GET', '.../analysis_modal')` 응답을 대기하도록 `.then()` 내부로 이동
+  - 모달 GET 실패 시 `.catch()`에서 `ready-to-analyze`로 되돌리고 기존 안내 alert를 재사용해 재시도 보장
+
+### Added
+- `tests/contract/test_unified_session_button.py` 계약 테스트 5종 (구 `#analyze-btn` 제거, 신 라벨/클래스/`data-state` 존재, 안내 문구 전환, `#return-to-scenarios-btn` 보존)
+- `static/css/styles.css` `omc-i24-spin` 키프레임과 `#end-session-btn[aria-busy="true"]::before` 스피너, 상태별 전이 룰 (라이트·다크 모두 `currentColor`)
+
 ## [0.2.2.0] - 2026-04-19
 
 ### Fixed
