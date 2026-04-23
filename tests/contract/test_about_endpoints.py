@@ -8,20 +8,29 @@ from src.models.user import User
 
 
 async def _login(client, username, password="test1234"):
-    """Helper: log in via POST /login (no redirect follow)."""
-    await client.post(
+    """Helper: log in via POST /login and assert the 303 redirect.
+
+    Asserting here makes auth failures fail loud at the login site
+    instead of propagating silently to the next assertion.
+    """
+    resp = await client.post(
         "/login",
         data={"username": username, "password": password},
         follow_redirects=False,
     )
+    assert resp.status_code == 303, (
+        f"login failed for username={username!r}: "
+        f"status={resp.status_code} "
+        f"body={resp.text[:300]!r} "
+        f"cookies={dict(client.cookies)!r}"
+    )
+    return resp
 
 
 @pytest.fixture
 async def admin_user(async_session: AsyncSession) -> User:
     """Create an admin user for testing."""
-    user = User(
-        username="admin_about", nickname="관리자", role="admin"
-    )
+    user = User(username="admin_about", nickname="관리자", role="admin")
     user.set_password("test1234")
     async_session.add(user)
     await async_session.flush()
@@ -112,7 +121,11 @@ class TestContributorCRUD:
             "/admin/about",
             json=payload,
         )
-        assert response.status_code == 201
+        history = [(r.status_code, r.url.path) for r in response.history]
+        assert response.status_code == 201, (
+            f"POST /admin/about returned {response.status_code}: "
+            f"history={history} body={response.text[:400]!r}"
+        )
         data = response.json()
         assert data["name"] == "김철수"
         assert data["phone"] is None
@@ -226,4 +239,3 @@ class TestContributorCRUD:
             json=payload,
         )
         assert response.status_code == 422
-

@@ -36,6 +36,7 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.api.dependencies import get_db_session
 from src.db.connection import Base
@@ -59,7 +60,8 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         TEST_DATABASE_URL,
         echo=False,
         future=True,
-        poolclass=None,  # Disable connection pooling for tests
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
     )
     async_session = sessionmaker(
         engine,
@@ -95,7 +97,8 @@ async def async_session() -> AsyncGenerator[AsyncSession, None]:
         TEST_DATABASE_URL,
         echo=False,
         future=True,
-        poolclass=None,
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
     )
     async_session_maker = sessionmaker(
         engine,
