@@ -1206,7 +1206,7 @@ textarea#teacher-input {
 }
 
 .chat-panel {
-  flex: 0 0 55%;
+  flex: 1 1 55%;
   display: flex;
   flex-direction: column;
   background-color: var(--color-gray-50);
