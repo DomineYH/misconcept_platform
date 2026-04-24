@@ -1350,7 +1350,7 @@ textarea#teacher-input {
    ======================================== */
 .panel-toggle {
   position: absolute;
-  top: 0.75rem;
+  top: 0;
   right: 0.75rem;
   z-index: 2;
   width: 32px;
