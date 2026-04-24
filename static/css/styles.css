@@ -3001,7 +3001,7 @@ textarea#teacher-input {
   }
 
   .chat-panel {
-    flex: 0 0 60%;
+    flex: 1 1 60%;
   }
 
   .scenario-header h1 {
