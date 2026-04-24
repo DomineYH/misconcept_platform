@@ -382,6 +382,7 @@
       const active = document.activeElement;
       const tag = active && active.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (active && active.isContentEditable)) return;
+      if (!isDesktopViewport()) return;
       event.preventDefault();
       toggleScenarioPanel();
     });
