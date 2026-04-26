@@ -1,24 +1,42 @@
 """Test framework deletion with cascade (Issue: NOT NULL constraint)."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from sqlalchemy import select
 
 from src.models.analysis_framework import AnalysisFramework
+from src.models.message import Message
+from src.models.prompt_template import PromptTemplate
 from src.models.scenario import Scenario
 from src.models.session import Session
-from src.models.message import Message
 from src.models.session_summary import SessionSummary
-from src.models.prompt_template import PromptTemplate
+
+
+async def _create_template(session) -> PromptTemplate:
+    """Helper: create a student template in the same session."""
+    tpl = PromptTemplate(
+        bot_type="student",
+        template_name="Cascade Test Student Template",
+        version=1,
+        template_text=(
+            "You are a test student bot. Scenario: {scenario_title}. "
+            "Profile: {student_profile}. Context: {prompt}"
+        ),
+    )
+    session.add(tpl)
+    await session.flush()
+    return tpl
 
 
 @pytest.mark.asyncio
 async def test_framework_delete_with_soft_deleted_scenario(
     async_db_session,
-    test_student_template,
 ):
     """Framework deletion should cascade to soft-deleted scenarios."""
-    # Create framework
+    # Create template and framework in the same session
+    template = await _create_template(async_db_session)
+
     framework = AnalysisFramework(
         name="Delete Test Framework",
         description="For delete testing",
@@ -32,7 +50,7 @@ async def test_framework_delete_with_soft_deleted_scenario(
         title="Soft Deleted Scenario",
         prompt="Test prompt",
         framework_id=framework.id,
-        student_template_id=test_student_template.id,
+        student_template_id=template.id,
         is_active=1,
         deleted_at=datetime.utcnow(),  # Soft deleted
     )
@@ -62,10 +80,10 @@ async def test_framework_delete_with_soft_deleted_scenario(
 async def test_scenario_delete_cascades_to_sessions_via_orm(
     async_db_session,
     test_teacher,
-    test_student_template,
 ):
     """Scenario deletion cascades to sessions when relationship is loaded."""
-    # Create framework
+    template = await _create_template(async_db_session)
+
     framework = AnalysisFramework(
         name="Cascade Test Framework",
         description="For cascade testing",
@@ -79,7 +97,7 @@ async def test_scenario_delete_cascades_to_sessions_via_orm(
         title="Scenario with Sessions",
         prompt="Test prompt",
         framework_id=framework.id,
-        student_template_id=test_student_template.id,
+        student_template_id=template.id,
         is_active=1,
     )
     async_db_session.add(scenario)
@@ -102,9 +120,7 @@ async def test_scenario_delete_cascades_to_sessions_via_orm(
     scenario_id = scenario.id
 
     # Explicitly delete sessions first (simulating route behavior)
-    sessions_query = select(Session).where(
-        Session.scenario_id == scenario_id
-    )
+    sessions_query = select(Session).where(Session.scenario_id == scenario_id)
     result = await async_db_session.execute(sessions_query)
     sessions = result.scalars().all()
     for s in sessions:
@@ -127,10 +143,10 @@ async def test_scenario_delete_cascades_to_sessions_via_orm(
 async def test_session_delete_cascades_to_messages_and_summary(
     async_db_session,
     test_teacher,
-    test_student_template,
 ):
     """Session deletion should cascade to messages and summary."""
-    # Create framework
+    template = await _create_template(async_db_session)
+
     framework = AnalysisFramework(
         name="Session Cascade Framework",
         description="For session cascade testing",
@@ -144,7 +160,7 @@ async def test_session_delete_cascades_to_messages_and_summary(
         title="Scenario for Session Cascade",
         prompt="Test prompt",
         framework_id=framework.id,
-        student_template_id=test_student_template.id,
+        student_template_id=template.id,
         is_active=1,
     )
     async_db_session.add(scenario)
@@ -182,7 +198,6 @@ async def test_session_delete_cascades_to_messages_and_summary(
 
     msg1_id = msg1.id
     summary_id = summary.id
-    session_id = session.id
 
     # Delete session - should cascade to messages/summary
     await async_db_session.delete(session)
@@ -199,7 +214,6 @@ async def test_session_delete_cascades_to_messages_and_summary(
 async def test_full_cascade_framework_to_summary(
     async_db_session,
     test_teacher,
-    test_student_template,
 ):
     """Full cascade: Framework -> Scenario -> Session -> Messages/Summary.
 
@@ -208,7 +222,8 @@ async def test_full_cascade_framework_to_summary(
     2. Then scenarios are deleted
     3. Finally framework is deleted
     """
-    # Create framework
+    template = await _create_template(async_db_session)
+
     framework = AnalysisFramework(
         name="Full Cascade Framework",
         description="Full cascade test",
@@ -222,7 +237,7 @@ async def test_full_cascade_framework_to_summary(
         title="Soft Deleted Full Cascade",
         prompt="Test prompt",
         framework_id=framework.id,
-        student_template_id=test_student_template.id,
+        student_template_id=template.id,
         is_active=1,
         deleted_at=datetime.utcnow(),  # Soft deleted
     )
@@ -269,9 +284,7 @@ async def test_full_cascade_framework_to_summary(
 
     # 2. Delete sessions for each soft-deleted scenario
     for sc in soft_deleted_scenarios:
-        sessions_query = select(Session).where(
-            Session.scenario_id == sc.id
-        )
+        sessions_query = select(Session).where(Session.scenario_id == sc.id)
         sessions_result = await async_db_session.execute(sessions_query)
         sessions = sessions_result.scalars().all()
         for s in sessions:
