@@ -46,13 +46,13 @@ class Session(Base):
     )
 
     # Relationships
-    scenario: Mapped["Scenario"] = relationship(
+    scenario: Mapped["Scenario"] = relationship(  # noqa: F821
         "Scenario", back_populates="sessions"
     )
-    teacher: Mapped["User"] = relationship(
+    teacher: Mapped["User"] = relationship(  # noqa: F821
         "User", back_populates="sessions", foreign_keys=[teacher_id]
     )
-    messages: Mapped[list["Message"]] = relationship(
+    messages: Mapped[list["Message"]] = relationship(  # noqa: F821
         "Message",
         back_populates="session",
         cascade="all, delete-orphan",
@@ -64,8 +64,21 @@ class Session(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
-    api_usage_logs: Mapped[list["ApiUsageLog"]] = relationship(
+    api_usage_logs: Mapped[list["ApiUsageLog"]] = relationship(  # noqa: F821
         "ApiUsageLog",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    feedback_report: Mapped["SessionFeedbackReport"] = (  # noqa: F821
+        relationship(
+            "SessionFeedbackReport",
+            back_populates="session",
+            uselist=False,
+            cascade="all, delete-orphan",
+        )
+    )
+    ui_events: Mapped[list["UiEvent"]] = relationship(  # noqa: F821
+        "UiEvent",
         back_populates="session",
         cascade="all, delete-orphan",
     )

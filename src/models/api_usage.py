@@ -1,6 +1,7 @@
 """API usage tracking model for OpenAI API calls (Task 3.1.1)."""
 
 from datetime import datetime, timezone
+from typing import Optional
 
 from sqlalchemy import (
     DateTime,
@@ -57,8 +58,14 @@ class ApiUsageLog(Base):
         default=lambda: datetime.now(timezone.utc),
     )
 
+    # Operation type for cost tracking (Issue #28)
+    # 'classification', 'synthesis', 'greeting'. NULL for pre-#28 rows.
+    operation: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True, default=None
+    )
+
     # Relationship to session
-    session: Mapped["Session"] = relationship(
+    session: Mapped["Session"] = relationship(  # noqa: F821
         "Session", back_populates="api_usage_logs"
     )
 

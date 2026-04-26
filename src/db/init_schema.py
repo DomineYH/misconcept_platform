@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS api_usage_log (
   completion_tokens INTEGER NOT NULL,
   total_tokens INTEGER NOT NULL,
   estimated_cost_usd REAL NOT NULL,
+  operation VARCHAR(32) NULL,
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -248,6 +249,39 @@ CREATE TABLE IF NOT EXISTS contributor (
 
 CREATE INDEX IF NOT EXISTS ix_contributor_sort_order
   ON contributor(sort_order);
+
+-- Session Feedback Report table (Issue #28)
+CREATE TABLE IF NOT EXISTS session_feedback_report (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL UNIQUE REFERENCES session(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL DEFAULT 1,
+  model VARCHAR(64) NOT NULL,
+  prompt_hash VARCHAR(64) NOT NULL,
+  status VARCHAR(16) NOT NULL CHECK (status IN ('ok', 'degraded', 'failed')),
+  payload_json TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_session_feedback_report_session
+  ON session_feedback_report(session_id);
+
+CREATE INDEX IF NOT EXISTS ix_session_feedback_report_status
+  ON session_feedback_report(status);
+
+-- UI Event table (Issue #28)
+CREATE TABLE IF NOT EXISTS ui_event (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  session_id INTEGER NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+  event_type VARCHAR(32) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_ui_event_session
+  ON ui_event(session_id);
+
+CREATE INDEX IF NOT EXISTS ix_ui_event_event_type
+  ON ui_event(event_type);
 """
 
 
