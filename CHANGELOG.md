@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Session analysis report redesign: brief feedback + 4 stat cards
+  + collapsible detail (closes #28)
+  - New `session_feedback_report` table for structured coaching
+    payload
+  - LLM synthesis service with quality validation (verbatim quotes,
+    message_id integrity, length bounds)
+  - Admin regenerate endpoint for re-running analysis
+  - UI event logging for engagement metrics
+
 ## [0.2.3.0] - 2026-04-23
 
 ### Changed

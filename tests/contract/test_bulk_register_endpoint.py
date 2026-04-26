@@ -2,6 +2,7 @@
 
 import pytest
 from sqlalchemy import select
+
 from src.models.user import User
 from src.models.user_group import UserGroup
 
@@ -15,9 +16,7 @@ async def _login(client, username, password="test1234"):
 
 @pytest.fixture
 async def admin(async_session):
-    user = User(
-        username="reg_admin", nickname="관리자", role="admin"
-    )
+    user = User(username="reg_admin", nickname="관리자", role="admin")
     user.set_password("test1234")
     async_session.add(user)
     await async_session.flush()
@@ -62,12 +61,16 @@ class TestBulkRegister:
         assert data["success_count"] == 2
         assert data["fail_count"] == 0
         created = (
-            await async_session.execute(
-                select(User).where(
-                    User.username.in_(["bulk_r1", "bulk_r2"])
+            (
+                await async_session.execute(
+                    select(User).where(
+                        User.username.in_(["bulk_r1", "bulk_r2"])
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(created) == 2
 
     @pytest.mark.asyncio

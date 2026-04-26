@@ -21,7 +21,9 @@ from pathlib import Path
 
 import pytest
 
-STYLES_CSS = Path(__file__).resolve().parents[2] / "static" / "css" / "styles.css"
+STYLES_CSS = (
+    Path(__file__).resolve().parents[2] / "static" / "css" / "styles.css"
+)
 
 LIGHT_TOKENS = {
     "--color-student-bg": "#FFFFFF",
@@ -50,7 +52,9 @@ def css_source() -> str:
 
 def _extract_light_root(css: str) -> str:
     """Extract the top-level :root { ... } block (light mode)."""
-    match = re.search(r"^:root\s*\{([^}]*)\}", css, flags=re.MULTILINE | re.DOTALL)
+    match = re.search(
+        r"^:root\s*\{([^}]*)\}", css, flags=re.MULTILINE | re.DOTALL
+    )
     assert match, "Top-level :root block not found"
     return match.group(1)
 
@@ -99,9 +103,9 @@ def _assert_token(block: str, name: str, expected: str) -> None:
     match = re.search(pattern, block)
     assert match, f"Token {name} missing from block"
     actual = match.group(1).strip().upper()
-    assert actual == expected.upper(), (
-        f"Token {name} expected {expected!r}, got {actual!r}"
-    )
+    assert (
+        actual == expected.upper()
+    ), f"Token {name} expected {expected!r}, got {actual!r}"
 
 
 def _relative_luminance(hex_color: str) -> float:
@@ -124,14 +128,22 @@ def _contrast_ratio(fg: str, bg: str) -> float:
 def test_mentor_tokens_defined_in_light_mode(css_source: str) -> None:
     """Mentor triplet must exist in :root with exact values."""
     root = _extract_light_root(css_source)
-    for name in ("--color-mentor-bg", "--color-mentor-border", "--color-mentor-text"):
+    for name in (
+        "--color-mentor-bg",
+        "--color-mentor-border",
+        "--color-mentor-text",
+    ):
         _assert_token(root, name, LIGHT_TOKENS[name])
 
 
 def test_mentor_tokens_defined_in_dark_mode(css_source: str) -> None:
     """Mentor triplet must also be defined in @media dark :root."""
     root = _extract_dark_root(css_source)
-    for name in ("--color-mentor-bg", "--color-mentor-border", "--color-mentor-text"):
+    for name in (
+        "--color-mentor-bg",
+        "--color-mentor-border",
+        "--color-mentor-text",
+    ):
         _assert_token(root, name, DARK_TOKENS[name])
 
 
@@ -139,7 +151,11 @@ def test_student_tokens_defined_both_modes(css_source: str) -> None:
     """Student triplet must exist in both :root and dark :root."""
     light = _extract_light_root(css_source)
     dark = _extract_dark_root(css_source)
-    for name in ("--color-student-bg", "--color-student-border", "--color-student-text"):
+    for name in (
+        "--color-student-bg",
+        "--color-student-border",
+        "--color-student-text",
+    ):
         _assert_token(light, name, LIGHT_TOKENS[name])
         _assert_token(dark, name, DARK_TOKENS[name])
 
@@ -272,4 +288,7 @@ def test_wcag_aa_contrast_ratios(css_source: str) -> None:
     resulting contrast regression."""
     for mode, fg, bg in _mentor_contrast_cases(css_source):
         ratio = _contrast_ratio(fg, bg)
-        assert ratio >= 4.5, f"{mode}: contrast {ratio:.2f}:1 (fg {fg} / bg {bg}) < 4.5:1 (WCAG AA)"
+        assert ratio >= 4.5, (
+            f"{mode}: contrast {ratio:.2f}:1 "
+            f"(fg {fg} / bg {bg}) < 4.5:1 (WCAG AA)"
+        )
