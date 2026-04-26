@@ -9,101 +9,183 @@
         <p>세션 종료 시간: {{ session_ended_at }}</p>
     </div>
 
-    <div class="analysis-feedback">
-        <h2>분석 피드백</h2>
-        <p>{{ feedback }}</p>
-    </div>
+    {% set feedback_status = feedback_status | default('legacy') %}
 
-    <div class="analysis-section">
-        <h3>질문 유형 분포</h3>
-        {% include "partials/analysis_bar.html" %}
-    </div>
+    {# ── Wedge: feedback hero + stat grid + toggle ── #}
+    <div class="analysis-wedge" data-session-id="{{ session_id }}">
+        {# Brief feedback box #}
+        {% if feedback_status in ('ok', 'degraded') %}
+        {% if feedback_sections and feedback_sections.brief_feedback %}
+        <div class="analysis-brief-feedback">
+            {% for paragraph in feedback_sections.brief_feedback %}
+            <p>{{ paragraph }}</p>
+            {% endfor %}
+            {% if feedback_status == 'degraded' %}
+            <p class="analysis-degraded-note">일부 피드백 항목이 생성되지 않았어요</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% elif feedback_status == 'failed' %}
+        <div class="analysis-feedback">
+            <p>{{ feedback if feedback else '분석 피드백을 생성할 수 없습니다.' }}</p>
+        </div>
+        {% else %}
+        <div class="analysis-feedback">
+            <p>{{ feedback }}</p>
+        </div>
+        {% endif %}
 
-    <div class="analysis-section">
-        <h3>질문 목록 ({{ questions|length }}개)</h3>
-
-        <div>
-            {% for question in questions %}
-            <div class="question-card">
-                <div class="question-header">
-                    <p class="question-text">
-                        {{ question.content }}
-                    </p>
-                    <span class="label-badge
-                        {% if question.label == 'Pressing' %}label-pressing
-                        {% elif question.label == 'Linking' %}label-linking
-                        {% elif question.label == 'Directing' %}label-directing
-                        {% elif question.label == 'Recall' %}label-recall
-                        {% else %}label-default{% endif %}">
-                        {{ question.label }}
-                    </span>
-                </div>
-
-                <div class="confidence-bar-container">
-                    <span>{{ question.created_at }}</span>
-                    {% if question.confidence %}
-                    <span>
-                        신뢰도: {{ "%.0f"|format(question.confidence * 100) }}%
-                    </span>
+        {# Stat grid #}
+        {% if stats is defined and stats %}
+        <dl class="analysis-stat-grid">
+            {# 대화 시간 #}
+            <div class="analysis-stat-card"
+                 aria-label="대화 시간 {% if stats.duration_seconds is defined and stats.duration_seconds is not none %}{{ (stats.duration_seconds // 60) | int }}분 {{ (stats.duration_seconds % 60) | int }}초{% else %}계산 불가{% endif %}">
+                <dd class="analysis-stat-value">
+                    {% if stats.duration_seconds is defined and stats.duration_seconds is not none %}
+                    <span class="analysis-stat-num">{{ (stats.duration_seconds // 60) | int }}</span><span class="analysis-stat-unit">분</span>
+                    <span class="analysis-stat-num">{{ (stats.duration_seconds % 60) | int }}</span><span class="analysis-stat-unit">초</span>
+                    {% else %}
+                    <span style="font-size: var(--font-size-lg); color: var(--color-text-tertiary);">계산 불가</span>
                     {% endif %}
-                </div>
+                </dd>
+                <dt class="analysis-stat-label">대화 시간</dt>
+            </div>
 
-                {% if question.reasoning %}
-                <details class="analysis-details">
-                    <summary>상세 분석 보기</summary>
-                    <div class="analysis-content">
-                        <div class="analysis-box summary">
-                            <strong>요약:</strong> {{ question.reasoning.summary }}
-                        </div>
+            {# 선생님 질문 #}
+            <div class="analysis-stat-card"
+                 aria-label="선생님 질문 {{ stats.teacher_question_count | default(0) }}개">
+                <dd class="analysis-stat-value">
+                    <span class="analysis-stat-num">{{ stats.teacher_question_count | default(0) }}</span><span class="analysis-stat-unit">개</span>
+                </dd>
+                <dt class="analysis-stat-label">선생님 질문</dt>
+            </div>
 
-                        {% if question.reasoning.pedagogical %}
-                        <div class="analysis-box pedagogical">
-                            <h4>교육학적 분석</h4>
-                            <dl class="analysis-dl">
-                                <dt>교육 원리:</dt>
-                                <dd>{{ question.reasoning.pedagogical.educational_principle }}</dd>
-                                <dt>효과성:</dt>
-                                <dd>{{ question.reasoning.pedagogical.effectiveness }}</dd>
-                                {% if question.reasoning.pedagogical.improvement_suggestion %}
-                                <dt>개선 제안:</dt>
-                                <dd>{{ question.reasoning.pedagogical.improvement_suggestion }}</dd>
-                                {% endif %}
-                            </dl>
-                        </div>
-                        {% endif %}
+            {# 학생 응답 #}
+            <div class="analysis-stat-card"
+                 aria-label="학생 응답 {{ stats.student_response_count | default(0) }}회">
+                <dd class="analysis-stat-value">
+                    <span class="analysis-stat-num">{{ stats.student_response_count | default(0) }}</span><span class="analysis-stat-unit">회</span>
+                </dd>
+                <dt class="analysis-stat-label">학생 응답</dt>
+            </div>
 
-                        {% if question.reasoning.cognitive %}
-                        <div class="analysis-box cognitive">
-                            <h4>인지적 분석</h4>
-                            <dl class="analysis-dl">
-                                <dt>인지적 요구 수준:</dt>
-                                <dd>{{ question.reasoning.cognitive.cognitive_demand }}</dd>
-                                <dt>예상 학생 반응:</dt>
-                                <dd>{{ question.reasoning.cognitive.student_response_prediction }}</dd>
-                                <dt>오개념 대응:</dt>
-                                <dd>{{ question.reasoning.cognitive.misconception_addressing }}</dd>
-                            </dl>
-                        </div>
-                        {% endif %}
+            {# 멘토 개입 #}
+            <div class="analysis-stat-card"
+                 aria-label="멘토 개입 {{ stats.tutor_intervention_count | default(0) }}회">
+                <dd class="analysis-stat-value">
+                    <span class="analysis-stat-num">{{ stats.tutor_intervention_count | default(0) }}</span><span class="analysis-stat-unit">회</span>
+                </dd>
+                <dt class="analysis-stat-label">멘토 개입</dt>
+            </div>
+        </dl>
+        {% endif %}
 
-                        {% if question.reasoning.contextual %}
-                        <div class="analysis-box contextual">
-                            <h4>맥락적 분석</h4>
-                            <dl class="analysis-dl">
-                                <dt>대화 내 역할:</dt>
-                                <dd>{{ question.reasoning.contextual.dialogue_role }}</dd>
-                                <dt>타이밍 적절성:</dt>
-                                <dd>{{ question.reasoning.contextual.timing_appropriateness }}</dd>
-                                <dt>이전 발화 연결:</dt>
-                                <dd>{{ question.reasoning.contextual.connection_to_prior }}</dd>
-                            </dl>
-                        </div>
+        {# Toggle button — hidden for failed status #}
+        {% if feedback_status != 'failed' %}
+        <button type="button"
+                class="btn-modal-secondary analysis-detail-toggle"
+                aria-expanded="false"
+                aria-controls="analysis-detail-panel"
+                onclick="toggleAnalysisDetail(this)">
+            질문별 분석 보기
+        </button>
+        {% endif %}
+    </div>
+
+    {# ── Detail panel: distribution + per-question cards (hidden by default) ── #}
+    <div id="analysis-detail-panel" hidden>
+        <div class="analysis-section">
+            <h3>질문 유형 분포</h3>
+            {% include "partials/analysis_bar.html" %}
+        </div>
+
+        <div class="analysis-section">
+            <h3>질문 목록 ({{ questions|length }}개)</h3>
+
+            <div>
+                {% for question in questions %}
+                <div class="question-card">
+                    <div class="question-header">
+                        <p class="question-text">
+                            {{ question.content }}
+                        </p>
+                        <span class="label-badge
+                            {% if question.label == 'Pressing' %}label-pressing
+                            {% elif question.label == 'Linking' %}label-linking
+                            {% elif question.label == 'Directing' %}label-directing
+                            {% elif question.label == 'Recall' %}label-recall
+                            {% else %}label-default{% endif %}">
+                            {{ question.label }}
+                        </span>
+                    </div>
+
+                    <div class="confidence-bar-container">
+                        <span>{{ question.created_at }}</span>
+                        {% if question.confidence %}
+                        <span>
+                            신뢰도: {{ "%.0f"|format(question.confidence * 100) }}%
+                        </span>
                         {% endif %}
                     </div>
-                </details>
-                {% endif %}
+
+                    {% if question.reasoning %}
+                    <details class="analysis-details">
+                        <summary>상세 분석 보기</summary>
+                        <div class="analysis-content">
+                            <div class="analysis-box summary">
+                                <strong>요약:</strong> {{ question.reasoning.summary }}
+                            </div>
+
+                            {% if question.reasoning.pedagogical %}
+                            <div class="analysis-box pedagogical">
+                                <h4>교육학적 분석</h4>
+                                <dl class="analysis-dl">
+                                    <dt>교육 원리:</dt>
+                                    <dd>{{ question.reasoning.pedagogical.educational_principle }}</dd>
+                                    <dt>효과성:</dt>
+                                    <dd>{{ question.reasoning.pedagogical.effectiveness }}</dd>
+                                    {% if question.reasoning.pedagogical.improvement_suggestion %}
+                                    <dt>개선 제안:</dt>
+                                    <dd>{{ question.reasoning.pedagogical.improvement_suggestion }}</dd>
+                                    {% endif %}
+                                </dl>
+                            </div>
+                            {% endif %}
+
+                            {% if question.reasoning.cognitive %}
+                            <div class="analysis-box cognitive">
+                                <h4>인지적 분석</h4>
+                                <dl class="analysis-dl">
+                                    <dt>인지적 요구 수준:</dt>
+                                    <dd>{{ question.reasoning.cognitive.cognitive_demand }}</dd>
+                                    <dt>예상 학생 반응:</dt>
+                                    <dd>{{ question.reasoning.cognitive.student_response_prediction }}</dd>
+                                    <dt>오개념 대응:</dt>
+                                    <dd>{{ question.reasoning.cognitive.misconception_addressing }}</dd>
+                                </dl>
+                            </div>
+                            {% endif %}
+
+                            {% if question.reasoning.contextual %}
+                            <div class="analysis-box contextual">
+                                <h4>맥락적 분석</h4>
+                                <dl class="analysis-dl">
+                                    <dt>대화 내 역할:</dt>
+                                    <dd>{{ question.reasoning.contextual.dialogue_role }}</dd>
+                                    <dt>타이밍 적절성:</dt>
+                                    <dd>{{ question.reasoning.contextual.timing_appropriateness }}</dd>
+                                    <dt>이전 발화 연결:</dt>
+                                    <dd>{{ question.reasoning.contextual.connection_to_prior }}</dd>
+                                </dl>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </details>
+                    {% endif %}
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
     </div>
 
