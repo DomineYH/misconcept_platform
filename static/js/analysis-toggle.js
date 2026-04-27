@@ -1,5 +1,12 @@
 /* Issue #28 — Analysis detail panel toggle */
 
+function getAnalysisCsrfHeaders() {
+  var match = document.cookie.match(
+    /(?:^|;\s*)csrftoken=([^;]*)/
+  );
+  return match ? { 'x-csrf-token': match[1] } : {};
+}
+
 function toggleAnalysisDetail(btn) {
   var expanded = btn.getAttribute('aria-expanded') === 'true';
   var panel = document.getElementById(btn.getAttribute('aria-controls'));
@@ -15,6 +22,7 @@ function toggleAnalysisDetail(btn) {
     if (sessionId) {
       fetch('/sessions/' + sessionId + '/analysis/detail-opened', {
         method: 'POST',
+        headers: getAnalysisCsrfHeaders(),
         credentials: 'same-origin',
       }).catch(function () { /* silent */ });
     }

@@ -9,6 +9,7 @@ import json
 import pytest
 from sqlalchemy import select
 
+from src.api.routes import admin_session_actions
 from src.models import SessionFeedbackReport, SessionSummary
 
 
@@ -147,11 +148,11 @@ async def test_regenerate_preserves_old_on_llm_failure(
     greeting_mock,
     synthesis_mock_raises,
 ):
-    """When LLM synthesis fails, route returns 200 with fallback data.
+    """When LLM synthesis fails, route returns 200 with old data.
 
     run_llm_pipeline catches synthesis errors internally and returns
-    synthesis_status='failed', so the route replaces old data with
-    a fallback summary rather than returning 500.
+    synthesis_status='failed'. Regenerate must leave the prior good
+    analysis intact instead of overwriting it with fallback data.
     """
     session = await _seed_ended_session(
         async_db_session, test_scenario, test_teacher
@@ -166,9 +167,11 @@ async def test_regenerate_preserves_old_on_llm_failure(
     assert resp.status_code == 200
 
     data = resp.json()
-    assert data["feedback_status"] == "failed"
+    assert data["feedback_status"] == "ok"
+    assert data["feedback"] == "Original feedback."
+    assert data["regeneration_status"] == "synthesis_failed_preserved"
 
-    # Old data is replaced with new fallback data
+    # Old data is preserved.
     report = (
         await async_db_session.execute(
             select(SessionFeedbackReport).where(
@@ -176,8 +179,8 @@ async def test_regenerate_preserves_old_on_llm_failure(
             )
         )
     ).scalar_one()
-    assert report.status == "failed"
-    assert report.model != "old-model"
+    assert report.status == "ok"
+    assert report.model == "old-model"
 
     summary = (
         await async_db_session.execute(
@@ -186,7 +189,80 @@ async def test_regenerate_preserves_old_on_llm_failure(
             )
         )
     ).scalar_one()
-    assert summary.feedback != "Original feedback."
+    assert summary.feedback == "Original feedback."
+
+
+@pytest.mark.anyio
+async def test_begin_regeneration_write_lock_uses_sqlite_exclusive():
+    """SQLite regeneration replacement starts with BEGIN EXCLUSIVE."""
+
+    class _Dialect:
+        name = "sqlite"
+
+    class _Bind:
+        dialect = _Dialect()
+
+    class _FakeSession:
+        def __init__(self):
+            self.rolled_back = False
+            self.statements = []
+
+        def get_bind(self):
+            return _Bind()
+
+        def in_transaction(self):
+            return True
+
+        async def rollback(self):
+            self.rolled_back = True
+
+        async def execute(self, stmt):
+            self.statements.append(str(stmt))
+
+    fake_session = _FakeSession()
+
+    await admin_session_actions._begin_regeneration_write_lock(fake_session)
+
+    assert fake_session.rolled_back is True
+    assert fake_session.statements == ["BEGIN EXCLUSIVE"]
+
+
+@pytest.mark.anyio
+async def test_regenerate_success_uses_write_lock(
+    admin_async_client,
+    async_db_session,
+    test_scenario,
+    test_teacher,
+    test_framework,
+    classify_mock,
+    greeting_mock,
+    synthesis_mock,
+    monkeypatch,
+):
+    """Success-path replacement is guarded by the write-lock helper."""
+    lock_calls = []
+
+    async def _record_lock(db):
+        lock_calls.append(db)
+
+    monkeypatch.setattr(
+        admin_session_actions,
+        "_begin_regeneration_write_lock",
+        _record_lock,
+    )
+    session = await _seed_ended_session(
+        async_db_session, test_scenario, test_teacher
+    )
+    await _seed_existing_analysis(
+        async_db_session, session, "Old feedback to replace."
+    )
+
+    resp = await admin_async_client.post(
+        f"/admin/sessions/{session.id}/analyze_regenerate",
+    )
+
+    assert resp.status_code == 200
+    assert lock_calls == [async_db_session]
 
 
 @pytest.mark.anyio

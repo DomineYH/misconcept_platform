@@ -23,7 +23,7 @@ from tenacity import (
 
 from src.config import config
 from src.utils.cache import load_prompt_template
-from src.utils.openai_helpers import extract_response_text
+from src.utils.openai_helpers import extract_response_text, extract_usage_dict
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,7 @@ class SessionSynthesizer:
         self.reasoning_effort = config.ANALYSIS_REASONING
         self._template = load_prompt_template("session_synthesis_prompt.txt")
         self._hash = prompt_hash(self._template)
+        self.last_usage: dict[str, int] | None = None
 
     @retry(
         retry=retry_if_exception_type(
@@ -103,11 +104,15 @@ class SessionSynthesizer:
         """
         dialogue = self._format_dialogue(messages)
         labels_section = self._format_labels(framework)
+        question_analyses_section = self._format_question_analyses(
+            question_analyses
+        )
 
         prompt = self._template.format(
             framework_name=getattr(framework, "name", "Unknown"),
             framework_labels_with_criteria=labels_section,
             framework_labels=self._format_label_names(framework),
+            question_analyses_section=question_analyses_section,
             scenario_title=scenario,
             misconception=misconception,
             student_profile=student_profile or "Not specified",
@@ -121,9 +126,11 @@ class SessionSynthesizer:
                 max_output_tokens=2500,
                 reasoning={"effort": self.reasoning_effort},
             )
+            self.last_usage = extract_usage_dict(response)
             content = extract_response_text(response)
             payload = json.loads(content)
         except (json.JSONDecodeError, ValueError) as e:
+            self.last_usage = None
             logger.error(
                 "Synthesis JSON parse failed: %s",
                 e,
@@ -136,6 +143,12 @@ class SessionSynthesizer:
                 str(e),
             )
             raise
+
+        if not isinstance(payload, dict):
+            logger.error(
+                "Synthesis JSON parse failed: payload must be an object"
+            )
+            return dict(FAILED_PAYLOAD), "failed"
 
         payload["version"] = 1
         payload, status = self._validate(payload, messages)
@@ -152,8 +165,7 @@ class SessionSynthesizer:
         for msg in messages:
             role_label = role_map.get(msg.get("role", ""), msg.get("role", ""))
             lines.append(
-                f"[{msg.get('id', '?')}] {role_label}: "
-                f"{msg.get('content', '')}"
+                f"[{msg.get('id', '?')}] {role_label}: {msg.get('content', '')}"
             )
         return "\n".join(lines)
 
@@ -174,6 +186,45 @@ class SessionSynthesizer:
         names = getattr(framework, "label_names", [])
         return ", ".join(names)
 
+    def _format_question_analyses(
+        self,
+        question_analyses: Optional[list[dict]],
+    ) -> str:
+        """Format per-question classification output for synthesis prompt."""
+        if not question_analyses:
+            return "No per-question analysis results were provided."
+
+        lines = []
+        for qa in question_analyses:
+            if not isinstance(qa, dict):
+                continue
+            message_id = qa.get("message_id", "?")
+            label = qa.get("label") or "Unclassified"
+            confidence = qa.get("confidence")
+            reasoning = qa.get("reasoning") or qa.get("meta_json") or ""
+            if isinstance(reasoning, str):
+                try:
+                    parsed = json.loads(reasoning)
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, dict):
+                    reasoning = parsed
+            if isinstance(reasoning, dict):
+                reasoning = reasoning.get("summary") or json.dumps(
+                    reasoning,
+                    ensure_ascii=False,
+                )
+            parts = [f"- Message {message_id}: {label}"]
+            if confidence is not None:
+                parts.append(f"(confidence={confidence})")
+            if reasoning:
+                parts.append(f"— {reasoning}")
+            lines.append(" ".join(parts))
+
+        return "\n".join(lines) or (
+            "No per-question analysis results were provided."
+        )
+
     def _validate(
         self,
         payload: dict[str, Any],
@@ -190,7 +241,12 @@ class SessionSynthesizer:
 
         Returns validated (payload, status).
         """
+        if not isinstance(payload, dict):
+            logger.warning("Dropping synthesis payload: not a JSON object")
+            return dict(FAILED_PAYLOAD), "failed"
+
         msg_ids = {m.get("id") for m in session_messages}
+        msg_roles = {m.get("id"): m.get("role") for m in session_messages}
         msg_content = {
             m.get("id"): m.get("content", "") for m in session_messages
         }
@@ -198,6 +254,9 @@ class SessionSynthesizer:
 
         # Validate brief_feedback
         bf = payload.get("brief_feedback", [])
+        if not isinstance(bf, list):
+            bf = []
+            errors += 1
         valid_bf = []
         for item in bf:
             if not isinstance(item, str):
@@ -214,17 +273,26 @@ class SessionSynthesizer:
 
         # Validate strengths
         strengths = payload.get("strengths", [])
+        if not isinstance(strengths, list):
+            strengths = []
+            errors += 1
         valid_strengths = []
         for s in strengths:
+            if not isinstance(s, dict):
+                errors += 1
+                continue
             mid = s.get("message_id")
-            if mid not in msg_ids:
+            if mid not in msg_ids or msg_roles.get(mid) != "teacher":
                 errors += 1
                 continue
             quote = s.get("quote", "")
+            if not isinstance(quote, str) or not quote.strip():
+                errors += 1
+                continue
             content = msg_content.get(mid, "")
             if quote and content and quote not in content:
                 logger.warning(
-                    "Dropping strength: quote not verbatim " "in msg %s",
+                    "Dropping strength: quote not verbatim in msg %s",
                     mid,
                 )
                 errors += 1
@@ -234,14 +302,37 @@ class SessionSynthesizer:
 
         # Validate improvements
         improvements = payload.get("improvements", [])
+        if not isinstance(improvements, list):
+            improvements = []
+            errors += 1
         valid_improvements = []
         for imp in improvements:
+            if not isinstance(imp, dict):
+                errors += 1
+                continue
             mid = imp.get("student_message_id")
-            if mid not in msg_ids:
+            if mid not in msg_ids or msg_roles.get(mid) != "student":
+                errors += 1
+                continue
+            student_quote = imp.get("student_quote", "")
+            content = msg_content.get(mid, "")
+            if (
+                isinstance(student_quote, str)
+                and student_quote.strip()
+                and content
+                and student_quote not in content
+            ):
+                errors += 1
+                continue
+            if not isinstance(student_quote, str):
                 errors += 1
                 continue
             alt_q = imp.get("alternative_question", "")
-            if _korean_char_count(alt_q) > 60:
+            if (
+                not isinstance(alt_q, str)
+                or not alt_q.strip()
+                or _korean_char_count(alt_q) > 60
+            ):
                 errors += 1
                 continue
             valid_improvements.append(imp)
@@ -249,13 +340,24 @@ class SessionSynthesizer:
 
         # Validate dialogue_coaching
         coaching = payload.get("dialogue_coaching", [])
+        if not isinstance(coaching, list):
+            coaching = []
+            errors += 1
         valid_coaching = []
+        allowed_markers = {"good_moment", "missed_moment", "key_clue"}
         for c in coaching:
+            if not isinstance(c, dict):
+                errors += 1
+                continue
             mid = c.get("message_id")
             if mid not in msg_ids:
                 errors += 1
                 continue
-            if c.get("role") == "tutor":
+            role = c.get("role")
+            if role != msg_roles.get(mid) or role == "tutor":
+                errors += 1
+                continue
+            if c.get("marker") not in allowed_markers:
                 errors += 1
                 continue
             valid_coaching.append(c)

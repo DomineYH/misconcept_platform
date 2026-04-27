@@ -6,17 +6,21 @@ failed path, and concurrent classification.
 
 import asyncio
 import json
-import time
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from src.models import (
+    ApiUsageLog,
     QuestionAnalysis,
     SessionFeedbackReport,
     SessionSummary,
 )
-from src.services.analysis_pipeline import analyze_session
+from src.services.analysis_pipeline import (
+    analyze_session,
+    handle_duplicate_session_state,
+)
 
 # ── Fixture overrides ────────────────────────────────────────────────
 # Integration conftest overrides test_framework/test_scenario/etc. to
@@ -286,14 +290,23 @@ async def test_classify_runs_concurrently(
     """Parallel classify: wall-time is less than serial for N messages."""
     from unittest.mock import AsyncMock
 
-    # Create a classify mock that sleeps 0.3s per call
+    active_calls = 0
+    max_active_calls = 0
+
+    # Create a classify mock that overlaps while awaiting API latency.
     async def slow_classify(*args, **kwargs):
-        await asyncio.sleep(0.3)
-        return {
-            "label": "Pressing",
-            "confidence": 0.9,
-            "reasoning": {"summary": "Test"},
-        }
+        nonlocal active_calls, max_active_calls
+        try:
+            active_calls += 1
+            max_active_calls = max(max_active_calls, active_calls)
+            await asyncio.sleep(0.3)
+            return {
+                "label": "Pressing",
+                "confidence": 0.9,
+                "reasoning": {"summary": "Test"},
+            }
+        finally:
+            active_calls = max(0, active_calls - 1)
 
     classify = AsyncMock(side_effect=slow_classify)
     import src.services.analyzer as analyzer_mod
@@ -306,7 +319,6 @@ async def test_classify_runs_concurrently(
             async_db_session, test_scenario, test_teacher
         )
 
-        start = time.monotonic()
         await analyze_session(
             session.id,
             session,
@@ -314,17 +326,100 @@ async def test_classify_runs_concurrently(
             test_framework,
             async_db_session,
         )
-        elapsed = time.monotonic() - start
 
-        # 2 teacher messages × 0.3s serial = 0.6s minimum.
-        # Parallel with semaphore(5) should complete in ~0.3s + overhead.
-        # Allow generous margin (0.6s would be serial; < 1.0s is parallel).
-        assert elapsed < 1.0, (
-            f"Classification took {elapsed:.2f}s — "
-            f"likely not parallelized (expected < 0.55s)"
-        )
+        assert max_active_calls == 2
     finally:
         analyzer_mod.Analyzer.classify_question = original
+
+
+@pytest.mark.anyio
+async def test_pipeline_persists_api_usage_operations(
+    async_db_session,
+    test_scenario,
+    test_teacher,
+    test_framework,
+    monkeypatch,
+):
+    """Analysis usage logs include operation for greeting/classify/synthesis."""
+
+    async def detect_greetings(self, contents):
+        self.last_greeting_usage = {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+        }
+        return [{"is_greeting": False} for _ in contents]
+
+    async def classify_question(self, **kwargs):
+        return {
+            "label": "Pressing",
+            "confidence": 0.9,
+            "reasoning": {"summary": "Test"},
+            "_api_usage": {
+                "prompt_tokens": 20,
+                "completion_tokens": 10,
+                "total_tokens": 30,
+            },
+        }
+
+    class FakeSynthesizer:
+        model = "gpt-5-mini"
+        _hash = "hash"
+
+        def __init__(self):
+            self.last_usage = None
+
+        async def synthesize(self, **kwargs):
+            self.last_usage = {
+                "prompt_tokens": 30,
+                "completion_tokens": 15,
+                "total_tokens": 45,
+            }
+            return (
+                {
+                    "version": 1,
+                    "brief_feedback": ["좋은 출발이었어요."],
+                    "strengths": [],
+                    "improvements": [],
+                    "dialogue_coaching": [],
+                },
+                "degraded",
+            )
+
+    monkeypatch.setattr(
+        "src.services.analyzer.Analyzer.detect_greetings",
+        detect_greetings,
+    )
+    monkeypatch.setattr(
+        "src.services.analyzer.Analyzer.classify_question",
+        classify_question,
+    )
+    monkeypatch.setattr(
+        "src.services.analysis_pipeline.SessionSynthesizer",
+        FakeSynthesizer,
+    )
+
+    session = await _seed_session(async_db_session, test_scenario, test_teacher)
+
+    await analyze_session(
+        session.id, session, test_scenario, test_framework, async_db_session
+    )
+
+    logs = (
+        (
+            await async_db_session.execute(
+                select(ApiUsageLog).where(ApiUsageLog.session_id == session.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    operations = [log.operation for log in logs]
+    assert operations.count("greeting") == 1
+    assert operations.count("classification") == 2
+    assert operations.count("synthesis") == 1
+    assert all(log.bot_type == "tutor" for log in logs)
+    assert all(log.total_tokens > 0 for log in logs)
 
 
 @pytest.mark.anyio
@@ -372,3 +467,39 @@ async def test_analyze_idempotent_second_call_returns_cache(
         .all()
     )
     assert len(reports) == 1
+
+
+@pytest.mark.anyio
+async def test_duplicate_state_fallback_uses_framework_labels(
+    async_db_session,
+    test_scenario,
+    test_teacher,
+    test_framework,
+):
+    """Duplicate handler fallback accepts label names, not framework objects."""
+    session = await _seed_session(async_db_session, test_scenario, test_teacher)
+    session_id = session.id
+
+    result = await handle_duplicate_session_state(
+        session_id,
+        test_framework,
+        async_db_session,
+        IntegrityError("INSERT", {}, Exception("duplicate")),
+    )
+
+    assert result["distribution"] == {
+        "Pressing": 0,
+        "Linking": 0,
+        "Directing": 0,
+        "Recall": 0,
+    }
+    assert result["error"] == "analysis_failed"
+
+    summary = (
+        await async_db_session.execute(
+            select(SessionSummary).where(
+                SessionSummary.session_id == session_id
+            )
+        )
+    ).scalar_one()
+    assert summary.distribution == result["distribution"]

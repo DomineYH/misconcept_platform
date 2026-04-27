@@ -7,7 +7,7 @@ prompts with structured JSON output.
 
 import json
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 from tenacity import (
@@ -21,7 +21,7 @@ from src.config import config
 from src.models.analysis_framework import AnalysisFramework
 from src.prompts.example_templates import generate_examples
 from src.utils.cache import load_prompt_template
-from src.utils.openai_helpers import extract_response_text
+from src.utils.openai_helpers import extract_response_text, extract_usage_dict
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +46,9 @@ class Analyzer:
         # Load cached prompt templates (T111 optimization)
         self.prompt_template = load_prompt_template("analysis_prompt.txt")
         self.greeting_template = load_prompt_template("greeting_detection.txt")
+        self.last_greeting_usage: dict[str, int] | None = None
 
-    def _normalize_reasoning(self, reasoning: any) -> dict:
+    def _normalize_reasoning(self, reasoning: Any) -> dict:
         """
         Normalize reasoning to structured format for backward compatibility.
 
@@ -95,7 +96,7 @@ class Analyzer:
         scenario_title: Optional[str] = None,
         misconception_prompt: Optional[str] = None,
         student_profile: Optional[str] = None,
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Classify a teacher question using the analysis framework.
 
@@ -156,6 +157,7 @@ class Analyzer:
                 max_output_tokens=1500,  # Increased for structured reasoning
                 reasoning={"effort": self.reasoning_effort},
             )
+            api_usage = extract_usage_dict(response)
 
             # Parse JSON response (GPT-5 structure)
             content = extract_response_text(response)
@@ -188,6 +190,8 @@ class Analyzer:
             result["reasoning"] = self._normalize_reasoning(
                 result.get("reasoning", "")
             )
+            if api_usage is not None:
+                result["_api_usage"] = api_usage
 
             return result
 
@@ -209,7 +213,7 @@ class Analyzer:
         scenario_title: Optional[str] = None,
         misconception_prompt: Optional[str] = None,
         student_profile: Optional[str] = None,
-    ) -> list[Dict[str, any]]:
+    ) -> list[Dict[str, Any]]:
         """
         Classify multiple questions sequentially.
 
@@ -259,7 +263,7 @@ class Analyzer:
     )
     async def detect_greetings(
         self, messages: list[str]
-    ) -> list[Dict[str, any]]:
+    ) -> list[Dict[str, Any]]:
         """
         Detect greeting messages using LLM.
 
@@ -277,6 +281,7 @@ class Analyzer:
             ]
         """
         if not messages:
+            self.last_greeting_usage = None
             return []
 
         # Format messages for prompt
@@ -292,6 +297,7 @@ class Analyzer:
                 max_output_tokens=500,
                 reasoning={"effort": self.reasoning_effort},
             )
+            self.last_greeting_usage = extract_usage_dict(response)
 
             content = extract_response_text(response)
             results = json.loads(content)
@@ -328,6 +334,7 @@ class Analyzer:
             ]
         except Exception as e:
             logger.warning("Greeting detection failed: %s", e)
+            self.last_greeting_usage = None
             # Return safe defaults (assume no greetings)
             return [
                 {"index": i, "is_greeting": False, "reason": "Detection failed"}

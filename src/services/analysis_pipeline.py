@@ -19,12 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
     AnalysisFramework,
+    ApiUsageLog,
     Message,
     QuestionAnalysis,
     Scenario,
     Session,
     SessionFeedbackReport,
     SessionSummary,
+    calculate_cost,
 )
 from src.services.analyzer import Analyzer
 from src.services.session_synthesizer import FAILED_PAYLOAD, SessionSynthesizer
@@ -76,6 +78,7 @@ async def analyze_session(
         synthesis_status,
         synth_model,
         synth_hash,
+        api_usage_logs,
     ) = await run_llm_pipeline(
         session_id, all_messages, teacher_messages, scenario, framework
     )
@@ -109,6 +112,8 @@ async def analyze_session(
             feedback=feedback,
         )
     )
+    for log_entry in api_usage_logs:
+        db.add(log_entry)
 
     await db.commit()
 
@@ -121,20 +126,37 @@ async def run_llm_pipeline(
     teacher_messages: list[Message],
     scenario: Scenario,
     framework: AnalysisFramework,
-) -> tuple[dict, list[QuestionAnalysis], dict, str, str, str]:
+) -> tuple[
+    dict,
+    list[QuestionAnalysis],
+    dict,
+    str,
+    str,
+    str,
+    list[ApiUsageLog],
+]:
     """Run all LLM calls (greeting, classify, synthesize) without DB writes.
 
     Returns:
         Tuple of (distribution, question_analyses, payload,
-        synthesis_status, model, prompt_hash).
+        synthesis_status, model, prompt_hash, api_usage_logs).
     """
     analyzer = Analyzer()
+    api_usage_logs: list[ApiUsageLog] = []
 
     # Step 1: Filter greeting messages
     if teacher_messages:
         teacher_messages = await _filter_greetings(
             session_id, teacher_messages, analyzer
         )
+        log_entry = _build_api_usage_log(
+            session_id=session_id,
+            model=analyzer.model,
+            usage_dict=analyzer.last_greeting_usage,
+            operation="greeting",
+        )
+        if log_entry is not None:
+            api_usage_logs.append(log_entry)
 
     # Step 2: Parallel classification with bounded semaphore
     distribution = {label: 0 for label in framework.label_names}
@@ -167,6 +189,15 @@ async def run_llm_pipeline(
         if isinstance(result, Exception):
             logger.warning(f"Failed to analyze message {msg.id}: {result}")
             continue
+        api_usage = result.pop("_api_usage", None)
+        log_entry = _build_api_usage_log(
+            session_id=session_id,
+            model=analyzer.model,
+            usage_dict=api_usage,
+            operation="classification",
+        )
+        if log_entry is not None:
+            api_usage_logs.append(log_entry)
         reasoning = result.get("reasoning")
         reasoning_json = (
             json.dumps(reasoning, ensure_ascii=False)
@@ -191,6 +222,7 @@ async def run_llm_pipeline(
         {
             "message_id": qa.message_id,
             "label": qa.label,
+            "confidence": qa.confidence,
             "reasoning": qa.meta_json,
         }
         for qa in question_analyses
@@ -208,6 +240,14 @@ async def run_llm_pipeline(
         )
         synth_model = synthesizer.model
         synth_hash = synthesizer._hash
+        log_entry = _build_api_usage_log(
+            session_id=session_id,
+            model=synth_model,
+            usage_dict=synthesizer.last_usage,
+            operation="synthesis",
+        )
+        if log_entry is not None:
+            api_usage_logs.append(log_entry)
     except Exception as e:
         logger.error(
             "Session %d: synthesis failed: %s",
@@ -227,6 +267,52 @@ async def run_llm_pipeline(
         synthesis_status,
         synth_model,
         synth_hash,
+        api_usage_logs,
+    )
+
+
+def _build_api_usage_log(
+    session_id: int,
+    model: str,
+    usage_dict: dict[str, int] | None,
+    operation: str,
+) -> ApiUsageLog | None:
+    """Build an ApiUsageLog row for an analysis pipeline LLM operation."""
+    if usage_dict is None:
+        logger.debug(
+            "No API usage info for session %d operation=%s model=%s",
+            session_id,
+            operation,
+            model,
+        )
+        return None
+
+    required = ("prompt_tokens", "completion_tokens", "total_tokens")
+    if any(key not in usage_dict for key in required):
+        logger.warning(
+            "Incomplete API usage info for session %d operation=%s: %s",
+            session_id,
+            operation,
+            usage_dict,
+        )
+        return None
+
+    prompt_tokens = int(usage_dict["prompt_tokens"])
+    completion_tokens = int(usage_dict["completion_tokens"])
+    total_tokens = int(usage_dict["total_tokens"])
+    return ApiUsageLog(
+        session_id=session_id,
+        bot_type="tutor",
+        model=model,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        estimated_cost_usd=calculate_cost(
+            model=model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        ),
+        operation=operation,
     )
 
 
@@ -271,6 +357,8 @@ async def handle_duplicate_session_state(
     Re-queries BOTH SessionSummary AND SessionFeedbackReport
     on IntegrityError. Returns unified response shape.
     """
+    # Capture label names before rollback expires ORM attributes.
+    label_names = list(framework.label_names)
     await db.rollback()
     logger.warning(
         f"Session {session_id}: duplicate session state detected: {error}"
@@ -285,7 +373,11 @@ async def handle_duplicate_session_state(
             "feedback": summary.feedback,
         }
 
-    return await create_fallback_summary(session_id, framework, db)
+    return await create_fallback_summary(
+        session_id,
+        label_names,
+        db,
+    )
 
 
 # Backward-compatible alias for existing imports

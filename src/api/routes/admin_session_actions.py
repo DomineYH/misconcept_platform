@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -33,11 +33,114 @@ from src.models.session import Session
 from src.models.user import User
 from src.services.analysis_pipeline import analyze_session, run_llm_pipeline
 from src.utils.analysis_helpers import parse_reasoning
-from src.utils.session_feedback import derive_plain_feedback
+from src.utils.session_feedback import (
+    derive_plain_feedback,
+    load_feedback_sections,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
+
+
+async def _begin_regeneration_write_lock(db: AsyncSession) -> None:
+    """Start the SQLite replacement window with an EXCLUSIVE lock.
+
+    Regeneration performs the LLM work before touching the database, then
+    deletes/re-inserts the one-to-one analysis rows. SQLite's default
+    deferred transactions do not reserve the writer slot until the first
+    write, so use BEGIN EXCLUSIVE for that short replacement window.
+    """
+    bind = db.get_bind()
+    if bind.dialect.name != "sqlite":
+        return
+
+    if db.in_transaction():
+        await db.rollback()
+
+    await db.execute(text("BEGIN EXCLUSIVE"))
+
+
+async def _load_analysis_response(
+    session_id: int,
+    db: AsyncSession,
+) -> dict | None:
+    """Load the current persisted analysis in response/modal shape."""
+    summary_result = await db.execute(
+        select(SessionSummary).where(SessionSummary.session_id == session_id)
+    )
+    summary = summary_result.scalar_one_or_none()
+    if summary is None:
+        return None
+
+    report_result = await db.execute(
+        select(SessionFeedbackReport).where(
+            SessionFeedbackReport.session_id == session_id
+        )
+    )
+    feedback_report = report_result.scalar_one_or_none()
+    feedback_status = feedback_report.status if feedback_report else "legacy"
+    feedback_sections = await load_feedback_sections(session_id, db)
+
+    session_result = await db.execute(
+        select(Session).where(Session.id == session_id)
+    )
+    session = session_result.scalar_one()
+
+    stats_result = await db.execute(
+        select(Message.role, func.count())
+        .where(Message.session_id == session_id)
+        .group_by(Message.role)
+    )
+    role_counts = dict(stats_result.all())
+
+    duration_seconds = None
+    if session.ended_at and session.started_at:
+        duration_seconds = int(
+            (session.ended_at - session.started_at).total_seconds()
+        )
+
+    messages_result = await db.execute(
+        select(Message, QuestionAnalysis)
+        .outerjoin(
+            QuestionAnalysis,
+            Message.id == QuestionAnalysis.message_id,
+        )
+        .where(Message.session_id == session_id)
+        .where(Message.role == "teacher")
+        .order_by(Message.created_at)
+    )
+    message_analyses = messages_result.all()
+
+    questions = []
+    for msg, analysis in message_analyses:
+        reasoning = None
+        if analysis and analysis.meta_json:
+            reasoning = parse_reasoning(analysis.meta_json)
+        questions.append(
+            {
+                "content": msg.content,
+                "label": analysis.label if analysis else "Unclassified",
+                "confidence": analysis.confidence if analysis else None,
+                "reasoning": reasoning,
+                "created_at": msg.created_at.isoformat(),
+            }
+        )
+
+    return {
+        "distribution": summary.distribution,
+        "feedback": summary.feedback,
+        "feedback_status": feedback_status,
+        "feedback_sections": feedback_sections,
+        "stats": {
+            "duration_seconds": duration_seconds,
+            "teacher_question_count": role_counts.get("teacher", 0),
+            "student_response_count": role_counts.get("student", 0),
+            "tutor_intervention_count": session.tutor_intervention_count,
+        },
+        "questions": questions,
+        "session_ended_at": session.ended_at.isoformat(),
+    }
 
 
 @router.post(
@@ -201,44 +304,14 @@ async def analysis_modal(
     if not session.ended_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=("Session must be ended before" " viewing analysis"),
+            detail=("Session must be ended before viewing analysis"),
         )
 
-    summary_result = await db.execute(
-        select(SessionSummary).where(SessionSummary.session_id == session_id)
-    )
-    summary = summary_result.scalar_one_or_none()
-
-    if not summary:
+    analysis_data = await _load_analysis_response(session_id, db)
+    if analysis_data is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Analysis not found",
-        )
-
-    messages_result = await db.execute(
-        select(Message, QuestionAnalysis)
-        .outerjoin(
-            QuestionAnalysis,
-            Message.id == QuestionAnalysis.message_id,
-        )
-        .where(Message.session_id == session_id)
-        .where(Message.role == "teacher")
-        .order_by(Message.created_at)
-    )
-    message_analyses = messages_result.all()
-
-    questions = []
-    for msg, analysis in message_analyses:
-        reasoning = None
-        if analysis and analysis.meta_json:
-            reasoning = parse_reasoning(analysis.meta_json)
-        questions.append(
-            {
-                "content": msg.content,
-                "label": (analysis.label if analysis else "Unclassified"),
-                "confidence": (analysis.confidence if analysis else None),
-                "reasoning": reasoning,
-            }
         )
 
     return templates.TemplateResponse(
@@ -247,11 +320,8 @@ async def analysis_modal(
             "request": request,
             "user": user,
             "session_id": session_id,
-            "distribution": summary.distribution,
-            "feedback": summary.feedback,
-            "questions": questions,
-            "session_ended_at": session.ended_at.isoformat(),
             "is_admin": True,
+            **analysis_data,
         },
     )
 
@@ -326,6 +396,7 @@ async def regenerate_analysis(
             synthesis_status,
             synth_model,
             synth_hash,
+            api_usage_logs,
         ) = await run_llm_pipeline(
             session_id, all_messages, teacher_messages, scenario, framework
         )
@@ -351,7 +422,20 @@ async def regenerate_analysis(
         )
     )
 
-    # Delete old data
+    if synthesis_status == "failed":
+        preserved = await _load_analysis_response(session_id, db)
+        if preserved is not None:
+            logger.warning(
+                "Regeneration synthesis failed for session %d; "
+                "preserving existing analysis",
+                session_id,
+            )
+            preserved["regeneration_status"] = "synthesis_failed_preserved"
+            return preserved
+
+    await _begin_regeneration_write_lock(db)
+
+    # Delete old data inside the locked replacement window.
     msg_ids_subquery = select(Message.id).where(
         Message.session_id == session_id
     )
@@ -393,60 +477,16 @@ async def regenerate_analysis(
             feedback=feedback,
         )
     )
+    for log_entry in api_usage_logs:
+        db.add(log_entry)
 
     await db.commit()
 
-    # Compute stats
-    stats_result = await db.execute(
-        select(Message.role, func.count())
-        .where(Message.session_id == session_id)
-        .group_by(Message.role)
-    )
-    role_counts = dict(stats_result.all())
-
-    duration_seconds = None
-    if session.ended_at and session.started_at:
-        duration_seconds = int(
-            (session.ended_at - session.started_at).total_seconds()
+    analysis_data = await _load_analysis_response(session_id, db)
+    if analysis_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Analysis regeneration failed",
         )
-
-    # Build questions response
-    teacher_msg_map = {m.id: m for m in all_messages if m.role == "teacher"}
-    qa_by_msg = {qa.message_id: qa for qa in question_analyses}
-    questions = []
-    for msg_id, msg in teacher_msg_map.items():
-        qa = qa_by_msg.get(msg_id)
-        reasoning = None
-        if qa and qa.meta_json:
-            reasoning = parse_reasoning(qa.meta_json)
-        questions.append(
-            {
-                "content": msg.content,
-                "label": qa.label if qa else "Unclassified",
-                "confidence": qa.confidence if qa else None,
-                "reasoning": reasoning,
-                "created_at": msg.created_at.isoformat(),
-            }
-        )
-
-    feedback_sections = {
-        "brief_feedback": payload.get("brief_feedback"),
-        "strengths": payload.get("strengths"),
-        "improvements": payload.get("improvements"),
-        "dialogue_coaching": payload.get("dialogue_coaching"),
-    }
-
-    return {
-        "distribution": distribution,
-        "feedback": feedback,
-        "feedback_status": synthesis_status,
-        "feedback_sections": feedback_sections,
-        "stats": {
-            "duration_seconds": duration_seconds,
-            "teacher_question_count": role_counts.get("teacher", 0),
-            "student_response_count": role_counts.get("student", 0),
-            "tutor_intervention_count": session.tutor_intervention_count,
-        },
-        "questions": questions,
-        "session_ended_at": session.ended_at.isoformat(),
-    }
+    analysis_data["regeneration_status"] = "replaced"
+    return analysis_data

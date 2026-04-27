@@ -17,6 +17,15 @@ Labels and their meanings:
 
 Allowed Labels: {framework_labels}
 
+## Per-Question Analysis Results
+
+The classification pipeline has already labeled the teacher questions.
+Use these labels and reasons as supporting evidence when choosing
+strengths and missed moments. Do not copy a label mechanically if the
+dialogue transcript contradicts it.
+
+{question_analyses_section}
+
 ## Coaching Guidelines
 
 You are writing feedback for the teacher (선생님), not the student.

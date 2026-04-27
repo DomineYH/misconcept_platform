@@ -292,6 +292,131 @@ class TestSessionSynthesizer:
 
         assert status == "failed"
 
+    @pytest.mark.asyncio
+    async def test_prompt_includes_question_analyses(
+        self, synthesizer, mock_framework
+    ):
+        """Per-question classifications are included in the LLM prompt."""
+        mock_resp = _make_mock_response(MOCK_VALID_PAYLOAD)
+        synthesizer.client.responses.create = AsyncMock(return_value=mock_resp)
+
+        await synthesizer.synthesize(
+            messages=MOCK_MESSAGES,
+            question_analyses=[
+                {
+                    "message_id": 1,
+                    "label": "Pressing",
+                    "confidence": 0.87,
+                    "reasoning": {"summary": "학생 사고를 탐색함"},
+                }
+            ],
+            framework=mock_framework,
+        )
+
+        prompt = synthesizer.client.responses.create.call_args.kwargs["input"][
+            0
+        ]["content"]
+        assert "Per-Question Analysis Results" in prompt
+        assert "Message 1: Pressing" in prompt
+        assert "학생 사고를 탐색함" in prompt
+
+    @pytest.mark.asyncio
+    async def test_non_dict_payload_returns_failed(
+        self, synthesizer, mock_framework
+    ):
+        """A non-object JSON payload does not crash validation."""
+        mock_resp = _make_mock_response(["not", "an", "object"])
+        synthesizer.client.responses.create = AsyncMock(return_value=mock_resp)
+
+        payload, status = await synthesizer.synthesize(
+            messages=MOCK_MESSAGES,
+            framework=mock_framework,
+        )
+
+        assert status == "failed"
+        assert FALLBACK_FEEDBACK in payload["brief_feedback"][0]
+
+    @pytest.mark.asyncio
+    async def test_non_dict_sections_are_dropped(
+        self, synthesizer, mock_framework
+    ):
+        """Malformed section items are dropped instead of raising."""
+        bad_payload = {
+            "brief_feedback": ["좋은 피드백이에요."],
+            "strengths": ["bad"],
+            "improvements": ["bad"],
+            "dialogue_coaching": ["bad"],
+        }
+        mock_resp = _make_mock_response(bad_payload)
+        synthesizer.client.responses.create = AsyncMock(return_value=mock_resp)
+
+        payload, status = await synthesizer.synthesize(
+            messages=MOCK_MESSAGES,
+            framework=mock_framework,
+        )
+
+        assert payload["strengths"] == []
+        assert payload["improvements"] == []
+        assert payload["dialogue_coaching"] == []
+        assert status == "degraded"
+
+    @pytest.mark.asyncio
+    async def test_strength_must_reference_teacher_message(
+        self, synthesizer, mock_framework
+    ):
+        """Strengths must point at teacher messages."""
+        bad_payload = dict(MOCK_VALID_PAYLOAD)
+        bad_payload["strengths"] = [
+            {
+                "message_id": 2,
+                "quote": "분자끼리 더했어요.",
+                "reason": "학생 메시지는 강점 대상이 아니에요.",
+            }
+        ]
+        mock_resp = _make_mock_response(bad_payload)
+        synthesizer.client.responses.create = AsyncMock(return_value=mock_resp)
+
+        payload, status = await synthesizer.synthesize(
+            messages=MOCK_MESSAGES,
+            framework=mock_framework,
+        )
+
+        assert payload["strengths"] == []
+        assert status == "degraded"
+
+    @pytest.mark.asyncio
+    async def test_improvement_must_reference_student_message_and_quote(
+        self, synthesizer, mock_framework
+    ):
+        """Improvements must point at student messages with verbatim quote."""
+        bad_payload = dict(MOCK_VALID_PAYLOAD)
+        bad_payload["improvements"] = [
+            {
+                "student_message_id": 1,
+                "student_quote": "어떻게 답을 구했어?",
+                "missed_reason": "교사 메시지는 개선 대상이 아니에요.",
+                "alternative_question": "왜 그렇게 생각했어?",
+                "alternative_reason": "근거를 확인해요.",
+            },
+            {
+                "student_message_id": 2,
+                "student_quote": "없는 인용",
+                "missed_reason": "인용이 원문에 없어요.",
+                "alternative_question": "왜 그렇게 생각했어?",
+                "alternative_reason": "근거를 확인해요.",
+            },
+        ]
+        mock_resp = _make_mock_response(bad_payload)
+        synthesizer.client.responses.create = AsyncMock(return_value=mock_resp)
+
+        payload, status = await synthesizer.synthesize(
+            messages=MOCK_MESSAGES,
+            framework=mock_framework,
+        )
+
+        assert payload["improvements"] == []
+        assert status == "degraded"
+
 
 class TestPromptHash:
     """Tests for prompt_hash utility."""

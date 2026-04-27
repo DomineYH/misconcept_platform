@@ -33,7 +33,7 @@ class ExpectedLabels(BaseModel):
     )
     improvements_ideal: list[int] = Field(
         default_factory=list,
-        description="Student message IDs that should appear " "in 개선할 점",
+        description="Student message IDs that should appear in 개선할 점",
     )
     dialogue_markers_ideal: list[dict] = Field(
         default_factory=list,
@@ -124,8 +124,7 @@ class Scorecard(BaseModel):
     )
     alt_question_mean_score: float = Field(
         ...,
-        description="Mean expert rubric score for "
-        "alternative questions (0-5)",
+        description="Mean expert rubric score for alternative questions (0-5)",
     )
     programmatic_pass: bool = Field(
         ...,
@@ -133,6 +132,10 @@ class Scorecard(BaseModel):
     )
     rubric_scores: list[RubricScore] = Field(default_factory=list)
     expert_labels: list[ExpertLabel] = Field(default_factory=list)
+    live_outputs: list[dict] = Field(
+        default_factory=list,
+        description="Raw per-session live synthesis outputs for expert review",
+    )
 
     @property
     def pass_gate(self) -> bool:
