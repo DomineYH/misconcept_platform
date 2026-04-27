@@ -43,6 +43,19 @@ router = APIRouter()
 limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
 
 
+async def _load_existing_report_status(
+    session_id: int,
+    db: AsyncSession,
+) -> str | None:
+    """Return the persisted feedback_report status, or None if no row exists."""
+    result = await db.execute(
+        select(SessionFeedbackReport.status).where(
+            SessionFeedbackReport.session_id == session_id
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def _begin_regeneration_write_lock(db: AsyncSession) -> None:
     """Start the SQLite replacement window with an EXCLUSIVE lock.
 
@@ -432,6 +445,19 @@ async def regenerate_analysis(
             )
             preserved["regeneration_status"] = "synthesis_failed_preserved"
             return preserved
+
+    if synthesis_status == "degraded":
+        existing_status = await _load_existing_report_status(session_id, db)
+        if existing_status == "ok":
+            preserved = await _load_analysis_response(session_id, db)
+            if preserved is not None:
+                logger.warning(
+                    "Regeneration produced degraded payload for session %d "
+                    "but existing report is ok; preserving existing analysis",
+                    session_id,
+                )
+                preserved["regeneration_status"] = "degraded_skipped_preserved"
+                return preserved
 
     await _begin_regeneration_write_lock(db)
 

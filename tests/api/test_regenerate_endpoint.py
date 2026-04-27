@@ -193,6 +193,46 @@ async def test_regenerate_preserves_old_on_llm_failure(
 
 
 @pytest.mark.anyio
+async def test_regenerate_preserves_ok_when_new_is_degraded(
+    admin_async_client,
+    async_db_session,
+    test_scenario,
+    test_teacher,
+    test_framework,
+    classify_mock,
+    greeting_mock,
+    synthesis_mock_degraded,
+):
+    """Degraded new + existing ok -> preserve old analysis."""
+    session = await _seed_ended_session(
+        async_db_session, test_scenario, test_teacher
+    )
+    await _seed_existing_analysis(
+        async_db_session, session, "Original feedback."
+    )
+
+    resp = await admin_async_client.post(
+        f"/admin/sessions/{session.id}/analyze_regenerate",
+    )
+    assert resp.status_code == 200
+
+    data = resp.json()
+    assert data["regeneration_status"] == "degraded_skipped_preserved"
+    assert data["feedback"] == "Original feedback."
+
+    # Old data is preserved in DB.
+    report = (
+        await async_db_session.execute(
+            select(SessionFeedbackReport).where(
+                SessionFeedbackReport.session_id == session.id
+            )
+        )
+    ).scalar_one()
+    assert report.status == "ok"
+    assert report.model == "old-model"
+
+
+@pytest.mark.anyio
 async def test_begin_regeneration_write_lock_uses_sqlite_exclusive():
     """SQLite regeneration replacement starts with BEGIN EXCLUSIVE."""
 
