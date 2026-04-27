@@ -40,7 +40,20 @@ htmlcov/
 # Temporary files
 *.tmp
 *.bak
+*.bak_*
 .omx/
 *.db
+.codex
 .codex/
 .gstack/
+
+# Local agent / session artifacts
+.claude/CLAUDE.md.backup.*
+.claude/scheduled_tasks.lock
+.claude/skills/
+.playwright-mcp/
+
+# Local screenshots & scratch
+*.png
+fix_error.md
+team_agents.md

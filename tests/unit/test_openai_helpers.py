@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.utils.openai_helpers import extract_response_text
+from src.utils.openai_helpers import extract_response_text, extract_usage_dict
 
 
 def create_nested_response(content: str) -> Mock:
@@ -82,3 +82,39 @@ def test_extract_response_text_incomplete_returns_partial():
     result = extract_response_text(response)
 
     assert result == "Partial tutor feedback"
+
+
+def test_extract_usage_dict_supports_response_objects():
+    """Responses API usage objects are normalized to legacy token keys."""
+    usage = Mock()
+    usage.input_tokens = 11
+    usage.output_tokens = 7
+    usage.total_tokens = 18
+    response = Mock()
+    response.usage = usage
+
+    result = extract_usage_dict(response)
+
+    assert result == {
+        "prompt_tokens": 11,
+        "completion_tokens": 7,
+        "total_tokens": 18,
+    }
+
+
+def test_extract_usage_dict_supports_dicts():
+    """Mock and serialized usage dictionaries are accepted."""
+    response = Mock()
+    response.usage = {
+        "input_tokens": 5,
+        "output_tokens": 3,
+        "total_tokens": 8,
+    }
+
+    result = extract_usage_dict(response)
+
+    assert result == {
+        "prompt_tokens": 5,
+        "completion_tokens": 3,
+        "total_tokens": 8,
+    }

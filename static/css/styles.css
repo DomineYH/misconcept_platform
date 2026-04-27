@@ -2435,6 +2435,129 @@ textarea#teacher-input {
   margin-top: 2rem;
 }
 
+/* ========================================
+   Issue #28 — Analysis Report Wedge
+   ======================================== */
+
+.analysis-wedge {
+  margin-bottom: var(--spacing-lg);
+}
+
+/* Brief feedback box — info-blue (mentor family tokens) */
+.analysis-brief-feedback {
+  background-color: var(--color-info-bg);
+  color: var(--color-info-text);
+  border-left: 3px solid var(--color-mentor-border);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  line-height: 1.7;
+  margin-bottom: var(--spacing-lg);
+}
+
+.analysis-brief-feedback p {
+  font-size: var(--font-size-lg);
+  margin: 0 0 0.75rem 0;
+  line-height: 1.7;
+}
+
+.analysis-brief-feedback p:last-child {
+  margin-bottom: 0;
+}
+
+.analysis-brief-feedback p:first-child {
+  font-size: var(--font-size-xl);
+}
+
+.analysis-degraded-note {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-top: var(--spacing-sm);
+  margin-bottom: 0;
+}
+
+/* Stat grid */
+.analysis-stat-grid {
+  display: grid;
+  gap: var(--spacing-md);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: var(--spacing-lg);
+}
+
+.analysis-stat-card {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+}
+
+.analysis-stat-value {
+  margin-bottom: var(--spacing-xs);
+}
+
+.analysis-stat-num {
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.analysis-stat-unit {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  margin-left: 0.125rem;
+}
+
+.analysis-stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Detail toggle — extends .btn-modal-secondary */
+.analysis-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-md);
+  cursor: pointer;
+}
+
+.analysis-detail-toggle::after {
+  content: "▼";
+  font-size: 0.7em;
+  transition: transform var(--transition-fast);
+}
+
+.analysis-detail-toggle[aria-expanded="true"]::after {
+  transform: rotate(180deg);
+}
+
+/* Responsive — stat grid */
+@media (max-width: 479px) {
+  .analysis-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-stat-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: var(--spacing-md);
+  }
+
+  .analysis-stat-value {
+    margin-bottom: 0;
+  }
+}
+
+@media (min-width: 480px) and (max-width: 767px) {
+  .analysis-stat-card {
+    padding: var(--spacing-md);
+  }
+
+  .analysis-stat-num {
+    font-size: var(--font-size-xl);
+  }
+}
+
 /* Statistics */
 .statistics-section {
   margin: 3rem 0;

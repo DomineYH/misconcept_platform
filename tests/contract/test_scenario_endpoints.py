@@ -1,14 +1,12 @@
 """Contract tests for scenario endpoints (T017)."""
-import pytest
+
 from fastapi.testclient import TestClient
 
 
 class TestScenariosListEndpoint:
     """Test GET /scenarios endpoint contract compliance."""
 
-    def test_scenarios_requires_authentication(
-        self, test_client: TestClient
-    ):
+    def test_scenarios_requires_authentication(self, test_client: TestClient):
         """Verify unauthenticated request redirects to login."""
         response = test_client.get("/scenarios", follow_redirects=False)
 

@@ -34,6 +34,7 @@ config.TESTING = True
 
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -53,6 +54,13 @@ from src.models.user import User
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
+def _set_test_sqlite_pragma(dbapi_conn, connection_record):
+    """Apply same SQLite pragmas as production for test fidelity."""
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 @pytest.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Create test database session with schema."""
@@ -63,6 +71,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
     )
+    event.listen(engine.sync_engine, "connect", _set_test_sqlite_pragma)
     async_session = sessionmaker(
         engine,
         class_=AsyncSession,
@@ -100,6 +109,7 @@ async def async_session() -> AsyncGenerator[AsyncSession, None]:
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
     )
+    event.listen(engine.sync_engine, "connect", _set_test_sqlite_pragma)
     async_session_maker = sessionmaker(
         engine,
         class_=AsyncSession,
@@ -357,3 +367,201 @@ async def multiple_sessions(
         sessions.append(s)
     await async_db_session.commit()
     return sessions
+
+
+# ── Issue #28 — LLM mock fixtures (Stage D) ──────────────────────
+
+
+@pytest.fixture(scope="function")
+def classify_mock(monkeypatch):
+    """Stub Analyzer.classify_question to return a fixed result."""
+    from unittest.mock import AsyncMock
+
+    mock = AsyncMock(
+        return_value={
+            "label": "Pressing",
+            "confidence": 0.9,
+            "reasoning": {"summary": "Test reasoning"},
+        }
+    )
+    monkeypatch.setattr(
+        "src.services.analyzer.Analyzer.classify_question", mock
+    )
+    return mock
+
+
+@pytest.fixture(scope="function")
+def greeting_mock(monkeypatch):
+    """Stub Analyzer.detect_greetings to mark nothing as greeting."""
+    from unittest.mock import AsyncMock
+
+    mock = AsyncMock(
+        side_effect=lambda contents: [{"is_greeting": False} for _ in contents]
+    )
+    monkeypatch.setattr("src.services.analyzer.Analyzer.detect_greetings", mock)
+    return mock
+
+
+@pytest.fixture(scope="function")
+def synthesis_mock(monkeypatch):
+    """Stub SessionSynthesizer.synthesize to return a fixed payload.
+
+    Fixture payload matches a realistic session with brief_feedback,
+    strengths, improvements, and dialogue_coaching entries.
+    """
+    from unittest.mock import AsyncMock
+
+    fixed_payload = {
+        "version": 1,
+        "brief_feedback": [
+            "학생 풀이 과정을 물어본 것은 좋은 출발이었어요!",
+            "핵심 단서를 더 깊이 탐색했다면 오개념에 빨리 다가갔을 거예요.",
+            "다음에는 '왜 그렇게 생각했어?'로 되묻는 연습을 해보세요.",
+        ],
+        "strengths": [
+            {
+                "message_id": 1,
+                "quote": "어떻게 답을 구했어?",
+                "reason": "풀이 과정을 탐색하는 좋은 첫 질문이에요.",
+            },
+        ],
+        "improvements": [
+            {
+                "student_message_id": 2,
+                "student_quote": "분자끼리 더하고 분모끼리 더했어요",
+                "missed_reason": "오개념 핵심 단서가 있었어요.",
+                "alternative_question": "왜 분자끼리 더해도 된다고 생각했어?",
+                "alternative_reason": (
+                    "학생의 답변 속 핵심 단어를 잡아서 "
+                    "되물으면 논리를 점검해요."
+                ),
+            },
+        ],
+        "dialogue_coaching": [
+            {
+                "message_id": 1,
+                "role": "teacher",
+                "marker": "good_moment",
+                "note": "첫 탐색 질문",
+            },
+            {
+                "message_id": 2,
+                "role": "student",
+                "marker": "key_clue",
+                "note": "오개념 핵심 단서",
+            },
+        ],
+    }
+    mock = AsyncMock(return_value=(fixed_payload, "ok"))
+    monkeypatch.setattr(
+        "src.services.session_synthesizer.SessionSynthesizer.synthesize",
+        mock,
+    )
+    return mock
+
+
+@pytest.fixture(scope="function")
+def synthesis_mock_degraded(monkeypatch):
+    """Synthesis mock returning degraded status (partial payload)."""
+    from unittest.mock import AsyncMock
+
+    payload = {
+        "version": 1,
+        "brief_feedback": ["좋은 출발이었어요!"],
+        "strengths": [],
+        "improvements": [],
+        "dialogue_coaching": [],
+    }
+    mock = AsyncMock(return_value=(payload, "degraded"))
+    monkeypatch.setattr(
+        "src.services.session_synthesizer.SessionSynthesizer.synthesize",
+        mock,
+    )
+    return mock
+
+
+@pytest.fixture(scope="function")
+def synthesis_mock_failed(monkeypatch):
+    """Synthesis mock returning failed status."""
+    from unittest.mock import AsyncMock
+
+    payload = {
+        "version": 1,
+        "brief_feedback": [
+            (
+                "분석에 실패했습니다. "
+                "잠시 후 다시 시도하거나 관리자에게 문의하세요."
+            )
+        ],
+        "strengths": [],
+        "improvements": [],
+        "dialogue_coaching": [],
+    }
+    mock = AsyncMock(return_value=(payload, "failed"))
+    monkeypatch.setattr(
+        "src.services.session_synthesizer.SessionSynthesizer.synthesize",
+        mock,
+    )
+    return mock
+
+
+@pytest.fixture(scope="function")
+def synthesis_mock_raises(monkeypatch):
+    """Synthesis mock that raises an exception (simulates LLM failure)."""
+    from unittest.mock import AsyncMock
+
+    mock = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
+    monkeypatch.setattr(
+        "src.services.session_synthesizer.SessionSynthesizer.synthesize",
+        mock,
+    )
+    return mock
+
+
+# ── Authenticated client fixtures ─────────────────────────────────────
+
+
+@pytest.fixture(scope="function")
+async def test_admin(async_db_session: AsyncSession) -> User:
+    """Create test admin user."""
+    user = User(
+        username="admin_001",
+        nickname="테스트관리자",
+        role="admin",
+    )
+    user.set_password("test1234")
+    async_db_session.add(user)
+    await async_db_session.flush()
+    return user
+
+
+@pytest.fixture(scope="function")
+async def authenticated_async_client(
+    async_client: AsyncClient,
+    test_teacher: User,
+) -> AsyncClient:
+    """Async client pre-authenticated as test_teacher."""
+    await async_client.post(
+        "/login",
+        data={
+            "username": test_teacher.username,
+            "password": "test1234",
+        },
+    )
+    return async_client
+
+
+@pytest.fixture(scope="function")
+async def admin_async_client(
+    async_client: AsyncClient,
+    test_admin: User,
+) -> AsyncClient:
+    """Async client pre-authenticated as test_admin."""
+    await async_client.post(
+        "/login",
+        data={
+            "username": test_admin.username,
+            "password": "test1234",
+        },
+    )
+    return async_client

@@ -38,10 +38,39 @@ async def test_user(async_session: AsyncSession) -> User:
 async def test_scenario(
     async_session: AsyncSession,
     test_user: User,
-    test_student_template: PromptTemplate,
-    test_tutor_template: PromptTemplate,
 ) -> Scenario:
-    """Create test scenario with framework."""
+    """Create test scenario with framework and templates.
+
+    Creates templates inline to avoid cross-engine FK violations
+    (integration conftest's test_student_template uses db_session,
+    a separate in-memory engine from async_session).
+    """
+    # Create student template in same session
+    student_tpl = PromptTemplate(
+        bot_type="student",
+        template_name="Dialogue Flow Student Template",
+        version=1,
+        template_text=(
+            "You are a test student bot. Scenario: {scenario_title}. "
+            "Profile: {student_profile}. Context: {prompt}"
+        ),
+    )
+    async_session.add(student_tpl)
+    await async_session.flush()
+
+    # Create tutor template in same session
+    tutor_tpl = PromptTemplate(
+        bot_type="tutor",
+        template_name="Dialogue Flow Tutor Template",
+        version=1,
+        template_text=(
+            "You are a test tutor bot. Scenario: {scenario_title}. "
+            "Profile: {student_profile}. Context: {prompt}"
+        ),
+    )
+    async_session.add(tutor_tpl)
+    await async_session.flush()
+
     framework = AnalysisFramework(
         name="High/Low Leverage",
         description="Test framework for dialogue analysis",
@@ -61,8 +90,8 @@ async def test_scenario(
         student_profile="Middle school student learning fractions",
         is_active=1,
         framework_id=framework.id,
-        student_template_id=test_student_template.id,
-        tutor_template_id=test_tutor_template.id,
+        student_template_id=student_tpl.id,
+        tutor_template_id=tutor_tpl.id,
         created_by=test_user.id,
     )
     async_session.add(scenario)

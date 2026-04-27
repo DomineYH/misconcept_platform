@@ -1,4 +1,5 @@
 """User model for teachers and admins (T022)."""
+
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -27,9 +28,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(
         String(50), unique=True, nullable=False
     )
-    nickname: Mapped[str] = mapped_column(
-        String(30), nullable=False
-    )
+    nickname: Mapped[str] = mapped_column(String(30), nullable=False)
     password_hash: Mapped[str] = mapped_column(
         String(128), nullable=False, default=""
     )
@@ -52,19 +51,24 @@ class User(Base):
     )
 
     # Relationships
-    group: Mapped[Optional["UserGroup"]] = relationship(
+    group: Mapped[Optional["UserGroup"]] = relationship(  # noqa: F821
         "UserGroup", back_populates="users"
     )
-    sessions: Mapped[list["Session"]] = relationship(
+    sessions: Mapped[list["Session"]] = relationship(  # noqa: F821
         "Session",
         back_populates="teacher",
         foreign_keys="Session.teacher_id",
     )
-    scenarios: Mapped[list["Scenario"]] = relationship(
+    scenarios: Mapped[list["Scenario"]] = relationship(  # noqa: F821
         "Scenario", back_populates="creator"
     )
-    prompt_updates: Mapped[list["PromptTemplate"]] = relationship(
+    prompt_updates: Mapped[list["PromptTemplate"]] = relationship(  # noqa: F821
         "PromptTemplate", back_populates="updater"
+    )
+    ui_events: Mapped[list["UiEvent"]] = relationship(  # noqa: F821
+        "UiEvent",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     # Constraints
@@ -79,9 +83,7 @@ class User(Base):
         """Hash and store password."""
         pw_bytes = plain.encode("utf-8")
         salt = bcrypt.gensalt()
-        self.password_hash = bcrypt.hashpw(
-            pw_bytes, salt
-        ).decode("utf-8")
+        self.password_hash = bcrypt.hashpw(pw_bytes, salt).decode("utf-8")
 
     def verify_password(self, plain: str) -> bool:
         """Verify password against stored hash."""

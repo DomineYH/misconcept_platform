@@ -82,13 +82,32 @@ def extract_usage_dict(response: Any) -> dict | None:
         Dictionary with prompt_tokens, completion_tokens, total_tokens
         or None if usage info not available
     """
-    if hasattr(response, "usage") and response.usage is not None:
-        return {
-            "prompt_tokens": response.usage.input_tokens,
-            "completion_tokens": response.usage.output_tokens,
-            "total_tokens": response.usage.total_tokens,
-        }
-    return None
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None
+
+    if isinstance(usage, dict):
+        prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens")
+        completion_tokens = usage.get("completion_tokens") or usage.get(
+            "output_tokens"
+        )
+        total_tokens = usage.get("total_tokens")
+    else:
+        prompt_tokens = getattr(usage, "input_tokens", None)
+        completion_tokens = getattr(usage, "output_tokens", None)
+        total_tokens = getattr(usage, "total_tokens", None)
+
+    if not all(
+        isinstance(value, int)
+        for value in (prompt_tokens, completion_tokens, total_tokens)
+    ):
+        return None
+
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+    }
 
 
 def extract_response_text(response: Any) -> str:
@@ -119,7 +138,8 @@ def extract_response_text(response: Any) -> str:
         """Return extracted text, logging if the response was incomplete."""
         if is_incomplete:
             logger.warning(
-                "Response marked incomplete (reason: %s); returning partial text. "
+                "Response marked incomplete (reason: %s); returning partial "
+                "text. "
                 "Consider increasing max_output_tokens for reasoning models.",
                 incomplete_reason,
             )

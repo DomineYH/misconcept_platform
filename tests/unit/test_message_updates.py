@@ -83,30 +83,6 @@ async def test_scenario(
     return scenario
 
 
-@pytest.fixture
-async def authenticated_session(
-    test_client: TestClient, test_user: User
-) -> tuple[int, dict]:
-    """Create authenticated session and return (session_id, cookies)."""
-    # Login to get authentication cookie
-    login_response = test_client.post(
-        "/login",
-        data={
-            "username": test_user.username,
-            "password": "test1234",
-        },
-    )
-    cookies = login_response.cookies
-
-    # Create session
-    session_response = test_client.post(
-        "/sessions", json={"scenario_id": 1}, cookies=cookies
-    )
-    session_id = session_response.json()["id"]
-
-    return session_id, cookies
-
-
 class TestGetMessageUpdatesWithNewMessages:
     """Test getting updates when new messages exist."""
 
@@ -371,22 +347,19 @@ class TestGetMessageUpdatesWithSinceParameter:
 
 
 class TestGetMessageUpdatesUnauthorized:
-    """Test unauthorized access to message updates."""
+    """Test unauthorized access to message updates.
+
+    These tests verify auth behavior — the session row need not exist
+    because the auth check runs before any session lookup.
+    """
 
     async def test_get_updates_htmx_unauthorized_returns_401_with_trigger(
         self,
         test_client: TestClient,
-        db_session: AsyncSession,
-        test_scenario: Scenario,
     ):
         """HTMX 요청 인증 실패 시 401 + auth-expired 트리거 반환 확인."""
-        session = Session(scenario_id=test_scenario.id, teacher_id=1)
-        db_session.add(session)
-        await db_session.commit()
-        await db_session.refresh(session)
-
         response = test_client.get(
-            f"/sessions/{session.id}/messages/updates",
+            "/sessions/99999/messages/updates",
             headers={"HX-Request": "true"},
             follow_redirects=False,
         )
@@ -402,17 +375,10 @@ class TestGetMessageUpdatesUnauthorized:
     async def test_get_updates_non_htmx_unauthorized_returns_303(
         self,
         test_client: TestClient,
-        db_session: AsyncSession,
-        test_scenario: Scenario,
     ):
         """일반 요청 인증 실패 시 기존 303 리다이렉트 유지 확인."""
-        session = Session(scenario_id=test_scenario.id, teacher_id=1)
-        db_session.add(session)
-        await db_session.commit()
-        await db_session.refresh(session)
-
         response = test_client.get(
-            f"/sessions/{session.id}/messages/updates",
+            "/sessions/99999/messages/updates",
             follow_redirects=False,
         )
 
@@ -422,49 +388,29 @@ class TestGetMessageUpdatesUnauthorized:
     async def test_get_updates_unauthorized(
         self,
         test_client: TestClient,
-        db_session: AsyncSession,
-        test_scenario: Scenario,
     ):
         """인증되지 않은 요청 시 로그인 페이지로 리디렉션 확인."""
-        # Create session (no authentication)
-        session = Session(scenario_id=test_scenario.id, teacher_id=1)
-        db_session.add(session)
-        await db_session.commit()
-        await db_session.refresh(session)
-
-        # Get updates without authentication (will redirect to login)
         response = test_client.get(
-            f"/sessions/{session.id}/messages/updates", follow_redirects=True
+            "/sessions/99999/messages/updates", follow_redirects=True
         )
 
         # Assertions - after redirect, should show login page
         assert response.status_code == 200
-        # Check if redirected to login page by looking for login form
         assert "login" in response.text.lower() or "username" in response.text
 
     async def test_get_updates_missing_session_cookie(
         self,
         test_client: TestClient,
-        db_session: AsyncSession,
-        test_scenario: Scenario,
     ):
         """세션 쿠키 없이 요청 시 로그인 페이지로 리디렉션 확인."""
-        # Create session
-        session = Session(scenario_id=test_scenario.id, teacher_id=1)
-        db_session.add(session)
-        await db_session.commit()
-        await db_session.refresh(session)
-
-        # Get updates with invalid/missing cookies (will redirect to login)
         response = test_client.get(
-            f"/sessions/{session.id}/messages/updates",
+            "/sessions/99999/messages/updates",
             cookies={"invalid": "cookie"},
             follow_redirects=True,
         )
 
         # Assertions - after redirect, should show login page
         assert response.status_code == 200
-        # Check if redirected to login page
         assert "login" in response.text.lower() or "username" in response.text
 
 

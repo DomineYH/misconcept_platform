@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0.0] - 2026-04-27
+
+### Added
+- Session analysis report redesign: brief feedback + 4 stat cards
+  + collapsible detail (closes #28)
+  - New `session_feedback_report` table for structured coaching
+    payload (migration 019)
+  - LLM synthesis service with quality validation (verbatim quotes,
+    message_id integrity, length bounds)
+  - Admin regenerate endpoint for re-running analysis (auth +
+    rate-limit + EXCLUSIVE lock + synthesize-first-then-replace)
+  - UI event logging for engagement metrics (migration 021)
+  - `ApiUsageLog.operation` column for classification/synthesis/
+    greeting cost separation (migration 020)
+  - PRAGMA `foreign_keys=ON` applied to all SQLite connections for
+    test/prod fidelity
+  - Test infrastructure: `synthesis_mock`, `authenticated_async_client`,
+    `test_admin` fixtures in conftest.py
+  - Quality gate eval harness at `evals/issue-28/`
+
+### Fixed
+- Cross-engine FK violations in legacy tests exposed by PRAGMA
+  fk=ON (test_framework_delete, test_message_updates,
+  test_full_dialogue_flow) — replaced fixture shadowing with
+  inline template creation in same engine
+- Regeneration now preserves an existing `ok` analysis report when
+  the new synthesis returns `degraded` (brief feedback present but
+  empty strengths/improvements). Previously only `failed` was
+  preserved; `degraded` could overwrite a richer trustworthy report.
+  Returns `regeneration_status: "degraded_skipped_preserved"`.
+
 ## [0.2.3.0] - 2026-04-23
 
 ### Changed

@@ -9,7 +9,9 @@ from src.models.question_analysis import QuestionAnalysis
 from src.models.scenario import Scenario
 from src.models.scenario_group import ScenarioGroup
 from src.models.session import Session
+from src.models.session_feedback_report import SessionFeedbackReport
 from src.models.session_summary import SessionSummary
+from src.models.ui_event import UiEvent
 from src.models.user import User
 from src.models.user_group import UserGroup
 
@@ -23,6 +25,8 @@ __all__ = [
     "Message",
     "QuestionAnalysis",
     "SessionSummary",
+    "SessionFeedbackReport",
+    "UiEvent",
     "ApiUsageLog",
     "PromptTemplate",
     "Contributor",

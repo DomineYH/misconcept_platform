@@ -1,5 +1,5 @@
 """Contract tests for authentication endpoints (T016)."""
-import pytest
+
 from fastapi.testclient import TestClient
 
 
@@ -21,26 +21,18 @@ class TestLoginEndpoint:
 
         # Contract: 303 redirect to /scenarios
         assert response.status_code == 303
-        assert (
-            response.headers["location"] == "/scenarios"
-        )
+        assert response.headers["location"] == "/scenarios"
 
         # Contract: Set-Cookie header
-        set_cookie = response.headers.get(
-            "set-cookie", ""
-        )
+        set_cookie = response.headers.get("set-cookie", "")
         assert "session_id=" in set_cookie
         assert "httponly" in set_cookie.lower()
         assert "samesite=lax" in set_cookie.lower()
         assert "Max-Age=28800" in set_cookie  # 8 hours
 
-    def test_login_missing_fields_returns_400(
-        self, test_client: TestClient
-    ):
+    def test_login_missing_fields_returns_400(self, test_client: TestClient):
         """Verify missing fields returns 422."""
-        response = test_client.post(
-            "/login", data={"username": "student_001"}
-        )
+        response = test_client.post("/login", data={"username": "student_001"})
 
         assert response.status_code == 422
         assert "detail" in response.json()
@@ -75,30 +67,20 @@ class TestLoginEndpoint:
 
         # 401 for invalid credentials (HTML response)
         assert response.status_code == 401
-        assert (
-            "text/html"
-            in response.headers["content-type"]
-        )
+        assert "text/html" in response.headers["content-type"]
 
-    def test_get_login_returns_html_form(
-        self, test_client: TestClient
-    ):
+    def test_get_login_returns_html_form(self, test_client: TestClient):
         """Verify GET /login returns HTML form."""
         response = test_client.get("/login")
 
         assert response.status_code == 200
-        assert (
-            "text/html"
-            in response.headers["content-type"]
-        )
+        assert "text/html" in response.headers["content-type"]
 
 
 class TestLogoutEndpoint:
     """Test POST /logout endpoint contract compliance."""
 
-    def test_logout_clears_session_and_redirects(
-        self, test_client: TestClient
-    ):
+    def test_logout_clears_session_and_redirects(self, test_client: TestClient):
         """Verify logout clears session and redirects."""
         # First login to get session
         login_response = test_client.post(
@@ -122,15 +104,10 @@ class TestLogoutEndpoint:
 
         # Contract: 303 redirect to /login
         assert logout_response.status_code == 303
-        assert (
-            logout_response.headers["location"]
-            == "/login"
-        )
+        assert logout_response.headers["location"] == "/login"
 
         # Contract: Clear session cookie
-        set_cookie = logout_response.headers.get(
-            "set-cookie", ""
-        )
+        set_cookie = logout_response.headers.get("set-cookie", "")
         assert (
             "Max-Age=0" in set_cookie
             or "session_id=;" in set_cookie

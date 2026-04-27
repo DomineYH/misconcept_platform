@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,16 +18,19 @@ from src.models import (
     Message,
     QuestionAnalysis,
     Scenario,
+    SessionFeedbackReport,
     SessionSummary,
+    UiEvent,
     User,
 )
 from src.services.analysis_pipeline import (
     analyze_session,
     handle_analysis_failure,
-    handle_duplicate_summary,
+    handle_duplicate_session_state,
 )
 from src.services.export import CSVExporter
 from src.utils.analysis_helpers import parse_reasoning
+from src.utils.session_feedback import load_feedback_sections
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +112,9 @@ async def analyze_session_endpoint(
             session_id, session, scenario, framework, db
         )
     except IntegrityError as e:
-        return await handle_duplicate_summary(session_id, framework, db, e)
+        return await handle_duplicate_session_state(
+            session_id, framework, db, e
+        )
     except Exception as e:
         return await handle_analysis_failure(session_id, framework, db, e)
 
@@ -136,6 +141,39 @@ async def get_analysis(
 
     if not summary:
         raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Compute feedback_status from SessionFeedbackReport
+    report_result = await db.execute(
+        select(SessionFeedbackReport).where(
+            SessionFeedbackReport.session_id == session_id
+        )
+    )
+    feedback_report = report_result.scalar_one_or_none()
+    feedback_status = feedback_report.status if feedback_report else "legacy"
+
+    # Load feedback_sections
+    feedback_sections = await load_feedback_sections(session_id, db)
+
+    # Compute stats via aggregate query
+    stats_result = await db.execute(
+        select(Message.role, func.count())
+        .where(Message.session_id == session_id)
+        .group_by(Message.role)
+    )
+    role_counts = dict(stats_result.all())
+
+    duration_seconds = None
+    if session.ended_at and session.started_at:
+        duration_seconds = int(
+            (session.ended_at - session.started_at).total_seconds()
+        )
+
+    stats = {
+        "duration_seconds": duration_seconds,
+        "teacher_question_count": role_counts.get("teacher", 0),
+        "student_response_count": role_counts.get("student", 0),
+        "tutor_intervention_count": session.tutor_intervention_count,
+    }
 
     messages_result = await db.execute(
         select(Message, QuestionAnalysis)
@@ -167,6 +205,9 @@ async def get_analysis(
     return {
         "distribution": summary.distribution,
         "feedback": summary.feedback,
+        "feedback_status": feedback_status,
+        "feedback_sections": feedback_sections,
+        "stats": stats,
         "questions": questions,
         "session_ended_at": session.ended_at.isoformat(),
     }
@@ -190,6 +231,9 @@ async def get_analysis_page(
             "session_id": session_id,
             "distribution": analysis_data["distribution"],
             "feedback": analysis_data["feedback"],
+            "feedback_status": analysis_data["feedback_status"],
+            "feedback_sections": analysis_data["feedback_sections"],
+            "stats": analysis_data["stats"],
             "questions": analysis_data["questions"],
             "session_ended_at": analysis_data["session_ended_at"],
         },
@@ -217,6 +261,30 @@ async def get_analysis_modal(
             **analysis_data,
         },
     )
+
+
+@router.post(
+    "/sessions/{session_id}/analysis/detail-opened",
+    status_code=204,
+)
+async def log_analysis_detail_opened(
+    session_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    """Log that the user opened the analysis detail view."""
+    await load_session(session_id, user, db)
+
+    db.add(
+        UiEvent(
+            user_id=user.id,
+            session_id=session_id,
+            event_type="analysis_detail_opened",
+        )
+    )
+    await db.commit()
+
+    return Response(status_code=204)
 
 
 @router.get("/sessions/{session_id}/export.csv")

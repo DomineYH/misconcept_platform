@@ -49,6 +49,7 @@ ignore = []
 "tests/test_admin_users_page.py" = ["E402"]
 "tests/test_scenario_*.py" = ["E402"]
 "tests/conftest.py" = ["E402"]
+"evals/issue-28/**" = ["N999"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
