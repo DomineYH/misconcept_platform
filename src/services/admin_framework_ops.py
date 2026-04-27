@@ -43,6 +43,8 @@ async def update_framework_record(
         framework.name = framework_data.name
     if framework_data.description:
         framework.description = framework_data.description
+    if framework_data.category_name is not None:
+        framework.category_name = framework_data.category_name
     if framework_data.labels:
         try:
             framework.labels_json = json.dumps(
@@ -50,6 +52,7 @@ async def update_framework_record(
                     {
                         "name": item.name,
                         "criteria": item.criteria,
+                        "level": item.level,
                     }
                     for item in framework_data.labels
                 ],

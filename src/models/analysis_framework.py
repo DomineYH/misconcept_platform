@@ -26,6 +26,7 @@ class AnalysisFramework(Base):
     # Framework identity
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category_name: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Labels as JSON array
     labels_json: Mapped[str] = mapped_column(Text, nullable=False)
@@ -68,6 +69,30 @@ class AnalysisFramework(Base):
             return {label: "" for label in parsed}
         return {item["name"]: item.get("criteria", "") for item in parsed}
 
+    @property
+    def labels_grade_map(self) -> dict[str, str | None]:
+        """Map label name to grade display text based on level.
+
+        high → "우수", low → "개선", else None.
+        Handles 3 formats: legacy str list, dict w/o level, dict w/ level.
+        """
+        parsed = json.loads(self.labels_json)
+        result: dict[str, str | None] = {}
+        if not parsed:
+            return result
+        if isinstance(parsed[0], str):
+            return {label: None for label in parsed}
+        for item in parsed:
+            level = item.get("level")
+            if level == "high":
+                grade = "우수"
+            elif level == "low":
+                grade = "개선"
+            else:
+                grade = None
+            result[item["name"]] = grade
+        return result
+
     @labels.setter
     def labels(self, value: list) -> None:
         """Convert Python list to JSON string."""
@@ -84,8 +109,14 @@ class AnalysisFramework(Base):
                 raise ValueError("labels must have 2-20 elements")
             # Validate dict items have "name" key
             for item in parsed:
-                if isinstance(item, dict) and "name" not in item:
-                    raise ValueError("dict labels must have 'name' key")
+                if isinstance(item, dict):
+                    if "name" not in item:
+                        raise ValueError("dict labels must have 'name' key")
+                    level = item.get("level")
+                    if level is not None and level not in ("high", "low"):
+                        raise ValueError(
+                            "label level must be 'high' or 'low'"
+                        )
             return value
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON: {e}")

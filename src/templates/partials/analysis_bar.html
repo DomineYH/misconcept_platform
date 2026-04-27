@@ -54,5 +54,11 @@
                 {{ distribution.values()|sum }}개 질문
             </div>
         </div>
+        {% if grade_counts is defined and (grade_counts.get('우수', 0) > 0 or grade_counts.get('개선', 0) > 0) %}
+        <div class="chart-grade-summary">
+            <span class="chart-grade-item grade-excellent">우수 {{ grade_counts.get('우수', 0) }}개</span>
+            <span class="chart-grade-item grade-improve">개선 {{ grade_counts.get('개선', 0) }}개</span>
+        </div>
+        {% endif %}
     </div>
 </div>

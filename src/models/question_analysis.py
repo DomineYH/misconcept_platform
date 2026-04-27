@@ -1,12 +1,12 @@
 """QuestionAnalysis model for teacher message classification (T055)."""
-from datetime import datetime
 from typing import Optional
+
 from sqlalchemy import (
     CheckConstraint,
+    Float,
     ForeignKey,
     Integer,
     String,
-    Float,
     Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -41,6 +41,11 @@ class QuestionAnalysis(Base):
     # Classification label (e.g., "high_leverage", "medium_leverage")
     label: Mapped[str] = mapped_column(
         String(50), nullable=False, index=True
+    )
+
+    # Grade from framework label level (우수/개선)
+    grade: Mapped[Optional[str]] = mapped_column(
+        String(10), nullable=True
     )
 
     # Confidence score (0.0-1.0) - optional

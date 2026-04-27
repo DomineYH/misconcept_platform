@@ -196,11 +196,19 @@ async def get_analysis(
             {
                 "content": msg.content,
                 "label": analysis.label if analysis else "Unclassified",
+                "grade": analysis.grade if analysis else None,
                 "confidence": analysis.confidence if analysis else None,
                 "reasoning": reasoning,
                 "created_at": msg.created_at.isoformat(),
             }
         )
+
+    # Compute grade counts for group summary
+    grade_counts = {"우수": 0, "개선": 0}
+    for q in questions:
+        g = q.get("grade")
+        if g in grade_counts:
+            grade_counts[g] += 1
 
     return {
         "distribution": summary.distribution,
@@ -209,6 +217,7 @@ async def get_analysis(
         "feedback_sections": feedback_sections,
         "stats": stats,
         "questions": questions,
+        "grade_counts": grade_counts,
         "session_ended_at": session.ended_at.isoformat(),
     }
 
@@ -235,6 +244,7 @@ async def get_analysis_page(
             "feedback_sections": analysis_data["feedback_sections"],
             "stats": analysis_data["stats"],
             "questions": analysis_data["questions"],
+            "grade_counts": analysis_data["grade_counts"],
             "session_ended_at": analysis_data["session_ended_at"],
         },
     )

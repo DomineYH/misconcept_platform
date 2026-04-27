@@ -1593,6 +1593,16 @@ textarea#teacher-input {
   color: var(--color-gray-700);
 }
 
+/* Grade badges (우수/개선) */
+.grade-excellent {
+  background-color: #dcfce7;
+  color: #166534;
+}
+.grade-improve {
+  background-color: #fff7ed;
+  color: #9a3412;
+}
+
 /* ========================================
    Modal Styles - Clean
    ======================================== */
@@ -2427,6 +2437,21 @@ textarea#teacher-input {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-black);
+}
+
+.chart-grade-summary {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  justify-content: flex-end;
+}
+
+.chart-grade-item {
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .analysis-actions {
