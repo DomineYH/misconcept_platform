@@ -18,7 +18,7 @@
 - LLM-first / DB-second atomic transaction (synthesis 실패 시 partial state 없음)
 - `asyncio.gather` + `Semaphore(5)` 병렬 classify (p95 ~26s, 60s proxy timeout 이내)
 - `derive_plain_feedback(payload) → str` 중앙 검증기로 5개 consumer 보호
-- Regenerate endpoint: admin auth + rate-limit + `BEGIN EXCLUSIVE` 락 + synthesize-first-then-replace
+- Regenerate endpoint: admin auth + rate-limit + `BEGIN EXCLUSIVE` 락 + synthesize-first-then-replace + 보존 분기 (synthesis failed, 또는 degraded → 기존 `ok` 보호)
 - DB migration: raw SQL `019_*.sql`, `020_*.sql`, `021_*.sql` (Alembic 미사용 — 레포 컨벤션 준수)
 - ApiUsageLog에 `operation` 컬럼 추가 (classification/synthesis/greeting 분리)
 - PRAGMA `foreign_keys=ON` 모든 SQLite 연결에 적용
