@@ -73,7 +73,7 @@
             data-id="{{ framework.id }}"
             data-name="{{ framework.name|e }}"
             data-description="{{ framework.description|e }}"
-            data-category-name="{{ framework.category_name|e }}"
+            data-category-name="{{ (framework.category_name or '')|e }}"
             data-labels='{{ framework.labels|tojson|safe }}'
           >
             수정

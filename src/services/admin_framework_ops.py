@@ -43,8 +43,8 @@ async def update_framework_record(
         framework.name = framework_data.name
     if framework_data.description:
         framework.description = framework_data.description
-    if framework_data.category_name is not None:
-        framework.category_name = framework_data.category_name
+    # category_name is optional: always set so users can clear it via empty/null
+    framework.category_name = framework_data.category_name
     if framework_data.labels:
         try:
             framework.labels_json = json.dumps(

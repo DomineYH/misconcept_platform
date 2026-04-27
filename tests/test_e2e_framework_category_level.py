@@ -22,9 +22,6 @@ from src.models.session import Session
 from src.models.session_summary import SessionSummary
 from src.models.user import User
 
-# noqa: I001 — isort disagrees but project convention groups stdlib/Third-party/first-party separately
-
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

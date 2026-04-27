@@ -1,4 +1,11 @@
 -- Migration 022 DOWN: Remove framework category_name, grade, and level from labels_json
+-- NOTE: PRAGMA foreign_keys must be set OUTSIDE a transaction (SQLite limitation).
+-- If this migration runs inside an outer transaction (migrate.py uses engine.begin),
+-- the PRAGMA below is a no-op. In that case, the operator MUST run
+-- `PRAGMA foreign_keys=OFF;` against the DB before invoking this DOWN migration,
+-- and `PRAGMA foreign_keys=ON;` after, to avoid FK violations from scenario.framework_id.
+
+PRAGMA foreign_keys=OFF;
 
 -- Remove level key from labels_json dict items
 UPDATE analysis_framework
@@ -56,3 +63,5 @@ CREATE INDEX IF NOT EXISTS ix_question_analysis_message_id
     ON question_analysis(message_id);
 CREATE INDEX IF NOT EXISTS ix_question_analysis_label
     ON question_analysis(label);
+
+PRAGMA foreign_keys=ON;
