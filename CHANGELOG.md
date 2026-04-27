@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fk=ON (test_framework_delete, test_message_updates,
   test_full_dialogue_flow) — replaced fixture shadowing with
   inline template creation in same engine
+- Regeneration now preserves an existing `ok` analysis report when
+  the new synthesis returns `degraded` (brief feedback present but
+  empty strengths/improvements). Previously only `failed` was
+  preserved; `degraded` could overwrite a richer trustworthy report.
+  Returns `regeneration_status: "degraded_skipped_preserved"`.
 
 ## [0.2.3.0] - 2026-04-23
 
