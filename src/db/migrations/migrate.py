@@ -64,12 +64,20 @@ async def run_migration(migration_file: Path):
 
     # Execute migration
     async with engine.begin() as conn:
-        # Split SQL by semicolon and execute each statement
-        statements = [
-            stmt.strip()
-            for stmt in migration_sql.split(";")
-            if stmt.strip() and not stmt.strip().startswith("--")
-        ]
+        # Split SQL by semicolon and execute each statement.
+        # Skip only chunks where every line is a comment or blank — chunks
+        # that mix leading comments with real SQL must still execute.
+        statements = []
+        for stmt in migration_sql.split(";"):
+            stripped = stmt.strip()
+            if not stripped:
+                continue
+            if all(
+                line.strip().startswith("--") or not line.strip()
+                for line in stripped.split("\n")
+            ):
+                continue
+            statements.append(stripped)
 
         for i, stmt in enumerate(statements, 1):
             try:
@@ -98,8 +106,13 @@ async def run_all_migrations():
     # Ensure tracking table exists
     await ensure_migrations_table()
 
-    # Get all .sql files sorted by name (001_, 002_, etc.)
-    migration_files = sorted(migrations_dir.glob("*.sql"))
+    # Get all .sql files sorted by name (001_, 002_, etc.).
+    # Exclude *_down.sql rollback scripts — they are not upgrade migrations.
+    migration_files = sorted(
+        f
+        for f in migrations_dir.glob("*.sql")
+        if not f.name.endswith("_down.sql")
+    )
 
     if not migration_files:
         print("No migration files found")
