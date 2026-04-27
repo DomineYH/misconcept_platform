@@ -290,23 +290,32 @@
   .label-input-row {
     display: flex;
     gap: 0.5rem;
-    align-items: flex-start;
+    align-items: stretch;
+    flex-wrap: nowrap;
   }
 
   .label-name-input, .edit-label-name-input {
-    flex: 0.6;
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
   }
 
   .label-criteria-input, .edit-label-criteria-input {
-    flex: 1;
+    flex: 1.6 1 0;
+    min-width: 0;
+    width: auto;
     resize: vertical;
-    min-height: 32px;
+    min-height: 38px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
   }
 
   .label-level-input, .edit-label-level-input {
-    flex: 0 0 auto;
-    min-width: 120px;
-    padding: 0.35rem 0.5rem;
+    flex: 0 0 130px;
+    width: 130px;
+    padding: 0.5rem 0.5rem;
     border: 1px solid var(--color-border-medium);
     border-radius: var(--radius-sm);
     font-size: 0.85rem;
