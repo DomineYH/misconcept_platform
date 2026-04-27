@@ -97,11 +97,13 @@ async def create_framework_web(
         new_framework = AnalysisFramework(
             name=framework_data.name,
             description=framework_data.description,
+            category_name=framework_data.category_name,
             labels_json=json.dumps(
                 [
                     {
                         "name": item.name,
                         "criteria": item.criteria,
+                        "level": item.level,
                     }
                     for item in framework_data.labels
                 ],
@@ -171,6 +173,10 @@ async def update_framework_web(
         framework.name = framework_data.name
     if framework_data.description:
         framework.description = framework_data.description
+    # category_name: only set if explicitly present in the payload.
+    # Distinguishes "omitted" (preserve) from "explicit null" (clear).
+    if "category_name" in framework_data.model_fields_set:
+        framework.category_name = framework_data.category_name
     if framework_data.labels:
         try:
             framework.labels_json = json.dumps(
@@ -178,6 +184,7 @@ async def update_framework_web(
                     {
                         "name": item.name,
                         "criteria": item.criteria,
+                        "level": item.level,
                     }
                     for item in framework_data.labels
                 ],

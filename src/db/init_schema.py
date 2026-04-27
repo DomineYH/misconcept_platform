@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS analysis_framework (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
   description TEXT,
+  category_name TEXT,
   labels_json TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -133,6 +134,7 @@ CREATE TABLE IF NOT EXISTS question_analysis (
   message_id INTEGER NOT NULL UNIQUE
     REFERENCES message(id) ON DELETE CASCADE,
   label TEXT NOT NULL,
+  grade VARCHAR(10),
   confidence REAL CHECK(confidence BETWEEN 0.0 AND 1.0
     OR confidence IS NULL),
   meta_json TEXT

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Framework 상위 카테고리(category_name) + 라벨 수준(level: high/low) 기능 (closes #30)
+  - `analysis_framework.category_name` 컬럼 추가 (nullable)
+  - 라벨 dict에 `level` 키 추가 (`"high"` / `"low"` / `null`)
+  - `question_analysis.grade` 컬럼 추가 (우수/개선, 분석 시점 스냅샷)
+  - Admin UI: 카테고리 이름 입력 + 라벨별 수준 드롭다운
+  - 분석 화면: 등급 뱃지(우수/개선) + 분포 차트 그룹 카운트
+  - 마이그레이션 022 (UP/DOWN) + `labels_grade_map` 프로퍼티
+
 ## [0.3.0.0] - 2026-04-27
 
 ### Added

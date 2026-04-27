@@ -210,6 +210,7 @@ async def run_llm_pipeline(
                 label=result["label"],
                 confidence=result.get("confidence"),
                 meta_json=reasoning_json,
+                grade=framework.labels_grade_map.get(result["label"]),
             )
         )
         distribution[result["label"]] += 1

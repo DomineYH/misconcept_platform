@@ -119,6 +119,13 @@
                             {% else %}label-default{% endif %}">
                             {{ question.label }}
                         </span>
+                        {% if question.grade %}
+                        <span class="label-badge
+                            {% if question.grade == '우수' %}grade-excellent
+                            {% elif question.grade == '개선' %}grade-improve{% endif %}">
+                            {{ question.grade }}
+                        </span>
+                        {% endif %}
                     </div>
 
                     <!-- Confidence -->
