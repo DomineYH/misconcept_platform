@@ -298,7 +298,7 @@ async def test_detect_greetings_fills_missing_indices(analyzer):
 
 @pytest.mark.asyncio
 async def test_classify_question_structured_reasoning(analyzer, mock_framework):
-    """Test successful classification with full structured reasoning."""
+    """Issue #33: classification preserves slim 2-field reasoning."""
     import json
 
     structured_response = {
@@ -306,21 +306,7 @@ async def test_classify_question_structured_reasoning(analyzer, mock_framework):
         "confidence": 0.92,
         "reasoning": {
             "summary": "학생이 자신의 사고 모델을 표현하도록 유도하는 질문",
-            "pedagogical": {
-                "educational_principle": "구성주의",
-                "effectiveness": "높음 - 능동적 지식 구성 촉진",
-                "improvement_suggestion": None,
-            },
-            "cognitive": {
-                "cognitive_demand": "분석",
-                "student_response_prediction": "학생이 추론을 설명함",
-                "misconception_addressing": "오개념을 직접적으로 탐색",
-            },
-            "contextual": {
-                "dialogue_role": "탐색 질문",
-                "timing_appropriateness": "적절함",
-                "connection_to_prior": "이전 논의와 연결됨",
-            },
+            "improved_sentence": None,
         },
     }
 
@@ -328,34 +314,85 @@ async def test_classify_question_structured_reasoning(analyzer, mock_framework):
     mock_response.output = Mock(content=json.dumps(structured_response))
     analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
-    # Classify question
     result = await analyzer.classify_question(
         "왜 그렇게 생각하나요?",
         mock_framework,
         context="학생이 잘못된 진술을 했음",
     )
 
-    # Verify structure
     assert result["label"] == "Pressing"
     assert result["confidence"] == 0.92
     assert isinstance(result["reasoning"], dict)
-    assert "summary" in result["reasoning"]
-    assert "pedagogical" in result["reasoning"]
-    assert "cognitive" in result["reasoning"]
-    assert "contextual" in result["reasoning"]
+    assert set(result["reasoning"].keys()) == {"summary", "improved_sentence"}
+    assert (
+        result["reasoning"]["summary"]
+        == "학생이 자신의 사고 모델을 표현하도록 유도하는 질문"
+    )
+    assert result["reasoning"]["improved_sentence"] is None
 
-    # Verify pedagogical content
-    ped = result["reasoning"]["pedagogical"]
-    assert ped["educational_principle"] == "구성주의"
-    assert ped["effectiveness"] == "높음 - 능동적 지식 구성 촉진"
 
-    # Verify cognitive content
-    cog = result["reasoning"]["cognitive"]
-    assert cog["cognitive_demand"] == "분석"
+@pytest.mark.asyncio
+async def test_classify_question_returns_improved_sentence_for_low_grade(
+    analyzer, mock_framework
+):
+    """Issue #33: low-grade response keeps improved_sentence."""
+    import json
 
-    # Verify contextual content
-    ctx = result["reasoning"]["contextual"]
-    assert ctx["dialogue_role"] == "탐색 질문"
+    improved = "학생이 어떤 근거로 그 답을 떠올렸는지 설명해 볼래?"
+    low_response = {
+        "label": "Recall",
+        "confidence": 0.75,
+        "reasoning": {
+            "summary": "단순 사실 회상에 머무는 질문",
+            "improved_sentence": improved,
+        },
+    }
+
+    mock_response = Mock()
+    mock_response.output = Mock(content=json.dumps(low_response))
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
+
+    result = await analyzer.classify_question(
+        "1+1은 뭐지?",
+        mock_framework,
+    )
+
+    assert result["label"] == "Recall"
+    assert result["reasoning"]["improved_sentence"] == improved
+    assert result["reasoning"]["summary"] == "단순 사실 회상에 머무는 질문"
+
+
+@pytest.mark.asyncio
+async def test_classify_question_returns_no_domain_blocks(
+    analyzer, mock_framework
+):
+    """Issue #33: legacy per-domain keys are stripped during normalization."""
+    import json
+
+    legacy_with_domains = {
+        "label": "Pressing",
+        "confidence": 0.9,
+        "reasoning": {
+            "summary": "탐색을 유도",
+            "improved_sentence": None,
+            # LLM accidentally returned legacy blocks
+            "pedagogical": {"educational_principle": "구성주의"},
+            "cognitive": {"cognitive_demand": "분석"},
+            "contextual": {"dialogue_role": "탐색"},
+        },
+    }
+
+    mock_response = Mock()
+    mock_response.output = Mock(content=json.dumps(legacy_with_domains))
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
+
+    result = await analyzer.classify_question("질문", mock_framework)
+
+    reasoning = result["reasoning"]
+    assert "pedagogical" not in reasoning
+    assert "cognitive" not in reasoning
+    assert "contextual" not in reasoning
+    assert set(reasoning.keys()) == {"summary", "improved_sentence"}
 
 
 @pytest.mark.asyncio
@@ -375,108 +412,62 @@ async def test_classify_question_legacy_reasoning_compatibility(
     mock_response.output = Mock(content=json.dumps(legacy_response))
     analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
-    # Classify question
     result = await analyzer.classify_question(
         "테스트 질문?",
         mock_framework,
     )
 
-    # Should handle legacy format gracefully
     assert result["label"] == "Pressing"
-    assert "reasoning" in result
-
-    # Reasoning should be normalized to dict
     reasoning = result["reasoning"]
     assert isinstance(reasoning, dict)
     assert reasoning["summary"] == "학생의 표현을 유도하는 질문"
-    assert reasoning["pedagogical"] is None
-    assert reasoning["cognitive"] is None
-    assert reasoning["contextual"] is None
-
-
-@pytest.mark.asyncio
-async def test_classify_question_partial_reasoning(analyzer, mock_framework):
-    """Test handling of partial reasoning structure."""
-    import json
-
-    partial_response = {
-        "label": "Linking",
-        "confidence": 0.88,
-        "reasoning": {
-            "summary": "개념을 연결하는 질문",
-            "pedagogical": {
-                "educational_principle": "비계 설정",
-                "effectiveness": "중간",
-                "improvement_suggestion": None,
-            },
-            # cognitive and contextual missing
-        },
-    }
-
-    mock_response = Mock()
-    mock_response.output = Mock(content=json.dumps(partial_response))
-    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
-
-    # Classify question
-    result = await analyzer.classify_question(
-        "어떻게 연결되나요?",
-        mock_framework,
-    )
-
-    # Should handle partial structure
-    assert result["label"] == "Linking"
-    assert result["reasoning"]["summary"] == "개념을 연결하는 질문"
-    assert result["reasoning"]["pedagogical"] is not None
-    assert result["reasoning"]["cognitive"] is None
-    assert result["reasoning"]["contextual"] is None
+    assert reasoning["improved_sentence"] is None
 
 
 def test_normalize_reasoning_with_string(analyzer):
-    """Test _normalize_reasoning with legacy string format."""
+    """Legacy string format gets the new 2-field shape."""
     result = analyzer._normalize_reasoning("간단한 분석")
 
-    assert isinstance(result, dict)
-    assert result["summary"] == "간단한 분석"
-    assert result["pedagogical"] is None
-    assert result["cognitive"] is None
-    assert result["contextual"] is None
+    assert result == {
+        "summary": "간단한 분석",
+        "improved_sentence": None,
+    }
 
 
 def test_normalize_reasoning_with_dict(analyzer):
-    """Test _normalize_reasoning with partial dict."""
+    """Dict input keeps only summary and improved_sentence."""
     input_reasoning = {
         "summary": "요약",
-        "pedagogical": {"educational_principle": "테스트"},
+        "improved_sentence": "더 좋은 질문",
     }
 
     result = analyzer._normalize_reasoning(input_reasoning)
 
-    assert result["summary"] == "요약"
-    assert result["pedagogical"] == {"educational_principle": "테스트"}
-    assert result["cognitive"] is None
-    assert result["contextual"] is None
+    assert result == {
+        "summary": "요약",
+        "improved_sentence": "더 좋은 질문",
+    }
 
 
 def test_normalize_reasoning_with_none(analyzer):
-    """Test _normalize_reasoning with None value."""
+    """None becomes the empty 2-field shape."""
     result = analyzer._normalize_reasoning(None)
 
-    assert isinstance(result, dict)
-    assert result["summary"] == ""
-    assert result["pedagogical"] is None
-    assert result["cognitive"] is None
-    assert result["contextual"] is None
+    assert result == {"summary": "", "improved_sentence": None}
 
 
-def test_normalize_reasoning_with_full_dict(analyzer):
-    """Test _normalize_reasoning preserves full structure."""
-    full_reasoning = {
+def test_normalize_reasoning_strips_legacy_domain_keys(analyzer):
+    """Issue #33: legacy 3-block reasoning collapses to slim shape."""
+    legacy = {
         "summary": "전체 요약",
         "pedagogical": {"educational_principle": "구성주의"},
         "cognitive": {"cognitive_demand": "분석"},
         "contextual": {"dialogue_role": "탐색"},
     }
 
-    result = analyzer._normalize_reasoning(full_reasoning)
+    result = analyzer._normalize_reasoning(legacy)
 
-    assert result == full_reasoning
+    assert result == {"summary": "전체 요약", "improved_sentence": None}
+    assert "pedagogical" not in result
+    assert "cognitive" not in result
+    assert "contextual" not in result

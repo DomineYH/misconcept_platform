@@ -134,7 +134,7 @@ class TestOkState:
         assert "analysis-detail-toggle" in html
         assert 'aria-expanded="false"' in html
         assert 'aria-controls="analysis-detail-panel"' in html
-        assert "질문별 분석 보기" in html
+        assert "상세 분석" in html
 
     def test_detail_panel_hidden_by_default(self, env):
         template = env.get_template("partials/analysis_modal.html")

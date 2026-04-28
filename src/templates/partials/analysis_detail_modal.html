@@ -38,49 +38,14 @@
         <div>
             <h4 class="font-medium text-gray-700 mb-2">상세 분석</h4>
 
-            <!-- Summary -->
-            <div class="bg-gray-50 p-3 rounded mb-3">
-                <strong class="text-gray-700">요약:</strong>
-                <span class="text-gray-600">{{ analysis.reasoning.summary }}</span>
+            <div class="analysis-box bg-gray-50 p-3 rounded mb-3">
+                <p><strong class="text-gray-700">요약:</strong>
+                   <span class="text-gray-600">{{ analysis.reasoning.summary }}</span></p>
+                {% if analysis.reasoning.improved_sentence %}
+                <p class="mt-2"><strong class="text-gray-700">개선한 문장:</strong>
+                   <span class="text-gray-600">{{ analysis.reasoning.improved_sentence }}</span></p>
+                {% endif %}
             </div>
-
-            <!-- Pedagogical -->
-            {% if analysis.reasoning.pedagogical %}
-            <div class="bg-green-50 p-3 rounded border-l-4 border-green-500 mb-3">
-                <h5 class="font-semibold text-green-800 mb-2">교육학적 분석</h5>
-                <div class="space-y-1 text-sm">
-                    <p><strong class="text-gray-600">교육 원리:</strong> {{ analysis.reasoning.pedagogical.educational_principle }}</p>
-                    <p><strong class="text-gray-600">효과성:</strong> {{ analysis.reasoning.pedagogical.effectiveness }}</p>
-                    {% if analysis.reasoning.pedagogical.improvement_suggestion %}
-                    <p><strong class="text-gray-600">개선 제안:</strong> {{ analysis.reasoning.pedagogical.improvement_suggestion }}</p>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Cognitive -->
-            {% if analysis.reasoning.cognitive %}
-            <div class="bg-blue-50 p-3 rounded border-l-4 border-blue-500 mb-3">
-                <h5 class="font-semibold text-blue-800 mb-2">인지적 분석</h5>
-                <div class="space-y-1 text-sm">
-                    <p><strong class="text-gray-600">인지적 요구 수준:</strong> {{ analysis.reasoning.cognitive.cognitive_demand }}</p>
-                    <p><strong class="text-gray-600">예상 학생 반응:</strong> {{ analysis.reasoning.cognitive.student_response_prediction }}</p>
-                    <p><strong class="text-gray-600">오개념 대응:</strong> {{ analysis.reasoning.cognitive.misconception_addressing }}</p>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Contextual -->
-            {% if analysis.reasoning.contextual %}
-            <div class="bg-yellow-50 p-3 rounded border-l-4 border-yellow-500 mb-3">
-                <h5 class="font-semibold text-yellow-800 mb-2">맥락적 분석</h5>
-                <div class="space-y-1 text-sm">
-                    <p><strong class="text-gray-600">대화 내 역할:</strong> {{ analysis.reasoning.contextual.dialogue_role }}</p>
-                    <p><strong class="text-gray-600">타이밍 적절성:</strong> {{ analysis.reasoning.contextual.timing_appropriateness }}</p>
-                    <p><strong class="text-gray-600">이전 발화 연결:</strong> {{ analysis.reasoning.contextual.connection_to_prior }}</p>
-                </div>
-            </div>
-            {% endif %}
         </div>
         {% endif %}
 

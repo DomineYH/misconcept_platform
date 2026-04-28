@@ -50,35 +50,27 @@ class Analyzer:
 
     def _normalize_reasoning(self, reasoning: Any) -> dict:
         """
-        Normalize reasoning to structured format for backward compatibility.
+        Normalize reasoning to the slim 2-field structure.
+
+        Drops legacy per-domain blocks (pedagogical/cognitive/contextual)
+        if the LLM accidentally returns them.
 
         Args:
             reasoning: Raw reasoning from LLM (string or dict)
 
         Returns:
-            Structured reasoning dict with all required keys
+            Dict with exactly two keys: summary, improved_sentence.
         """
         if isinstance(reasoning, str):
-            # Legacy format - convert to new structure
-            return {
-                "summary": reasoning,
-                "pedagogical": None,
-                "cognitive": None,
-                "contextual": None,
-            }
-        elif isinstance(reasoning, dict):
-            # Ensure all keys exist with proper structure
+            return {"summary": reasoning, "improved_sentence": None}
+        if isinstance(reasoning, dict):
             return {
                 "summary": reasoning.get("summary", ""),
-                "pedagogical": reasoning.get("pedagogical"),
-                "cognitive": reasoning.get("cognitive"),
-                "contextual": reasoning.get("contextual"),
+                "improved_sentence": reasoning.get("improved_sentence"),
             }
         return {
             "summary": str(reasoning) if reasoning else "",
-            "pedagogical": None,
-            "cognitive": None,
-            "contextual": None,
+            "improved_sentence": None,
         }
 
     @retry(

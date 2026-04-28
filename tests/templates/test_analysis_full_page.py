@@ -92,7 +92,7 @@ class TestFullPageWedgeParity:
         html = _render(env, **_ok_ctx())
         assert "analysis-detail-toggle" in html
         assert 'aria-expanded="false"' in html
-        assert "질문별 분석 보기" in html
+        assert "상세 분석" in html
 
     def test_detail_panel_hidden(self, env):
         html = _render(env, **_ok_ctx())

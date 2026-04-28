@@ -175,7 +175,7 @@ async def get_analysis(
         "tutor_intervention_count": session.tutor_intervention_count,
     }
 
-    messages_result = await db.execute(
+    teacher_rows_result = await db.execute(
         select(Message, QuestionAnalysis)
         .outerjoin(
             QuestionAnalysis,
@@ -185,18 +185,22 @@ async def get_analysis(
         .where(Message.role == "teacher")
         .order_by(Message.created_at)
     )
-    message_analyses = messages_result.all()
+    teacher_rows = teacher_rows_result.all()
 
     questions = []
-    for msg, analysis in message_analyses:
+    teacher_label_by_msg_id: dict[int, tuple[str | None, str | None]] = {}
+    for msg, analysis in teacher_rows:
         reasoning = None
         if analysis and analysis.meta_json:
             reasoning = parse_reasoning(analysis.meta_json)
+        label = analysis.label if analysis else None
+        grade = analysis.grade if analysis else None
+        teacher_label_by_msg_id[msg.id] = (label, grade)
         questions.append(
             {
                 "content": msg.content,
-                "label": analysis.label if analysis else "Unclassified",
-                "grade": analysis.grade if analysis else None,
+                "label": label or "Unclassified",
+                "grade": grade,
                 "confidence": analysis.confidence if analysis else None,
                 "reasoning": reasoning,
                 "created_at": msg.created_at.isoformat(),
@@ -210,6 +214,44 @@ async def get_analysis(
         if g in grade_counts:
             grade_counts[g] += 1
 
+    # Load framework so we can map label → level / criteria for the
+    # detail-tabs partial. Lazy-load via the scenario relationship.
+    framework_label_criteria: dict[str, str] = {}
+    framework_label_levels: dict[str, str | None] = {}
+    scenario = await db.get(Scenario, session.scenario_id)
+    if scenario and scenario.framework_id:
+        framework = await db.get(AnalysisFramework, scenario.framework_id)
+        if framework:
+            framework_label_criteria = dict(framework.label_criteria_map)
+            for raw in framework.labels or []:
+                if isinstance(raw, dict):
+                    name = raw.get("name")
+                    if name:
+                        framework_label_levels[name] = raw.get("level")
+
+    # Build all-message timeline with teacher level annotations.
+    all_messages_result = await db.execute(
+        select(Message)
+        .where(Message.session_id == session_id)
+        .order_by(Message.created_at)
+    )
+    messages_payload = []
+    for m in all_messages_result.scalars().all():
+        label = grade = level = None
+        if m.role == "teacher" and m.id in teacher_label_by_msg_id:
+            label, grade = teacher_label_by_msg_id[m.id]
+            level = framework_label_levels.get(label) if label else None
+        messages_payload.append(
+            {
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at.isoformat(),
+                "label": label,
+                "grade": grade,
+                "level": level,
+            }
+        )
+
     return {
         "distribution": summary.distribution,
         "feedback": summary.feedback,
@@ -217,6 +259,8 @@ async def get_analysis(
         "feedback_sections": feedback_sections,
         "stats": stats,
         "questions": questions,
+        "messages": messages_payload,
+        "framework_label_criteria": framework_label_criteria,
         "grade_counts": grade_counts,
         "session_ended_at": session.ended_at.isoformat(),
     }
@@ -238,14 +282,7 @@ async def get_analysis_page(
             "request": request,
             "user": user,
             "session_id": session_id,
-            "distribution": analysis_data["distribution"],
-            "feedback": analysis_data["feedback"],
-            "feedback_status": analysis_data["feedback_status"],
-            "feedback_sections": analysis_data["feedback_sections"],
-            "stats": analysis_data["stats"],
-            "questions": analysis_data["questions"],
-            "grade_counts": analysis_data["grade_counts"],
-            "session_ended_at": analysis_data["session_ended_at"],
+            **analysis_data,
         },
     )
 

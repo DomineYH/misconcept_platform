@@ -81,120 +81,12 @@
         </dl>
         {% endif %}
 
-        {# Toggle button — hidden for failed status #}
-        {% if feedback_status != 'failed' %}
-        <button type="button"
-                class="btn-modal-secondary analysis-detail-toggle"
-                aria-expanded="false"
-                aria-controls="analysis-detail-panel"
-                onclick="toggleAnalysisDetail(this)">
-            질문별 분석 보기
-        </button>
-        {% endif %}
     </div>
 
-    {# ── Detail panel: distribution + per-question cards (hidden by default) ── #}
-    <div id="analysis-detail-panel" hidden>
-        <div class="analysis-section">
-            <h3>질문 유형 분포</h3>
-            {% include "partials/analysis_bar.html" %}
-        </div>
-
-        <div class="analysis-section">
-            <h3>질문 목록 ({{ questions|length }}개)</h3>
-
-            <div>
-                {% for question in questions %}
-                <div class="question-card">
-                    <div class="question-header">
-                        <p class="question-text">
-                            {{ question.content }}
-                        </p>
-                        <span class="label-badge
-                            {% if question.label == 'Pressing' %}label-pressing
-                            {% elif question.label == 'Linking' %}label-linking
-                            {% elif question.label == 'Directing' %}label-directing
-                            {% elif question.label == 'Recall' %}label-recall
-                            {% else %}label-default{% endif %}">
-                            {{ question.label }}
-                        </span>
-                        {% if question.grade %}
-                        <span class="label-badge
-                            {% if question.grade == '우수' %}grade-excellent
-                            {% elif question.grade == '개선' %}grade-improve{% endif %}">
-                            {{ question.grade }}
-                        </span>
-                        {% endif %}
-                    </div>
-
-                    <div class="confidence-bar-container">
-                        <span>{{ question.created_at }}</span>
-                        {% if question.confidence %}
-                        <span>
-                            신뢰도: {{ "%.0f"|format(question.confidence * 100) }}%
-                        </span>
-                        {% endif %}
-                    </div>
-
-                    {% if question.reasoning %}
-                    <details class="analysis-details">
-                        <summary>상세 분석 보기</summary>
-                        <div class="analysis-content">
-                            <div class="analysis-box summary">
-                                <strong>요약:</strong> {{ question.reasoning.summary }}
-                            </div>
-
-                            {% if question.reasoning.pedagogical %}
-                            <div class="analysis-box pedagogical">
-                                <h4>교육학적 분석</h4>
-                                <dl class="analysis-dl">
-                                    <dt>교육 원리:</dt>
-                                    <dd>{{ question.reasoning.pedagogical.educational_principle }}</dd>
-                                    <dt>효과성:</dt>
-                                    <dd>{{ question.reasoning.pedagogical.effectiveness }}</dd>
-                                    {% if question.reasoning.pedagogical.improvement_suggestion %}
-                                    <dt>개선 제안:</dt>
-                                    <dd>{{ question.reasoning.pedagogical.improvement_suggestion }}</dd>
-                                    {% endif %}
-                                </dl>
-                            </div>
-                            {% endif %}
-
-                            {% if question.reasoning.cognitive %}
-                            <div class="analysis-box cognitive">
-                                <h4>인지적 분석</h4>
-                                <dl class="analysis-dl">
-                                    <dt>인지적 요구 수준:</dt>
-                                    <dd>{{ question.reasoning.cognitive.cognitive_demand }}</dd>
-                                    <dt>예상 학생 반응:</dt>
-                                    <dd>{{ question.reasoning.cognitive.student_response_prediction }}</dd>
-                                    <dt>오개념 대응:</dt>
-                                    <dd>{{ question.reasoning.cognitive.misconception_addressing }}</dd>
-                                </dl>
-                            </div>
-                            {% endif %}
-
-                            {% if question.reasoning.contextual %}
-                            <div class="analysis-box contextual">
-                                <h4>맥락적 분석</h4>
-                                <dl class="analysis-dl">
-                                    <dt>대화 내 역할:</dt>
-                                    <dd>{{ question.reasoning.contextual.dialogue_role }}</dd>
-                                    <dt>타이밍 적절성:</dt>
-                                    <dd>{{ question.reasoning.contextual.timing_appropriateness }}</dd>
-                                    <dt>이전 발화 연결:</dt>
-                                    <dd>{{ question.reasoning.contextual.connection_to_prior }}</dd>
-                                </dl>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </details>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
+    {# ── Detail panel (3 tabs): shared partial ── #}
+    {% if feedback_status != 'failed' %}
+    {% include "partials/analysis_detail_tabs.html" %}
+    {% endif %}
 
     <div class="analysis-actions">
         <a href="/sessions/{{ session_id }}/export.csv" class="btn btn-primary">
