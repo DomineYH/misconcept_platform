@@ -56,8 +56,11 @@ function toggleAnalysisDetail(btn) {
   if (!expanded) {
     bindAnalysisTabs(panel);
 
-    var wedge = btn.closest('.analysis-wedge');
-    var sessionId = wedge ? wedge.getAttribute('data-session-id') : null;
+    var sessionId = btn.getAttribute('data-session-id');
+    if (!sessionId) {
+      var wedge = btn.closest('.analysis-wedge');
+      sessionId = wedge ? wedge.getAttribute('data-session-id') : null;
+    }
     if (sessionId) {
       fetch('/sessions/' + sessionId + '/analysis/detail-opened', {
         method: 'POST',
