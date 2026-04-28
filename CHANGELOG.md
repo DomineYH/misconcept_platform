@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1.0] - 2026-04-28
+
+### Fixed
+- 프레임워크 삭제 시 `question_analysis.message_id NOT NULL constraint failed`
+  500 에러 (closes #35)
+  - 원인: `Message.question_analysis` 관계에 cascade 옵션이 누락되어 ORM이
+    Session→Message cascade 삭제 시 자식 QuestionAnalysis 의 FK 를 NULL 로
+    UPDATE 하려다 NOT NULL 위반
+  - 수정: `src/models/message.py` 의 `question_analysis` relationship 에
+    `cascade="all, delete-orphan"` 추가 (기존 `Session.messages`/
+    `Session.summary` 와 동일 패턴)
+  - DB 스키마/마이그레이션 변경 없음
+  - 회귀 테스트: `tests/integration/test_admin_framework_delete.py` (3 케이스)
+
 ## [0.4.0.0] - 2026-04-28
 
 ### Added
