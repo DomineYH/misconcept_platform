@@ -1,7 +1,7 @@
 """Pydantic schemas for analysis API responses.
 
-Structured reasoning models for enhanced question analysis with
-pedagogical, cognitive, and contextual perspectives.
+Slim reasoning model: a free-form summary plus an optional improved
+teacher question for `level=low` labels.
 """
 
 from datetime import datetime
@@ -10,60 +10,15 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-class PedagogicalAnalysis(BaseModel):
-    """교육학적 관점 분석."""
-
-    educational_principle: str = Field(
-        ..., description="이 질문이 반영하는 교육 원리"
-    )
-    effectiveness: str = Field(
-        ..., description="이 질문 유형의 효과성 분석"
-    )
-    improvement_suggestion: Optional[str] = Field(
-        None, description="교육학적 개선 제안"
-    )
-
-
-class CognitiveAnalysis(BaseModel):
-    """인지적 관점 분석."""
-
-    cognitive_demand: str = Field(
-        ..., description="Bloom's Taxonomy 수준"
-    )
-    student_response_prediction: str = Field(
-        ..., description="예상 학생 반응"
-    )
-    misconception_addressing: str = Field(
-        ..., description="오개념 대응 방식"
-    )
-
-
-class ContextualAnalysis(BaseModel):
-    """맥락적 관점 분석."""
-
-    dialogue_role: str = Field(
-        ..., description="대화 흐름 내 역할"
-    )
-    timing_appropriateness: str = Field(
-        ..., description="타이밍 적절성"
-    )
-    connection_to_prior: str = Field(
-        ..., description="이전 발화와의 연결"
-    )
-
-
 class DetailedReasoning(BaseModel):
-    """구조화된 분류 이유 (3가지 관점)."""
+    """질문 분류에 대한 분석 이유."""
 
-    summary: str = Field(..., description="분류 요약")
-    pedagogical: Optional[PedagogicalAnalysis] = Field(
-        None, description="교육학적 분석"
+    summary: str = Field(
+        ..., description="분류 요약 (1-2문장, 프레임워크 기준 포함)"
     )
-    cognitive: Optional[CognitiveAnalysis] = Field(
-        None, description="인지적 분석"
-    )
-    contextual: Optional[ContextualAnalysis] = Field(
-        None, description="맥락적 분석"
+    improved_sentence: Optional[str] = Field(
+        None,
+        description="개선한 문장 (low 등급일 때만 채움)",
     )
 
 
@@ -82,9 +37,7 @@ class QuestionAnalysisResponse(BaseModel):
 class SessionAnalysisResponse(BaseModel):
     """세션 분석 응답."""
 
-    distribution: dict[str, int] = Field(
-        ..., description="레이블별 분포"
-    )
+    distribution: dict[str, int] = Field(..., description="레이블별 분포")
     feedback: Optional[str] = Field(None, description="전체 피드백")
     questions: list[QuestionAnalysisResponse] = Field(
         default_factory=list, description="질문별 분석 목록"

@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0.0] - 2026-04-28
+
 ### Added
+- 분석 상세화면 코칭 친화적 3탭 UI 재설계 (closes #33)
+  - 기존 "질문별 분석 보기" 토글이 "상세 분석" + 3탭(대화코칭/우수한 점/
+    개선할 점)으로 교체
+  - 대화코칭 탭: 전체 대화 시간순 노출, 교사 메시지에 level 기반 색상
+    (잘 한 대화/놓친 순간 라벨)
+  - 개선할 점 탭: low 등급 카드에 LLM이 작성한 "개선한 문장" 표시
+  - 키보드 네비게이션: ←/→/Home/End/ESC
+  - 분석 응답에 `messages` 타임라인 + `framework_label_criteria` 추가
 - Framework 상위 카테고리(category_name) + 라벨 수준(level: high/low) 기능 (closes #30)
   - `analysis_framework.category_name` 컬럼 추가 (nullable)
   - 라벨 dict에 `level` 키 추가 (`"high"` / `"low"` / `null`)
@@ -15,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Admin UI: 카테고리 이름 입력 + 라벨별 수준 드롭다운
   - 분석 화면: 등급 뱃지(우수/개선) + 분포 차트 그룹 카운트
   - 마이그레이션 022 (UP/DOWN) + `labels_grade_map` 프로퍼티
+
+### Changed
+- 분석 LLM 응답 구조 슬림화 (#33)
+  - `DetailedReasoning`이 `summary` + `improved_sentence` 두 필드만 유지
+  - `PedagogicalAnalysis`/`CognitiveAnalysis`/`ContextualAnalysis` 클래스 삭제
+  - 분석 프롬프트가 라벨별 `level` 정보를 LLM에 전달 (low 등급에서만
+    `improved_sentence` 작성)
+  - Legacy `meta_json`(영역별 3블록 포함)은 정규화 단계에서 자연 폐기 —
+    DB 마이그레이션 불필요
+- 코치 탭의 메시지 색상은 persisted `grade`에서 derive (framework 라벨
+  level 변경 시에도 historical 세션 일관성 유지)
 
 ## [0.3.0.0] - 2026-04-27
 

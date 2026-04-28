@@ -3396,3 +3396,162 @@ textarea#teacher-input {
   animation: omc-i24-spin 0.8s linear infinite;
   vertical-align: -2px;
 }
+
+/* ===== Issue #33: Analysis detail tabs (대화코칭 / 우수한 점 / 개선할 점) ===== */
+
+.analysis-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  margin: 16px 0 12px;
+  flex-wrap: wrap;
+}
+
+.analysis-tabs [role="tab"] {
+  padding: 8px 14px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font: inherit;
+  color: var(--color-text-secondary, #4b5563);
+}
+
+.analysis-tabs [role="tab"][aria-selected="true"] {
+  border-bottom-color: var(--color-primary, #2563eb);
+  color: var(--color-primary, #2563eb);
+  font-weight: 600;
+}
+
+.analysis-tabs [role="tab"]:focus-visible {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: -2px;
+}
+
+.analysis-tab-panel {
+  padding: 12px 0;
+}
+
+.coach-msg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.coach-msg {
+  padding: 12px 14px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 2px solid var(--color-border, #e5e7eb);
+  background: var(--color-bg-card, #fff);
+}
+
+.coach-msg__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.9em;
+}
+
+.coach-msg__role {
+  font-weight: 600;
+  color: var(--color-text-secondary, #4b5563);
+}
+
+.coach-msg__content {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--color-text-primary, #111827);
+}
+
+.coach-msg__tag {
+  font-size: 0.78em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.tag--good { background: #16a34a; }
+.tag--bad  { background: #dc2626; }
+
+.coach-msg--high {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.coach-msg--low {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.coach-msg--none {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.strong-card-list,
+.improve-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.strong-card,
+.improve-card {
+  padding: 12px 14px;
+  border-left: 4px solid;
+  border-radius: 4px;
+  background: var(--color-bg-card, #fff);
+}
+
+.strong-card {
+  border-left-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.improve-card {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+
+.strong-card__q,
+.improve-card__q {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: var(--color-text-primary, #111827);
+}
+
+.strong-card__label,
+.improve-card__label {
+  margin: 0 0 6px;
+  font-size: 0.92em;
+  color: var(--color-text-secondary, #4b5563);
+}
+
+.strong-card__criteria,
+.improve-card__criteria {
+  color: var(--color-text-tertiary, #6b7280);
+}
+
+.strong-card__reason,
+.improve-card__why {
+  margin: 4px 0;
+}
+
+.improve-card__rewrite {
+  margin: 6px 0 0;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
+.improve-card__rewrite--missing {
+  color: var(--color-text-tertiary, #6b7280);
+  font-style: italic;
+}
+
+.empty-state {
+  color: var(--color-text-tertiary, #6b7280);
+  padding: 16px;
+  text-align: center;
+}

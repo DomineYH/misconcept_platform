@@ -50,35 +50,27 @@ class Analyzer:
 
     def _normalize_reasoning(self, reasoning: Any) -> dict:
         """
-        Normalize reasoning to structured format for backward compatibility.
+        Normalize reasoning to the slim 2-field structure.
+
+        Drops legacy per-domain blocks (pedagogical/cognitive/contextual)
+        if the LLM accidentally returns them.
 
         Args:
             reasoning: Raw reasoning from LLM (string or dict)
 
         Returns:
-            Structured reasoning dict with all required keys
+            Dict with exactly two keys: summary, improved_sentence.
         """
         if isinstance(reasoning, str):
-            # Legacy format - convert to new structure
-            return {
-                "summary": reasoning,
-                "pedagogical": None,
-                "cognitive": None,
-                "contextual": None,
-            }
-        elif isinstance(reasoning, dict):
-            # Ensure all keys exist with proper structure
+            return {"summary": reasoning, "improved_sentence": None}
+        if isinstance(reasoning, dict):
             return {
                 "summary": reasoning.get("summary", ""),
-                "pedagogical": reasoning.get("pedagogical"),
-                "cognitive": reasoning.get("cognitive"),
-                "contextual": reasoning.get("contextual"),
+                "improved_sentence": reasoning.get("improved_sentence"),
             }
         return {
             "summary": str(reasoning) if reasoning else "",
-            "pedagogical": None,
-            "cognitive": None,
-            "contextual": None,
+            "improved_sentence": None,
         }
 
     @retry(
@@ -121,10 +113,25 @@ class Analyzer:
             framework.description or "",
         )
 
-        # Build criteria-formatted labels for prompt
+        # Build criteria-formatted labels for prompt.
+        # Issue #33: include `level` in the prompt so the LLM knows which
+        # labels need an `improved_sentence`.
         criteria_map = framework.label_criteria_map
+        level_map: dict[str, str | None] = {}
+        for raw in framework.labels or []:
+            if isinstance(raw, dict):
+                name = raw.get("name")
+                if name:
+                    level_map[name] = raw.get("level")
+
+        def _format_label(name: str, criteria: str) -> str:
+            level = level_map.get(name)
+            level_tag = f" [level={level}]" if level else ""
+            base = f"- **{name}**{level_tag}"
+            return f"{base}: {criteria}" if criteria else base
+
         labels_with_criteria = "\n".join(
-            f"- **{name}**: {criteria}" if criteria else f"- **{name}**"
+            _format_label(name, criteria)
             for name, criteria in criteria_map.items()
         )
         label_names = framework.label_names

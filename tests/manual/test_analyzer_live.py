@@ -6,7 +6,6 @@ Run: python -m tests.manual.test_analyzer_live
 """
 
 import asyncio
-import json
 import os
 import sys
 from datetime import datetime
@@ -17,8 +16,7 @@ sys.path.insert(0, "/mnt/d/dev/misconcept_platform")
 # Override reasoning effort for testing (before importing services)
 os.environ["ANALYSIS_REASONING"] = "low"  # low for faster/cheaper tests
 
-from src.services.analyzer import Analyzer
-from src.models.analysis_framework import AnalysisFramework
+from src.services.analyzer import Analyzer  # noqa: E402
 
 
 class MockFramework:
@@ -26,9 +24,7 @@ class MockFramework:
 
     def __init__(self):
         self.name = "Leverage Framework"
-        self.description = (
-            "분류 체계: 교사 질문을 교육적 효과에 따라 분류"
-        )
+        self.description = "분류 체계: 교사 질문을 교육적 효과에 따라 분류"
         self.labels = [
             "Probing",
             "Scaffolding",
@@ -65,7 +61,9 @@ async def test_classify_question():
     # 시나리오 컨텍스트
     scenario_title = "분수의 덧셈 오개념"
     misconception = "분수의 덧셈에서 분모와 분자를 각각 더해야 한다고 생각함"
-    student_profile = "초등학교 5학년 학생, 수학에 흥미가 있지만 분수 개념이 약함"
+    student_profile = (
+        "초등학교 5학년 학생, 수학에 흥미가 있지만 분수 개념이 약함"
+    )
 
     # 이전 대화 컨텍스트
     context = """teacher: 1/2 + 1/3을 계산해볼까?
@@ -96,32 +94,18 @@ teacher: 흥미로운 답이네. 그렇게 생각한 이유가 뭘까?"""
 
         reasoning = result.get("reasoning", {})
         if isinstance(reasoning, dict):
-            print(f"\n📊 분석 근거:")
+            print("\n📊 분석 근거:")
             print(f"   요약: {reasoning.get('summary', 'N/A')}")
-
-            if reasoning.get("pedagogical"):
-                ped = reasoning["pedagogical"]
-                print(f"\n   [교육학적 분석]")
-                print(f"   - 교육 원리: {ped.get('educational_principle', 'N/A')}")
-                print(f"   - 효과성: {ped.get('effectiveness', 'N/A')}")
-
-            if reasoning.get("cognitive"):
-                cog = reasoning["cognitive"]
-                print(f"\n   [인지적 분석]")
-                print(f"   - 인지적 요구: {cog.get('cognitive_demand', 'N/A')}")
-                print(f"   - 오개념 대응: {cog.get('misconception_addressing', 'N/A')}")
-
-            if reasoning.get("contextual"):
-                ctx = reasoning["contextual"]
-                print(f"\n   [맥락적 분석]")
-                print(f"   - 대화 역할: {ctx.get('dialogue_role', 'N/A')}")
-                print(f"   - 타이밍: {ctx.get('timing_appropriateness', 'N/A')}")
+            improved = reasoning.get("improved_sentence")
+            if improved:
+                print(f"   개선한 문장: {improved}")
 
         return True, result
 
     except Exception as e:
         print(f"\n❌ 오류 발생: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False, str(e)
 
@@ -162,13 +146,14 @@ async def test_detect_greetings():
             reason = result.get("reason", "N/A")
             status = "🤝 인사" if is_greeting else "📖 질문"
             print(f"   {idx}. {status} - {reason}")
-            print(f"      \"{test_messages[idx][:40]}...\"")
+            print(f'      "{test_messages[idx][:40]}..."')
 
         return True, results
 
     except Exception as e:
         print(f"\n❌ 오류 발생: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False, str(e)
 
@@ -209,8 +194,10 @@ async def test_batch_classify():
         print(f"\n✅ 배치 분류 완료 ({elapsed:.2f}초)")
         print("\n📊 결과:")
         for i, result in enumerate(results):
-            print(f"   {i+1}. {result['label']} (신뢰도: {result['confidence']:.2%})")
-            if result.get('reasoning', {}).get('summary'):
+            print(
+                f"   {i+1}. {result['label']} (신뢰도: {result['confidence']:.2%})"  # noqa: E501
+            )
+            if result.get("reasoning", {}).get("summary"):
                 print(f"      → {result['reasoning']['summary'][:50]}...")
 
         return True, results
@@ -218,6 +205,7 @@ async def test_batch_classify():
     except Exception as e:
         print(f"\n❌ 오류 발생: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False, str(e)
 
@@ -228,8 +216,9 @@ async def test_misconception_analyzer():
     print("🧠 테스트 4: 오개념 분석")
     print("=" * 60)
 
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
     from sqlalchemy.orm import sessionmaker
+
     from src.services.misconception_analyzer import MisconceptionAnalyzer
 
     # Create in-memory database session
@@ -242,16 +231,20 @@ async def test_misconception_analyzer():
         # Use low reasoning effort for testing
         analyzer = MisconceptionAnalyzer(
             db_session=db,
-            reasoning_effort="low"  # Override for testing
+            reasoning_effort="low",  # Override for testing
         )
 
         print(f"   모델: {analyzer.model}")
         print(f"   Reasoning Effort: {analyzer.reasoning_effort}")
 
         # 테스트 데이터
-        student_message = "분수를 더할 때는 분자끼리 더하고 분모끼리 더하면 돼요. 1/2 + 1/3 = 2/5예요!"
-        scenario_prompt = "분수의 덧셈에서 분모와 분자를 각각 더해야 한다고 잘못 이해함"
-        student_profile = "초등학교 5학년, 수학에 자신감이 있지만 분수 개념이 약함"
+        student_message = "분수를 더할 때는 분자끼리 더하고 분모끼리 더하면 돼요. 1/2 + 1/3 = 2/5예요!"  # noqa: E501
+        scenario_prompt = (
+            "분수의 덧셈에서 분모와 분자를 각각 더해야 한다고 잘못 이해함"
+        )
+        student_profile = (
+            "초등학교 5학년, 수학에 자신감이 있지만 분수 개념이 약함"
+        )
         scenario_title = "분수 덧셈 오개념 교정"
 
         print(f"\n💬 학생 응답: {student_message}")
@@ -268,10 +261,14 @@ async def test_misconception_analyzer():
             elapsed = (datetime.now() - start_time).total_seconds()
 
             print(f"\n✅ 분석 완료 ({elapsed:.2f}초)")
-            print(f"\n📊 분석 결과:")
-            print(f"   오개념 유지: {'예' if result['maintains_misconception'] else '아니오'}")
+            print("\n📊 분석 결과:")
+            print(
+                f"   오개념 유지: {'예' if result['maintains_misconception'] else '아니오'}"  # noqa: E501
+            )
             print(f"   오개념 강도: {result['misconception_strength']:.2%}")
-            print(f"   드리프트 감지: {'예' if result['drift_detected'] else '아니오'}")
+            print(
+                f"   드리프트 감지: {'예' if result['drift_detected'] else '아니오'}"  # noqa: E501
+            )
             print(f"   근거: {result['evidence']}")
             print(f"   분석 노트: {result['analysis_notes']}")
 
@@ -280,6 +277,7 @@ async def test_misconception_analyzer():
         except Exception as e:
             print(f"\n❌ 오류 발생: {type(e).__name__}: {e}")
             import traceback
+
             traceback.print_exc()
             return False, str(e)
 
@@ -289,7 +287,9 @@ async def main():
     print("\n" + "=" * 60)
     print("🚀 분석 기능 통합 테스트 시작")
     print(f"   시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"   ANALYSIS_REASONING: {os.environ.get('ANALYSIS_REASONING', 'high')}")
+    print(
+        f"   ANALYSIS_REASONING: {os.environ.get('ANALYSIS_REASONING', 'high')}"
+    )
     print("=" * 60)
 
     results = {}
