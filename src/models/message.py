@@ -1,14 +1,16 @@
 """Message model for dialogue turns (T026)."""
+
 from datetime import datetime, timezone
 from typing import Optional
+
 from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
     Integer,
     String,
     Text,
-    DateTime,
-    ForeignKey,
-    CheckConstraint,
-    Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -45,11 +47,14 @@ class Message(Base):
     )
 
     # Relationships
-    session: Mapped["Session"] = relationship(
+    session: Mapped["Session"] = relationship(  # noqa: F821
         "Session", back_populates="messages"
     )
     question_analysis: Mapped["QuestionAnalysis"] = relationship(  # noqa: F821
-        "QuestionAnalysis", back_populates="message", uselist=False
+        "QuestionAnalysis",
+        back_populates="message",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
     # Constraints
@@ -62,5 +67,9 @@ class Message(Base):
     )
 
     def __repr__(self) -> str:
-        preview = self.content[:30] + "..." if len(self.content) > 30 else self.content
+        preview = (
+            self.content[:30] + "..."
+            if len(self.content) > 30
+            else self.content
+        )
         return f"<Message(id={self.id}, role={self.role}, content={preview})>"
