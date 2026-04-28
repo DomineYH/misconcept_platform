@@ -113,10 +113,25 @@ class Analyzer:
             framework.description or "",
         )
 
-        # Build criteria-formatted labels for prompt
+        # Build criteria-formatted labels for prompt.
+        # Issue #33: include `level` in the prompt so the LLM knows which
+        # labels need an `improved_sentence`.
         criteria_map = framework.label_criteria_map
+        level_map: dict[str, str | None] = {}
+        for raw in framework.labels or []:
+            if isinstance(raw, dict):
+                name = raw.get("name")
+                if name:
+                    level_map[name] = raw.get("level")
+
+        def _format_label(name: str, criteria: str) -> str:
+            level = level_map.get(name)
+            level_tag = f" [level={level}]" if level else ""
+            base = f"- **{name}**{level_tag}"
+            return f"{base}: {criteria}" if criteria else base
+
         labels_with_criteria = "\n".join(
-            f"- **{name}**: {criteria}" if criteria else f"- **{name}**"
+            _format_label(name, criteria)
             for name, criteria in criteria_map.items()
         )
         label_names = framework.label_names

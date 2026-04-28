@@ -152,18 +152,16 @@ async def _load_analysis_response(
         if g in grade_counts:
             grade_counts[g] += 1
 
+    # Issue #33: derive level from persisted grade (not framework lookup) so
+    # historical sessions stay consistent across framework edits.
     framework_label_criteria: dict[str, str] = {}
-    framework_label_levels: dict[str, str | None] = {}
     scenario = await db.get(Scenario, session.scenario_id)
     if scenario and scenario.framework_id:
         framework = await db.get(AnalysisFramework, scenario.framework_id)
         if framework:
             framework_label_criteria = dict(framework.label_criteria_map)
-            for raw in framework.labels or []:
-                if isinstance(raw, dict):
-                    name = raw.get("name")
-                    if name:
-                        framework_label_levels[name] = raw.get("level")
+
+    grade_to_level = {"우수": "high", "개선": "low"}
 
     all_messages_result = await db.execute(
         select(Message)
@@ -175,7 +173,7 @@ async def _load_analysis_response(
         label = grade = level = None
         if m.role == "teacher" and m.id in teacher_label_by_msg_id:
             label, grade = teacher_label_by_msg_id[m.id]
-            level = framework_label_levels.get(label) if label else None
+            level = grade_to_level.get(grade)
         messages_payload.append(
             {
                 "role": m.role,

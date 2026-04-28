@@ -251,3 +251,81 @@ async def test_improve_tab_shows_improved_sentence(
     html = resp.text
     assert "더 깊이 생각해 보게 하는 질문은 어떨까?" in html
     assert "개선한 문장" in html
+
+
+async def test_message_level_derives_from_grade_not_framework(
+    test_client: TestClient,
+    db_session: AsyncSession,
+    seeded_analyzed_session: Session,
+    leveled_framework: AnalysisFramework,
+):
+    """Codex P2: admin이 framework label level을 바꿔도 historical session의
+    coach 색상은 persisted grade를 따라야 한다 (drift 차단)."""
+    # Mutate the framework: flip Pressing from high to low and Recall from
+    # low to high. Persisted grades stay the same.
+    leveled_framework.labels = [
+        {"name": "Pressing", "criteria": "사고 탐색", "level": "low"},
+        {"name": "Linking", "criteria": "연결 유도", "level": "high"},
+        {"name": "Recall", "criteria": "단순 회상", "level": "high"},
+        {"name": "Directing", "criteria": "방향 제시"},
+    ]
+    await db_session.commit()
+
+    cookies = _login(test_client)
+    resp = test_client.get(
+        f"/sessions/{seeded_analyzed_session.id}/analysis",
+        cookies=cookies,
+    )
+    assert resp.status_code == 200
+    msgs = resp.json()["messages"]
+    teacher = [(m["grade"], m["level"]) for m in msgs if m["role"] == "teacher"]
+    # grade-derived: 우수→high, 개선→low, None→None — irrespective of
+    # framework's current level field.
+    assert teacher == [("우수", "high"), ("개선", "low"), (None, None)]
+
+
+async def test_analysis_prompt_includes_label_level(monkeypatch):
+    """Codex P2: 분석 프롬프트가 LLM에게 각 label의 level을 알려줘야
+    improved_sentence 생성이 가능하다."""
+    from unittest.mock import Mock, patch
+
+    from src.models.analysis_framework import AnalysisFramework as Fw
+    from src.services.analyzer import Analyzer
+
+    framework = Mock(spec=Fw)
+    framework.name = "Levels"
+    framework.description = "test"
+    framework.labels = [
+        {"name": "Good", "criteria": "good crit", "level": "high"},
+        {"name": "Bad", "criteria": "bad crit", "level": "low"},
+        {"name": "Neutral", "criteria": "neutral crit"},
+    ]
+    framework.label_names = ["Good", "Bad", "Neutral"]
+    framework.label_criteria_map = {
+        "Good": "good crit",
+        "Bad": "bad crit",
+        "Neutral": "neutral crit",
+    }
+
+    captured = {}
+
+    async def fake_create(**kwargs):
+        captured["input"] = kwargs.get("input")
+        resp = Mock()
+        resp.output = Mock(
+            content='{"label": "Good", "confidence": 0.9, '
+            '"reasoning": {"summary": "x", "improved_sentence": null}}'
+        )
+        return resp
+
+    with patch("src.services.analyzer.AsyncOpenAI"):
+        analyzer = Analyzer()
+        analyzer.client = Mock()
+        analyzer.client.responses.create = fake_create
+        await analyzer.classify_question("Q?", framework)
+
+    prompt_text = captured["input"][0]["content"]
+    assert "[level=high]" in prompt_text
+    assert "[level=low]" in prompt_text
+    # Label without explicit level should not get a tag
+    assert "**Neutral** [level=" not in prompt_text
