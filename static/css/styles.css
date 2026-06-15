@@ -75,6 +75,10 @@
   --color-info-text: #1565C0;
   --color-info-bg: #E3F2FD;
 
+  /* Chart Colors */
+  --color-chart-bar: #000000;
+  --color-chart-bar-label: #FFFFFF;
+
   /* Spacing */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
@@ -2384,13 +2388,17 @@ textarea#teacher-input {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 0.5rem;
-  color: var(--color-white);
+  padding: 0 0.375rem;
+  color: var(--color-chart-bar-label);
   font-size: 0.7rem;
   font-weight: 600;
   transition: width 0.5s ease-out;
-  min-width: fit-content;
+  min-width: 0;
   white-space: nowrap;
+}
+
+.chart-fill--labeled {
+  min-width: 2rem;
 }
 
 .chart-value {
@@ -2408,8 +2416,8 @@ textarea#teacher-input {
 .bg-directing,
 .bg-recall,
 .bg-default {
-  background-color: var(--color-black);
-  color: var(--color-white);
+  background-color: var(--color-chart-bar);
+  color: var(--color-chart-bar-label);
 }
 
 .chart-total {
@@ -3253,6 +3261,9 @@ textarea#teacher-input {
     --color-danger-bg: #3D1A1A;
     --color-info-text: #64B5F6;
     --color-info-bg: #1A2A3D;
+
+    --color-chart-bar: #EAEAEA;
+    --color-chart-bar-label: #0A0A0A;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);

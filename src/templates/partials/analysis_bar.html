@@ -15,6 +15,9 @@
                 <!-- Bar -->
                 <div class="chart-track">
                     <div class="chart-fill
+                        {% if percentage > 0 %}
+                            chart-fill--labeled
+                        {% endif %}
                         {% if label == 'Pressing' %}
                             bg-pressing
                         {% elif label == 'Linking' %}
@@ -28,7 +31,11 @@
                         {% endif %}
                         " style="width: {{ percentage }}%">
                         {% if percentage > 0 %}
+                            {% if percentage < 1 %}
+                        &lt;1%
+                            {% else %}
                         {{ "%.0f"|format(percentage) }}%
+                            {% endif %}
                         {% endif %}
                     </div>
                 </div>
