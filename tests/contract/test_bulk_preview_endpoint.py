@@ -41,16 +41,19 @@ class TestBulkPreview:
         resp = await async_client.post(
             "/admin/users/bulk/preview",
             files=_csv_file(
-                "username,nickname,role,group\n"
-                "user_01,유저1,teacher,1학년\n"
-                "user_02,유저2,,\n"
+                "username,nickname\n"
+                "user_01,유저1\n"
+                "user_02,유저2\n"
             ),
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["summary"]["total"] == 2
         assert data["summary"]["valid"] == 2
-        assert data["rows"][0]["group_id"] == group.id
+        # role/group come from the preview screen, not the file.
+        assert data["rows"][0]["role"] == "teacher"
+        assert data["rows"][0]["group_id"] is None
+        # groups are still returned for the preview screen dropdown.
         assert len(data["groups"]) >= 1
 
     @pytest.mark.asyncio

@@ -12,18 +12,31 @@ from src.services.admin_user_bulk import parse_csv  # noqa: E402
 class TestParseCsv:
     def test_valid_utf8_csv(self):
         csv_bytes = (
-            "username,nickname,role,group\n"
-            "kim_minjun,김민준,teacher,1학년\n"
-            "lee_soyeon,이소연,,\n"
+            "username,nickname\n"
+            "kim_minjun,김민준\n"
+            "lee_soyeon,이소연\n"
         ).encode("utf-8")
         rows = parse_csv(csv_bytes)
         assert len(rows) == 2
         assert rows[0]["username"] == "kim_minjun"
         assert rows[0]["nickname"] == "김민준"
-        assert rows[0]["role"] == "teacher"
-        assert rows[0]["group"] == "1학년"
-        assert rows[1]["role"] == ""
-        assert rows[1]["group"] == ""
+        # role/group are set on the preview screen, not via file.
+        assert rows[0]["role"] == ""
+        assert rows[0]["group"] == ""
+
+    def test_ignores_role_group_columns(self):
+        """role/group columns in the file are ignored — they are set on
+        the preview screen, not via upload."""
+        csv_bytes = (
+            "username,nickname,role,group\n"
+            "kim_minjun,김민준,admin,1학년\n"
+        ).encode("utf-8")
+        rows = parse_csv(csv_bytes)
+        assert len(rows) == 1
+        assert rows[0]["username"] == "kim_minjun"
+        assert rows[0]["nickname"] == "김민준"
+        assert rows[0]["role"] == ""
+        assert rows[0]["group"] == ""
 
     def test_utf8_bom_csv(self):
         csv_bytes = (
@@ -66,14 +79,10 @@ class TestParseCsv:
             parse_csv(csv_bytes)
 
     def test_strips_whitespace(self):
-        csv_bytes = (
-            "username,nickname,role,group\n kim , 김민준 , teacher , 1학년 \n"
-        ).encode("utf-8")
+        csv_bytes = ("username,nickname\n kim , 김민준 \n").encode("utf-8")
         rows = parse_csv(csv_bytes)
         assert rows[0]["username"] == "kim"
         assert rows[0]["nickname"] == "김민준"
-        assert rows[0]["role"] == "teacher"
-        assert rows[0]["group"] == "1학년"
 
     def test_tab_delimiter(self):
         csv_bytes = (

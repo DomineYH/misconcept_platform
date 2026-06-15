@@ -28,8 +28,6 @@ COLUMN_ALIASES: dict[str, str] = {
     "사용자id": "username",
     "사용자 id": "username",
     "닉네임": "nickname",
-    "역할": "role",
-    "그룹": "group",
 }
 
 
@@ -94,12 +92,15 @@ def parse_csv(file_content: bytes) -> list[dict]:
         for orig_key, clean_key in zip(reader.fieldnames, cleaned_fields):
             val = (raw_row.get(orig_key) or "").strip()
             row[clean_key] = val
+        # role/group are intentionally ignored here — they are assigned on
+        # the bulk preview screen, not via file upload. Any role/group
+        # columns present in the file are dropped.
         rows.append(
             {
                 "username": row.get("username", ""),
                 "nickname": row.get("nickname", ""),
-                "role": row.get("role", ""),
-                "group": row.get("group", ""),
+                "role": "",
+                "group": "",
             }
         )
 
