@@ -10,8 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import config
-from src.models import ApiUsageLog, Message, Scenario, Session, calculate_cost
+from src.models import Message, Scenario, Session, calculate_cost
 from src.services.misconception_analyzer import MisconceptionAnalyzer
+from src.services.session_lifecycle import (
+    ensure_session_writable,
+    flush_with_stale_session_check,
+)
+from src.services.session_usage import log_api_usage
 from src.services.student_bot import StudentBot
 from src.services.tutor_bot import TutorBot
 
@@ -21,7 +26,7 @@ logger = logging.getLogger(__name__)
 class SessionManager:
     """Orchestrates teacher-student-tutor dialogue interactions."""
 
-    CONTEXT_WINDOW_TURNS: int = 20  # Max messages in conversation history
+    CONTEXT_WINDOW_TURNS: int = config.CONTEXT_WINDOW_TURNS
 
     def __init__(self, db_session: AsyncSession, session_id: int):
         """Initialize SessionManager for specific session.
@@ -39,13 +44,7 @@ class SessionManager:
 
     async def initialize(self) -> None:
         """Load session and initialize StudentBot with scenario."""
-        # Load session and scenario
-        result = await self.db.execute(
-            select(Session).where(
-                Session.id == self.session_id, Session.deleted_at.is_(None)
-            )
-        )
-        session = result.scalar_one()
+        session = await ensure_session_writable(self.db, self.session_id)
         tutor_intervention_count = session.tutor_intervention_count
         tutor_question_count = session.tutor_question_count
 
@@ -118,13 +117,14 @@ class SessionManager:
         history = await self._get_conversation_history()
 
         # 2. Save teacher message
+        await ensure_session_writable(self.db, self.session_id)
         teacher_msg = Message(
             session_id=self.session_id,
             role="teacher",
             content=teacher_content,
         )
         self.db.add(teacher_msg)
-        await self.db.flush()  # Get ID without commit
+        await flush_with_stale_session_check(self.db, self.session_id)
         await self.db.commit()  # Teacher 메시지 즉시 가시화
         new_messages.append(teacher_msg)
 
@@ -163,6 +163,7 @@ class SessionManager:
             logger.warning("Misconception analysis failed: %s", results[0])
 
         # 3.2. Save student message with metadata
+        await ensure_session_writable(self.db, self.session_id)
         student_msg = Message(
             session_id=self.session_id,
             role="student",
@@ -170,7 +171,7 @@ class SessionManager:
             analysis_metadata=misconception_data,
         )
         self.db.add(student_msg)
-        await self.db.flush()
+        await flush_with_stale_session_check(self.db, self.session_id)
         new_messages.append(student_msg)
 
         # Log StudentBot API usage
@@ -186,13 +187,16 @@ class SessionManager:
             if not isinstance(tutor_result, Exception):
                 tutor_feedback, tutor_usage = tutor_result
                 if tutor_feedback:
+                    await ensure_session_writable(self.db, self.session_id)
                     tutor_msg = Message(
                         session_id=self.session_id,
                         role="tutor",
                         content=tutor_feedback,
                     )
                     self.db.add(tutor_msg)
-                    await self.db.flush()
+                    await flush_with_stale_session_check(
+                        self.db, self.session_id
+                    )
                     new_messages.append(tutor_msg)
 
                     # Log TutorBot API usage (only if intervention occurred)
@@ -206,17 +210,15 @@ class SessionManager:
 
         # 5. Refresh to get created_at timestamps (dependency auto-commits)
         for msg in new_messages:
+            await ensure_session_writable(self.db, self.session_id)
             await self.db.refresh(msg)
 
         # Persist TutorBot state to session
         if self.tutor_bot:
-            result = await self.db.execute(
-                select(Session).where(Session.id == self.session_id)
-            )
-            sess = result.scalar_one()
+            sess = await ensure_session_writable(self.db, self.session_id)
             sess.tutor_intervention_count = self.tutor_bot.intervention_count
             sess.tutor_question_count = self.tutor_bot.question_count
-            await self.db.flush()
+            await flush_with_stale_session_check(self.db, self.session_id)
 
         return new_messages
 
@@ -275,7 +277,7 @@ class SessionManager:
             .order_by(Message.created_at)
         )
         messages = result.scalars().all()
-        window = config.CONTEXT_WINDOW_TURNS
+        window = self.CONTEXT_WINDOW_TURNS
         recent = messages[-window:]
         return [{"role": msg.role, "content": msg.content} for msg in recent]
 
@@ -285,52 +287,14 @@ class SessionManager:
         model: str,
         usage_dict: Optional[dict],
     ) -> None:
-        """Log OpenAI API usage to database.
-
-        Args:
-            bot_type: Type of bot ('student' or 'tutor')
-            model: OpenAI model name used
-            usage_dict: Dictionary with prompt_tokens, completion_tokens,
-                total_tokens. None if no usage info available.
-        """
-        if usage_dict is None:
-            logger.warning(
-                "No usage info for %s bot (model: %s)", bot_type, model
-            )
-            return
-
-        try:
-            # Calculate cost using pricing table
-            cost = calculate_cost(
-                model=model,
-                prompt_tokens=usage_dict["prompt_tokens"],
-                completion_tokens=usage_dict["completion_tokens"],
-            )
-
-            # Create log entry
-            log_entry = ApiUsageLog(
-                session_id=self.session_id,
-                bot_type=bot_type,
-                model=model,
-                prompt_tokens=usage_dict["prompt_tokens"],
-                completion_tokens=usage_dict["completion_tokens"],
-                total_tokens=usage_dict["total_tokens"],
-                estimated_cost_usd=cost,
-            )
-
-            self.db.add(log_entry)
-            await self.db.flush()  # Persist immediately
-
-            logger.debug(
-                f"API usage logged: {bot_type} bot, "
-                f"{usage_dict['total_tokens']} tokens, ${cost:.6f}"
-            )
-
-        except Exception as e:
-            # Log error but don't fail the entire process
-            logger.error(
-                "Failed to log API usage for %s bot: %s", bot_type, str(e)
-            )
+        await log_api_usage(
+            db=self.db,
+            session_id=self.session_id,
+            bot_type=bot_type,
+            model=model,
+            usage_dict=usage_dict,
+            cost_calculator=calculate_cost,
+        )
 
     async def end_session(self) -> None:
         """Mark session as ended."""
@@ -343,18 +307,3 @@ class SessionManager:
 
         session.ended_at = datetime.now(timezone.utc)
         # Dependency auto-commits
-
-
-# TODO: Task 3.1.2/3.1.3 - API Usage Logging Tests
-# TODO: test_api_usage_logging_student_message
-#       - Verify StudentBot API call generates usage log entry
-#       - Check prompt_tokens, completion_tokens, total_tokens accuracy
-#       - Validate estimated_cost_usd calculation
-# TODO: test_api_usage_logging_tutor_intervention
-#       - Verify TutorBot API call generates usage log entry (when intervening)
-#       - Check bot_type='tutor' correctly logged
-#       - Validate model name matches tutor configuration
-# TODO: test_api_usage_logging_failure_handling
-#       - Verify logging failure doesn't break dialogue flow
-#       - Check warning logs when usage info unavailable
-#       - Ensure DB rollback doesn't affect message persistence

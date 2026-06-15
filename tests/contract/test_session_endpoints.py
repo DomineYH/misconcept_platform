@@ -2,6 +2,7 @@
 
 from fastapi.testclient import TestClient
 
+from src.api.routes.session_messages import STALE_SESSION_MESSAGE
 from tests.conftest import requires_openai_api_key
 
 
@@ -592,10 +593,10 @@ class TestSessionCloseEndpoint:
 class TestEndedSessionValidation:
     """Test that ended sessions cannot receive new messages."""
 
-    def test_send_message_to_ended_session_returns_400(
+    def test_send_message_to_ended_session_returns_409(
         self, test_client: TestClient
     ):
-        """Verify sending message to ended session returns 400."""
+        """Verify ended-session messages return stale HTML."""
         # Login and create session
         login_response = test_client.post(
             "/login",
@@ -618,10 +619,9 @@ class TestEndedSessionValidation:
             cookies=cookies,
         )
 
-        # Should return 400 with appropriate error message
-        assert response.status_code == 400
-        data = response.json()
-        assert "already ended" in data["detail"].lower()
+        assert response.status_code == 409
+        assert "text/html" in response.headers["content-type"]
+        assert response.text == STALE_SESSION_MESSAGE
 
     def test_end_session_after_close_returns_400(self, test_client: TestClient):
         """Verify calling /end after /close returns 400."""
