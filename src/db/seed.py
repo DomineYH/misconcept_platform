@@ -37,6 +37,21 @@ def _hash_password(plain: str) -> str:
     ).decode("utf-8")
 
 
+def _password_matches(plain: str, password_hash: str) -> bool:
+    """Return True if the bcrypt hash verifies the plaintext password."""
+    if not password_hash:
+        return False
+    try:
+        return bcrypt.checkpw(
+            plain.encode("utf-8"),
+            password_hash.encode("utf-8"),
+        )
+    except ValueError:
+        # Malformed / non-bcrypt hash → treat as non-matching so the
+        # bootstrap reseeds it.
+        return False
+
+
 async def _ensure_default_group(session) -> int:
     """Ensure the default group exists and return its id."""
     result = await session.execute(
@@ -135,14 +150,29 @@ async def ensure_default_admin_user(
     if admin_row["role"] != "admin":
         return admin_row["id"]
 
-    # Recovery path: the row is already an admin. If the password_hash
-    # was cleared (operator empties it in the DB to trigger a reseed)
-    # or the group_id is missing, repair in place.
+    # Recovery / reconcile path: the row is already an admin. Repair the
+    # password_hash or group_id in place so the documented bootstrap
+    # credentials keep working.
     next_hash = admin_row["password_hash"]
     next_group_id = admin_row["group_id"] or default_group_id
 
+    configured_password = config.ADMIN_DEFAULT_PASSWORD
+
     if not admin_row["password_hash"]:
+        # The hash was cleared (operator empties it in the DB to trigger a
+        # reseed). Regenerate from the configured / generated password.
         next_hash = _hash_password(_resolve_admin_password())
+    elif (
+        configured_password
+        and not config.is_production
+        and not _password_matches(
+            configured_password, admin_row["password_hash"]
+        )
+    ):
+        # In non-production bootstrap, reset mismatched hashes so
+        # admin/<ADMIN_DEFAULT_PASSWORD> keeps working across branch
+        # switches without re-enabling default credentials in production.
+        next_hash = _hash_password(configured_password)
 
     if (
         next_hash != admin_row["password_hash"]

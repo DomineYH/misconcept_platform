@@ -197,6 +197,68 @@ async def test_ensure_default_admin_user_does_not_promote_existing_teacher(
 
 
 @pytest.mark.asyncio
+async def test_ensure_default_admin_reconciles_mismatched_password(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    """An existing admin whose password differs from the configured
+    default is reset so admin/<ADMIN_DEFAULT_PASSWORD> always logs in.
+
+    This guarantees the documented bootstrap credentials keep working
+    across branch switches even when the admin row was created earlier
+    with a different password.
+    """
+    # Pin a non-production env so this test is isolated from an exported
+    # ENV=production (conftest only sets TESTING).
+    monkeypatch.setattr(config, "ENV", "development")
+    monkeypatch.setattr(config, "ADMIN_DEFAULT_PASSWORD", "admin123")
+
+    admin = User(
+        username="admin",
+        nickname="Administrator",
+        role="admin",
+    )
+    admin.set_password("some-other-password")
+    db_session.add(admin)
+    await db_session.flush()
+
+    await ensure_default_admin_user(db_session)
+    await db_session.flush()
+    await db_session.refresh(admin)
+
+    assert admin.role == "admin"
+    assert admin.verify_password("admin123")
+    assert not admin.verify_password("some-other-password")
+
+
+@pytest.mark.asyncio
+async def test_ensure_default_admin_user_preserves_mismatched_password_in_production(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    """Production bootstrap must not reset a rotated admin password."""
+    monkeypatch.setattr(config, "ENV", "production")
+    monkeypatch.setattr(config, "ADMIN_DEFAULT_PASSWORD", "admin123")
+
+    admin = User(
+        username="admin",
+        nickname="Administrator",
+        role="admin",
+    )
+    admin.set_password("rotated-password")
+    db_session.add(admin)
+    await db_session.flush()
+    original_hash = admin.password_hash
+
+    await ensure_default_admin_user(db_session)
+    await db_session.flush()
+    await db_session.refresh(admin)
+
+    assert admin.role == "admin"
+    assert admin.password_hash == original_hash
+    assert admin.verify_password("rotated-password")
+    assert not admin.verify_password("admin123")
+
+
+@pytest.mark.asyncio
 async def test_ensure_default_admin_user_recovers_empty_password(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):
