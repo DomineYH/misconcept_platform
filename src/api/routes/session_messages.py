@@ -23,9 +23,14 @@ from src.api.routes.session_helpers import load_session
 from src.config import config
 from src.models import Message, User
 from src.models.scenario import Scenario
+from src.services.session_lifecycle import StaleSessionError
 from src.services.session_mgr import SessionManager
 
 logger = logging.getLogger(__name__)
+
+STALE_SESSION_MESSAGE = (
+    "세션이 종료되었거나 삭제되었습니다. 새로고침 후 다시 시도해주세요."
+)
 
 router = APIRouter(tags=["Sessions"])
 limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
@@ -110,7 +115,15 @@ async def send_message(
     student_name = scenario.student_name if scenario else None
 
     manager = SessionManager(db, session_id)
-    new_messages = await manager.process_teacher_message(content)
+    try:
+        new_messages = await manager.process_teacher_message(content)
+    except StaleSessionError:
+        await db.rollback()
+        return Response(
+            content=STALE_SESSION_MESSAGE,
+            media_type="text/html",
+            status_code=409,
+        )
 
     rendered_messages = []
     for message in new_messages:
@@ -143,9 +156,7 @@ async def send_message(
         media_type="text/html",
         status_code=200,
         headers={
-            "HX-Trigger": json.dumps(
-                {"messagesAdded": {"lastId": last_id}}
-            )
+            "HX-Trigger": json.dumps({"messagesAdded": {"lastId": last_id}})
         },
     )
 
