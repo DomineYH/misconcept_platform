@@ -75,3 +75,77 @@ class TestMdFilter:
         from src.api.dependencies import templates
 
         assert "md" in templates.env.filters
+
+
+class TestMdFilterXssSanitization:
+    """Regression tests for URL scheme XSS neutralization in md_filter."""
+
+    def test_javascript_href_neutralized(self):
+        """javascript: href must NOT appear in output."""
+        md = get_md_filter()
+        result = str(md("[x](javascript:alert(1))"))
+        assert "javascript:" not in result
+
+    def test_javascript_src_neutralized(self):
+        """javascript: src in img must NOT appear in output."""
+        md = get_md_filter()
+        result = str(md("![x](javascript:alert(2))"))
+        assert "javascript:" not in result
+
+    def test_data_url_href_neutralized(self):
+        """data: href must NOT appear in output."""
+        md = get_md_filter()
+        result = str(md("[x](data:text/html,<h1>xss</h1>)"))
+        assert "data:" not in result
+
+    def test_vbscript_href_neutralized(self):
+        """vbscript: href must NOT appear in output."""
+        md = get_md_filter()
+        result = str(md("[x](vbscript:evil())"))
+        assert "vbscript:" not in result
+
+    def test_safe_https_link_preserved(self):
+        """https:// links must pass through unchanged."""
+        md = get_md_filter()
+        result = str(md("[link](https://example.com)"))
+        assert 'href="https://example.com"' in result
+
+    def test_safe_http_link_preserved(self):
+        """http:// links must pass through unchanged."""
+        md = get_md_filter()
+        result = str(md("[link](http://example.com)"))
+        assert 'href="http://example.com"' in result
+
+    def test_mailto_link_preserved(self):
+        """mailto: links must pass through unchanged."""
+        md = get_md_filter()
+        result = str(md("[email](mailto:foo@bar.com)"))
+        assert 'href="mailto:foo@bar.com"' in result
+
+    def test_relative_link_preserved(self):
+        """Relative path links must pass through unchanged."""
+        md = get_md_filter()
+        result = str(md("[rel](/some/path)"))
+        assert 'href="/some/path"' in result
+
+    def test_anchor_link_preserved(self):
+        """# anchor links must pass through unchanged."""
+        md = get_md_filter()
+        result = str(md("[anchor](#section)"))
+        assert 'href="#section"' in result
+
+    def test_existing_behavior_unaffected(self):
+        """Bold, italic, nl2br and raw-HTML escaping still work."""
+        md = get_md_filter()
+        bold = str(md("**bold**"))
+        assert "<strong>bold</strong>" in bold
+
+        italic = str(md("*italic*"))
+        assert "<em>italic</em>" in italic
+
+        br = str(md("line1\nline2"))
+        assert "<br" in br
+
+        xss_raw = str(md("<script>alert('xss')</script>"))
+        assert "<script>" not in xss_raw
+        assert "&lt;script&gt;" in xss_raw

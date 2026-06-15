@@ -1,5 +1,6 @@
 """FastAPI dependency injection for database and auth."""
 
+import re
 import time
 from typing import AsyncGenerator
 
@@ -16,16 +17,30 @@ from src.db.connection import AsyncSessionLocal
 templates = Jinja2Templates(directory="src/templates")
 
 
+# Regex to neutralize dangerous URL schemes in markdown-generated
+# href/src attributes.
+# Matches the entire attribute value when it starts with a dangerous scheme
+# (javascript:, data:, vbscript:) and replaces the whole value with "#".
+_DANGEROUS_URL_RE = re.compile(
+    r'((?:href|src)=["\'])((?:javascript|data|vbscript)[^"\']*?)(["\'])',
+    re.IGNORECASE,
+)
+
+
 def md_filter(text: str | None) -> Markup:
     """Convert markdown text to safe HTML.
 
     Escapes raw HTML first to prevent XSS, then converts
-    markdown syntax to HTML tags.
+    markdown syntax to HTML tags. Dangerous URL schemes
+    (javascript:, data:, vbscript:, etc.) in markdown-generated
+    href/src attributes are neutralized by replacing the whole
+    URL value with "#".
     """
     if not text:
         return Markup("")
     escaped = str(escape(text))
     html = md_lib.markdown(escaped, extensions=["nl2br"])
+    html = _DANGEROUS_URL_RE.sub(r"\1#\3", html)
     return Markup(html)
 
 
