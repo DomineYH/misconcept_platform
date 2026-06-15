@@ -37,7 +37,7 @@ async def download_bulk_template(
     user: User = Depends(get_admin_user),
 ):
     """GET /admin/users/bulk/template — CSV template."""
-    csv_content = "\ufeffusername,nickname,role,group\n"
+    csv_content = "\ufeffusername,nickname\n"
     return Response(
         content=csv_content.encode("utf-8"),
         media_type="text/csv; charset=utf-8",

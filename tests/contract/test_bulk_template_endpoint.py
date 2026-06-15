@@ -41,6 +41,9 @@ class TestBulkTemplateDownload:
         content = resp.content.decode("utf-8-sig")
         assert "username" in content
         assert "nickname" in content
+        # role/group are set on the preview screen, not via file upload.
+        assert "role" not in content
+        assert "group" not in content
 
     @pytest.mark.asyncio
     async def test_teacher_forbidden(self, async_client, teacher):
