@@ -27,17 +27,15 @@
                             bg-default
                         {% endif %}
                         " style="width: {{ percentage }}%">
-                        {% if percentage > 10 %}
-                        {{ count }}
+                        {% if percentage > 0 %}
+                        {{ "%.0f"|format(percentage) }}%
                         {% endif %}
                     </div>
                 </div>
 
-                <!-- Count label (shown outside if bar too small) -->
+                <!-- Count label (shown outside the bar) -->
                 <div class="chart-value">
-                    {% if percentage <= 10 %} {{ count }} {% endif %} <span class="chart-percentage">
-                        ({{ "%.0f"|format(percentage) }}%)
-                        </span>
+                    {{ count }}
                 </div>
             </div>
         </div>

@@ -2390,6 +2390,7 @@ textarea#teacher-input {
   font-weight: 600;
   transition: width 0.5s ease-out;
   min-width: fit-content;
+  white-space: nowrap;
 }
 
 .chart-value {
@@ -2408,12 +2409,15 @@ textarea#teacher-input {
   margin-left: 0.25rem;
 }
 
-/* Chart Colors - Monochrome */
-.bg-pressing { background-color: var(--color-gray-900); }
-.bg-linking { background-color: var(--color-gray-700); }
-.bg-directing { background-color: var(--color-gray-500); }
-.bg-recall { background-color: var(--color-gray-300); color: var(--color-black); }
-.bg-default { background-color: var(--color-gray-200); color: var(--color-black); }
+/* Chart Colors - Black bars */
+.bg-pressing,
+.bg-linking,
+.bg-directing,
+.bg-recall,
+.bg-default {
+  background-color: var(--color-black);
+  color: var(--color-white);
+}
 
 .chart-total {
   margin-top: 1.5rem;
