@@ -134,6 +134,30 @@ class TestMdFilterXssSanitization:
         result = str(md("[anchor](#section)"))
         assert 'href="#section"' in result
 
+    def test_javascript_newline_in_scheme_neutralized(self):
+        """Newline inside the scheme bypasses a denylist but browsers
+        strip it and execute; the allowlist must still neutralize it."""
+        md = get_md_filter()
+        result = str(md("[x](java\nscript:alert(1))"))
+        assert 'href="#"' in result
+        assert "javascript" not in result
+        assert "alert" not in result
+
+    def test_javascript_cr_in_scheme_neutralized(self):
+        """Carriage return inside the scheme must be neutralized."""
+        md = get_md_filter()
+        result = str(md("[x](java\rscript:alert(1))"))
+        assert 'href="#"' in result
+        assert "alert" not in result
+
+    def test_javascript_tab_in_scheme_neutralized(self):
+        """Tab inside the scheme must be neutralized."""
+        md = get_md_filter()
+        result = str(md("[x](java\tscript:alert(1))"))
+        assert 'href="#"' in result
+        assert "javascript" not in result
+        assert "alert" not in result
+
     def test_existing_behavior_unaffected(self):
         """Bold, italic, nl2br and raw-HTML escaping still work."""
         md = get_md_filter()
