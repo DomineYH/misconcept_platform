@@ -2388,7 +2388,7 @@ textarea#teacher-input {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 0.375rem;
+  padding: 0;
   color: var(--color-chart-bar-label);
   font-size: 0.7rem;
   font-weight: 600;
@@ -2397,12 +2397,8 @@ textarea#teacher-input {
   white-space: nowrap;
 }
 
-.chart-fill--labeled {
-  min-width: 2rem;
-}
-
-.chart-fill--tiny {
-  padding: 0;
+.chart-fill-label {
+  padding: 0 0.375rem;
 }
 
 .chart-value {
