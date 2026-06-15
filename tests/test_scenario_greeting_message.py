@@ -427,3 +427,51 @@ class GreetingMessageChatTest(unittest.TestCase):
         self.assertIn("문제 상황이 표시됩니다", body)
         # Greeting coexists alongside hidden prompt
         self.assertIn("GREETING_WITH_PROMPT", body)
+
+    # Issue #44 ─ greeting line break / paragraph preservation ──
+
+    @staticmethod
+    def _extract_greeting_bubble(body: str) -> str:
+        """Return inner HTML of the mentor greeting message bubble."""
+        match = re.search(
+            r"greeting-message.*?" r'<div class="message-bubble">(.*?)</div>',
+            body,
+            re.S,
+        )
+        assert match, "greeting message bubble not found in chat page"
+        return match.group(1)
+
+    def test_chat_greeting_preserves_linebreaks_via_markdown(
+        self,
+    ) -> None:
+        """A greeting authored with line breaks/blank lines must render
+        with <br>/<p> (via the |md filter's nl2br), not collapse onto
+        a single line like raw `{{ ... }}` output does."""
+        greeting = "MENTOR_LINE_ONE\nMENTOR_LINE_TWO\n\nMENTOR_PARA_TWO"
+        seeded = asyncio.run(
+            _seed_chat_scenario(greeting_message=greeting),
+        )
+        with TestClient(app) as client:
+            resp = client.get(f"/scenarios/{seeded['scenario_id']}")
+        self.assertEqual(resp.status_code, 200)
+        bubble = self._extract_greeting_bubble(resp.text)
+        # single newline -> <br>
+        self.assertIn("<br", bubble)
+        # blank line -> separate paragraph
+        self.assertIn("<p>", bubble)
+        # raw newline must not survive as the only separator
+        self.assertNotIn("MENTOR_LINE_ONE\nMENTOR_LINE_TWO", bubble)
+
+    def test_chat_greeting_stays_xss_safe(self) -> None:
+        """Routing the greeting through |md must keep it XSS-safe;
+        guards against a future switch to `| safe` raw injection."""
+        greeting = "<script>alert('xss')</script>\n안전한 안내"
+        seeded = asyncio.run(
+            _seed_chat_scenario(greeting_message=greeting),
+        )
+        with TestClient(app) as client:
+            resp = client.get(f"/scenarios/{seeded['scenario_id']}")
+        self.assertEqual(resp.status_code, 200)
+        bubble = self._extract_greeting_bubble(resp.text)
+        self.assertNotIn("<script>", bubble)
+        self.assertIn("&lt;script&gt;", bubble)
