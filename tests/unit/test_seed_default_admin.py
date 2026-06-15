@@ -228,6 +228,34 @@ async def test_ensure_default_admin_reconciles_mismatched_password(
 
 
 @pytest.mark.asyncio
+async def test_ensure_default_admin_user_preserves_mismatched_password_in_production(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    """Production bootstrap must not reset a rotated admin password."""
+    monkeypatch.setattr(config, "ENV", "production")
+    monkeypatch.setattr(config, "ADMIN_DEFAULT_PASSWORD", "admin123")
+
+    admin = User(
+        username="admin",
+        nickname="Administrator",
+        role="admin",
+    )
+    admin.set_password("rotated-password")
+    db_session.add(admin)
+    await db_session.flush()
+    original_hash = admin.password_hash
+
+    await ensure_default_admin_user(db_session)
+    await db_session.flush()
+    await db_session.refresh(admin)
+
+    assert admin.role == "admin"
+    assert admin.password_hash == original_hash
+    assert admin.verify_password("rotated-password")
+    assert not admin.verify_password("admin123")
+
+
+@pytest.mark.asyncio
 async def test_ensure_default_admin_user_recovers_empty_password(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):

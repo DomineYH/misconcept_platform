@@ -162,14 +162,16 @@ async def ensure_default_admin_user(
         # The hash was cleared (operator empties it in the DB to trigger a
         # reseed). Regenerate from the configured / generated password.
         next_hash = _hash_password(_resolve_admin_password())
-    elif configured_password and not _password_matches(
-        configured_password, admin_row["password_hash"]
+    elif (
+        configured_password
+        and not config.is_production
+        and not _password_matches(
+            configured_password, admin_row["password_hash"]
+        )
     ):
-        # An explicit ADMIN_DEFAULT_PASSWORD is configured but the stored
-        # hash does not match it (e.g. the admin row was created earlier on
-        # another branch, or its password was later changed). Reset so the
-        # documented admin/<ADMIN_DEFAULT_PASSWORD> login always works in
-        # bootstrap mode.
+        # In non-production bootstrap, reset mismatched hashes so
+        # admin/<ADMIN_DEFAULT_PASSWORD> keeps working across branch
+        # switches without re-enabling default credentials in production.
         next_hash = _hash_password(configured_password)
 
     if (
