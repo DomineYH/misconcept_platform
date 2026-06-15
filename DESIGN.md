@@ -247,6 +247,22 @@ Dark:
 | `--color-info-text` | `#64B5F6` |
 | `--color-info-bg` | `#1A2A3D` |
 
+### Chart Colors
+
+Light:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-chart-bar` | `#000000` | Question-type distribution bar fill in light mode. |
+| `--color-chart-bar-label` | `#FFFFFF` | Percentage text inside question-type distribution bars in light mode. |
+
+Dark:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-chart-bar` | `#EAEAEA` | High-contrast question-type distribution bar fill on the dark chart track. |
+| `--color-chart-bar-label` | `#0A0A0A` | Percentage text inside dark-mode question-type distribution bars. |
+
 ---
 
 ## WCAG AA Contrast Verification

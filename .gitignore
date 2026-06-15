@@ -57,3 +57,9 @@ htmlcov/
 *.png
 fix_error.md
 team_agents.md
+
+# Local backup/data artifacts - not for version control
+/misconcept_platform.zip
+/2026-05-03 181544.jpg
+/책봇사이트_분석수정.pdf
+/챗봇사이트_분석수정.pdf
