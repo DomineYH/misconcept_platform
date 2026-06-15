@@ -11,12 +11,15 @@
                 <!-- Calculate percentage for bar width -->
                 {% set total = distribution.values()|sum %}
                 {% set percentage = (count / total * 100) if total > 0 else 0 %}
+                {% set is_tiny = percentage > 0 and percentage < 1 %}
 
                 <!-- Bar -->
                 <div class="chart-track">
                     <div class="chart-fill
-                        {% if percentage > 0 %}
+                        {% if percentage >= 1 %}
                             chart-fill--labeled
+                        {% elif is_tiny %}
+                            chart-fill--tiny
                         {% endif %}
                         {% if label == 'Pressing' %}
                             bg-pressing
@@ -30,18 +33,17 @@
                             bg-default
                         {% endif %}
                         " style="width: {{ percentage }}%">
-                        {% if percentage > 0 %}
-                            {% if percentage < 1 %}
-                        &lt;1%
-                            {% else %}
+                        {% if percentage >= 1 %}
                         {{ "%.0f"|format(percentage) }}%
-                            {% endif %}
                         {% endif %}
                     </div>
                 </div>
 
                 <!-- Count label (shown outside the bar) -->
                 <div class="chart-value">
+                    {% if is_tiny %}
+                    <span class="chart-value-percent">&lt;1%</span>
+                    {% endif %}
                     {{ count }}
                 </div>
             </div>
