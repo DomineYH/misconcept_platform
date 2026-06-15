@@ -2402,13 +2402,6 @@ textarea#teacher-input {
   flex-shrink: 0;
 }
 
-.chart-percentage {
-  font-weight: 400;
-  color: var(--color-text-secondary);
-  font-size: 0.75rem;
-  margin-left: 0.25rem;
-}
-
 /* Chart Colors - Black bars */
 .bg-pressing,
 .bg-linking,
@@ -3185,10 +3178,6 @@ textarea#teacher-input {
   .chart-value {
     font-size: 0.75rem;
     min-width: 50px;
-  }
-
-  .chart-percentage {
-    font-size: 0.7rem;
   }
 }
 
