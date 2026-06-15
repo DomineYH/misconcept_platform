@@ -4,9 +4,8 @@ Tests dialogue orchestration with mocked bots and database.
 """
 
 import json
-import pytest
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, Mock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 from src.services.session_mgr import SessionManager
 
@@ -50,9 +49,25 @@ def _mock_session(session_id=1, scenario_id=1):
     session.id = session_id
     session.scenario_id = scenario_id
     session.ended_at = None
+    session.deleted_at = None
     session.tutor_intervention_count = 0
     session.tutor_question_count = 0
     return session
+
+
+def _mock_db_session():
+    """Create AsyncSession-like mock with sync add()."""
+    db = AsyncMock()
+    db.add = Mock()
+    return db
+
+
+def _mock_scalar_result(value):
+    """Create result mock that supports scalar_one and scalar_one_or_none."""
+    result = Mock()
+    result.scalar_one.return_value = value
+    result.scalar_one_or_none.return_value = value
+    return result
 
 
 class TestLoadBotConfig:
@@ -60,9 +75,7 @@ class TestLoadBotConfig:
 
     def _make_manager(self):
         """Create SessionManager with mocked db."""
-        return SessionManager(
-            db_session=AsyncMock(), session_id=1
-        )
+        return SessionManager(db_session=_mock_db_session(), session_id=1)
 
     @patch("src.services.session_mgr.config")
     def test_uses_scenario_chat_model_override(self, mock_config):
@@ -122,9 +135,7 @@ class TestLoadBotConfig:
         assert result["tutor_enabled"] is False
 
     @patch("src.services.session_mgr.config")
-    def test_scenario_intervention_threshold_override(
-        self, mock_config
-    ):
+    def test_scenario_intervention_threshold_override(self, mock_config):
         """Should use scenario threshold when set."""
         mock_config.CHAT_MODEL = "gpt-5"
         mock_config.STUDENT_REASONING = "medium"
@@ -135,9 +146,7 @@ class TestLoadBotConfig:
         mock_config.TUTOR_INTERVENTION_THRESHOLD = 3
 
         mgr = self._make_manager()
-        scenario = _mock_scenario(
-            tutor_intervention_threshold=5
-        )
+        scenario = _mock_scenario(tutor_intervention_threshold=5)
         result = mgr._load_bot_config(scenario)
 
         assert result["tutor_intervention_threshold"] == 5
@@ -200,16 +209,13 @@ class TestSessionManagerProcessTeacherMessage:
             Tuple of (manager, mock_student_bot, mock_tutor_bot,
                       mock_analyzer)
         """
-        db = AsyncMock()
+        db = _mock_db_session()
         mock_sess = _mock_session()
-        mock_result = Mock()
-        mock_result.scalar_one.return_value = mock_sess
+        mock_result = _mock_scalar_result(mock_sess)
         db.execute = AsyncMock(return_value=mock_result)
 
         mgr = SessionManager(db_session=db, session_id=1)
-        mgr.scenario = _mock_scenario(
-            tutor_template_id=tutor_template_id
-        )
+        mgr.scenario = _mock_scenario(tutor_template_id=tutor_template_id)
 
         # Mock StudentBot
         mock_student = AsyncMock()
@@ -252,6 +258,8 @@ class TestSessionManagerProcessTeacherMessage:
                 )
             )
             mock_tutor.model = "gpt-5.2"
+            mock_tutor.intervention_count = 0
+            mock_tutor.question_count = 0
             mgr.tutor_bot = mock_tutor
         else:
             mgr.tutor_bot = None
@@ -263,14 +271,10 @@ class TestSessionManagerProcessTeacherMessage:
         mgr, mock_student, _, _ = self._setup_manager()
 
         # Mock conversation history
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
-        messages = await mgr.process_teacher_message(
-            "What is the moon?"
-        )
+        messages = await mgr.process_teacher_message("What is the moon?")
 
         # Should have teacher + student messages
         assert len(messages) == 2
@@ -287,23 +291,17 @@ class TestSessionManagerProcessTeacherMessage:
             {"role": "teacher", "content": "Q1"},
             {"role": "student", "content": "A1"},
         ]
-        mgr._get_conversation_history = AsyncMock(
-            return_value=history
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=history)
         mgr._log_api_usage = AsyncMock()
 
         await mgr.process_teacher_message("Q2")
 
-        mock_student.generate_response.assert_called_once_with(
-            "Q2", history
-        )
+        mock_student.generate_response.assert_called_once_with("Q2", history)
 
     async def test_calls_misconception_analyzer(self):
         """Should analyze student response for misconceptions."""
         mgr, _, _, mock_analyzer = self._setup_manager()
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         await mgr.process_teacher_message("Test question")
@@ -318,9 +316,7 @@ class TestSessionManagerProcessTeacherMessage:
     async def test_stores_misconception_metadata_on_student_msg(self):
         """Should store analysis as JSON metadata on student msg."""
         mgr, _, _, _ = self._setup_manager()
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         messages = await mgr.process_teacher_message("Q?")
@@ -336,9 +332,7 @@ class TestSessionManagerProcessTeacherMessage:
         mgr, _, mock_tutor, _ = self._setup_manager(
             tutor_enabled=True, tutor_template_id=2
         )
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         messages = await mgr.process_teacher_message("Q?")
@@ -351,9 +345,7 @@ class TestSessionManagerProcessTeacherMessage:
     async def test_no_tutor_message_when_disabled(self):
         """Should not include tutor message when TutorBot is off."""
         mgr, _, _, _ = self._setup_manager(tutor_enabled=False)
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         messages = await mgr.process_teacher_message("Q?")
@@ -366,12 +358,8 @@ class TestSessionManagerProcessTeacherMessage:
         mgr, _, mock_tutor, _ = self._setup_manager(
             tutor_enabled=True, tutor_template_id=2
         )
-        mock_tutor.generate_feedback = AsyncMock(
-            return_value=(None, None)
-        )
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mock_tutor.generate_feedback = AsyncMock(return_value=(None, None))
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         messages = await mgr.process_teacher_message("Q?")
@@ -385,9 +373,7 @@ class TestSessionManagerProcessTeacherMessage:
         mock_analyzer.analyze_student_response = AsyncMock(
             side_effect=RuntimeError("Analysis failed")
         )
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         # Should NOT raise
@@ -406,9 +392,7 @@ class TestSessionManagerProcessTeacherMessage:
         mock_tutor.generate_feedback = AsyncMock(
             side_effect=RuntimeError("Tutor API error")
         )
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         # Should NOT raise
@@ -422,9 +406,7 @@ class TestSessionManagerProcessTeacherMessage:
         mgr, _, mock_tutor, mock_analyzer = self._setup_manager(
             tutor_enabled=True, tutor_template_id=2
         )
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         with patch(
@@ -439,12 +421,15 @@ class TestSessionManagerProcessTeacherMessage:
                 },
                 (
                     "Tutor says improve",
-                    {"prompt_tokens": 50, "completion_tokens": 25,
-                     "total_tokens": 75},
+                    {
+                        "prompt_tokens": 50,
+                        "completion_tokens": 25,
+                        "total_tokens": 75,
+                    },
                 ),
             ]
 
-            messages = await mgr.process_teacher_message("Q?")
+            await mgr.process_teacher_message("Q?")
 
         # gather should be called with return_exceptions=True
         mock_gather.assert_called_once()
@@ -454,9 +439,7 @@ class TestSessionManagerProcessTeacherMessage:
     async def test_logs_student_api_usage(self):
         """Should log StudentBot API usage after response."""
         mgr, _, _, _ = self._setup_manager()
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         await mgr.process_teacher_message("Q?")
@@ -477,9 +460,7 @@ class TestSessionManagerProcessTeacherMessage:
         mgr, _, mock_tutor, _ = self._setup_manager(
             tutor_enabled=True, tutor_template_id=2
         )
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         await mgr.process_teacher_message("Q?")
@@ -492,8 +473,11 @@ class TestSessionManagerProcessTeacherMessage:
 
     async def test_auto_initializes_when_student_bot_none(self):
         """Should call initialize() if student_bot not set."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
+        db.execute = AsyncMock(
+            return_value=_mock_scalar_result(_mock_session())
+        )
 
         # student_bot is None initially
         assert mgr.student_bot is None
@@ -506,16 +490,14 @@ class TestSessionManagerProcessTeacherMessage:
             )
             mgr.student_bot.model = "gpt-5"
             mgr.misconception_analyzer = AsyncMock()
-            mgr.misconception_analyzer.analyze_student_response = (
-                AsyncMock(return_value=None)
+            mgr.misconception_analyzer.analyze_student_response = AsyncMock(
+                return_value=None
             )
             mgr.tutor_bot = None
             mgr.scenario = _mock_scenario()
 
         mgr.initialize = AsyncMock(side_effect=mock_init)
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         await mgr.process_teacher_message("Q?")
@@ -525,9 +507,7 @@ class TestSessionManagerProcessTeacherMessage:
     async def test_commits_teacher_message_early(self):
         """Teacher 메시지 저장 후 조기 commit이 호출되어야 한다."""
         mgr, _, _, _ = self._setup_manager()
-        mgr._get_conversation_history = AsyncMock(
-            return_value=[]
-        )
+        mgr._get_conversation_history = AsyncMock(return_value=[])
         mgr._log_api_usage = AsyncMock()
 
         await mgr.process_teacher_message("Q?")
@@ -540,7 +520,7 @@ class TestGetConversationHistory:
 
     async def test_context_window_limits_messages(self):
         """Should return only last CONTEXT_WINDOW_TURNS."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
         mgr.CONTEXT_WINDOW_TURNS = 20
 
@@ -552,9 +532,7 @@ class TestGetConversationHistory:
             mock_messages.append(msg)
 
         mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = (
-            mock_messages
-        )
+        mock_result.scalars.return_value.all.return_value = mock_messages
         db.execute = AsyncMock(return_value=mock_result)
 
         history = await mgr._get_conversation_history()
@@ -565,7 +543,7 @@ class TestGetConversationHistory:
 
     async def test_returns_all_when_under_limit(self):
         """Should return all messages when under limit."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
         mgr.CONTEXT_WINDOW_TURNS = 20
 
@@ -577,9 +555,7 @@ class TestGetConversationHistory:
             mock_messages.append(msg)
 
         mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = (
-            mock_messages
-        )
+        mock_result.scalars.return_value.all.return_value = mock_messages
         db.execute = AsyncMock(return_value=mock_result)
 
         history = await mgr._get_conversation_history()
@@ -592,7 +568,7 @@ class TestSessionManagerEndSession:
 
     async def test_marks_session_as_ended(self):
         """Should set ended_at timestamp on session."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
 
         mock_session = _mock_session()
@@ -610,7 +586,7 @@ class TestSessionManagerEndSession:
 
     async def test_ended_at_is_utc(self):
         """Should use UTC timezone for ended_at."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
 
         mock_session = _mock_session()
@@ -633,8 +609,11 @@ class TestSessionManagerLogApiUsage:
 
     async def test_logs_usage_with_correct_data(self):
         """Should create ApiUsageLog with correct fields."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=42)
+        db.execute = AsyncMock(
+            return_value=_mock_scalar_result(_mock_session(session_id=42))
+        )
 
         usage = {
             "prompt_tokens": 100,
@@ -666,7 +645,7 @@ class TestSessionManagerLogApiUsage:
 
     async def test_skips_logging_when_usage_is_none(self):
         """Should skip logging when no usage info available."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
 
         await mgr._log_api_usage(
@@ -679,9 +658,12 @@ class TestSessionManagerLogApiUsage:
 
     async def test_does_not_fail_on_logging_error(self):
         """Should swallow exceptions during logging."""
-        db = AsyncMock()
+        db = _mock_db_session()
         db.add.side_effect = RuntimeError("DB error")
         mgr = SessionManager(db_session=db, session_id=1)
+        db.execute = AsyncMock(
+            return_value=_mock_scalar_result(_mock_session())
+        )
 
         usage = {
             "prompt_tokens": 100,
@@ -706,7 +688,7 @@ class TestSessionManagerInitialize:
 
     async def test_initializes_student_bot(self):
         """Should create StudentBot from session/scenario data."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
 
         mock_session = _mock_session()
@@ -718,19 +700,16 @@ class TestSessionManagerInitialize:
         async def mock_execute(query):
             nonlocal call_count
             call_count += 1
-            result = Mock()
-            if call_count == 1:
-                result.scalar_one.return_value = mock_session
-            else:
-                result.scalar_one.return_value = mock_scenario
+            result = _mock_scalar_result(
+                mock_session if call_count == 1 else mock_scenario
+            )
             return result
 
         db.execute = mock_execute
 
-        with patch(
-            "src.services.session_mgr.StudentBot"
-        ) as mock_sbot_cls, patch(
-            "src.services.session_mgr.MisconceptionAnalyzer"
+        with (
+            patch("src.services.session_mgr.StudentBot") as mock_sbot_cls,
+            patch("src.services.session_mgr.MisconceptionAnalyzer"),
         ):
             await mgr.initialize()
 
@@ -739,7 +718,7 @@ class TestSessionManagerInitialize:
 
     async def test_initializes_tutor_when_enabled(self):
         """Should create TutorBot when scenario has tutor template."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
 
         mock_session = _mock_session()
@@ -753,21 +732,17 @@ class TestSessionManagerInitialize:
         async def mock_execute(query):
             nonlocal call_count
             call_count += 1
-            result = Mock()
-            if call_count == 1:
-                result.scalar_one.return_value = mock_session
-            else:
-                result.scalar_one.return_value = mock_scenario
+            result = _mock_scalar_result(
+                mock_session if call_count == 1 else mock_scenario
+            )
             return result
 
         db.execute = mock_execute
 
-        with patch(
-            "src.services.session_mgr.StudentBot"
-        ), patch(
-            "src.services.session_mgr.TutorBot"
-        ) as mock_tbot_cls, patch(
-            "src.services.session_mgr.MisconceptionAnalyzer"
+        with (
+            patch("src.services.session_mgr.StudentBot"),
+            patch("src.services.session_mgr.TutorBot") as mock_tbot_cls,
+            patch("src.services.session_mgr.MisconceptionAnalyzer"),
         ):
             await mgr.initialize()
 
@@ -775,7 +750,7 @@ class TestSessionManagerInitialize:
 
     async def test_no_tutor_when_disabled(self):
         """Should not create TutorBot when tutor_template_id is None."""
-        db = AsyncMock()
+        db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
 
         mock_session = _mock_session()
@@ -789,21 +764,17 @@ class TestSessionManagerInitialize:
         async def mock_execute(query):
             nonlocal call_count
             call_count += 1
-            result = Mock()
-            if call_count == 1:
-                result.scalar_one.return_value = mock_session
-            else:
-                result.scalar_one.return_value = mock_scenario
+            result = _mock_scalar_result(
+                mock_session if call_count == 1 else mock_scenario
+            )
             return result
 
         db.execute = mock_execute
 
-        with patch(
-            "src.services.session_mgr.StudentBot"
-        ), patch(
-            "src.services.session_mgr.TutorBot"
-        ) as mock_tbot_cls, patch(
-            "src.services.session_mgr.MisconceptionAnalyzer"
+        with (
+            patch("src.services.session_mgr.StudentBot"),
+            patch("src.services.session_mgr.TutorBot") as mock_tbot_cls,
+            patch("src.services.session_mgr.MisconceptionAnalyzer"),
         ):
             await mgr.initialize()
 

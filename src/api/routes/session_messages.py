@@ -36,6 +36,14 @@ router = APIRouter(tags=["Sessions"])
 limiter = Limiter(key_func=get_remote_address, enabled=not config.TESTING)
 
 
+def _stale_session_response() -> Response:
+    return Response(
+        content=STALE_SESSION_MESSAGE,
+        media_type="text/html",
+        status_code=409,
+    )
+
+
 def _validate_and_render_message(
     message,
     request: Request,
@@ -103,10 +111,7 @@ async def send_message(
     session = await load_session(session_id, user, db)
 
     if session.ended_at:
-        raise HTTPException(
-            status_code=400,
-            detail="Session already ended. Cannot send messages.",
-        )
+        return _stale_session_response()
 
     if not content or len(content) < 1:
         raise HTTPException(status_code=400, detail="Content cannot be empty")
@@ -119,31 +124,26 @@ async def send_message(
         new_messages = await manager.process_teacher_message(content)
     except StaleSessionError:
         await db.rollback()
-        return Response(
-            content=STALE_SESSION_MESSAGE,
-            media_type="text/html",
-            status_code=409,
-        )
+        return _stale_session_response()
 
     rendered_messages = []
     for message in new_messages:
         html = _validate_and_render_message(
             message, request, templates, student_name
         )
-        if html:
-            rendered_messages.append(html)
+        if html is None:
+            logger.error(
+                "Failed to render new message %s for session %s",
+                getattr(message, "id", None),
+                session_id,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to render bot responses. Check server logs.",
+            )
+        rendered_messages.append(html)
 
     combined_html = "".join(rendered_messages)
-
-    if not combined_html:
-        logger.error(
-            f"No messages rendered for session {session_id}. "
-            f"Total messages attempted: {len(new_messages)}"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to render bot responses. Check server logs.",
-        )
 
     logger.info(
         f"Rendered {len(rendered_messages)}/{len(new_messages)} messages "
@@ -197,17 +197,19 @@ async def get_message_updates(
         html = _validate_and_render_message(
             message, request, templates, student_name
         )
-        if html:
-            rendered_messages.append(html)
+        if html is None:
+            logger.error(
+                "Polling failed to render message %s for session %s",
+                getattr(message, "id", None),
+                session_id,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to render message updates. Check server logs.",
+            )
+        rendered_messages.append(html)
 
     combined_html = "".join(rendered_messages)
-
-    if not combined_html:
-        logger.warning(
-            f"Polling: No messages rendered from {len(messages)} messages "
-            f"for session {session_id}"
-        )
-        return Response(status_code=204)
 
     logger.debug(
         f"Polling: Rendered {len(rendered_messages)}/{len(messages)} "

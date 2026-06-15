@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from sqlalchemy import func, select
@@ -9,11 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import AnalysisFramework, ApiUsageLog, Scenario
 from src.models import Session as DialogueSession
-from src.services import session_usage
-from src.services.session_lifecycle import (
-    StaleSessionError,
-    ensure_session_writable,
-)
+from src.services.session_lifecycle import StaleSessionError
 from src.services.session_usage import log_api_usage
 
 
@@ -55,24 +52,14 @@ async def test_log_api_usage_re_raises_unrelated_integrity_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session_id = await _seed_dialogue_session(db_session)
-
-    async def fail_with_unrelated_integrity_error(
-        db: AsyncSession,
-        session_id: int,
-    ) -> None:
-        session = await ensure_session_writable(db, session_id)
-        assert session.id == session_id
-        raise IntegrityError(
+    flush_mock = AsyncMock(
+        side_effect=IntegrityError(
             "INSERT api_usage_logs",
             {},
             RuntimeError("unrelated integrity failure"),
         )
-
-    monkeypatch.setattr(
-        session_usage,
-        "flush_with_stale_session_check",
-        fail_with_unrelated_integrity_error,
     )
+    monkeypatch.setattr(db_session, "flush", flush_mock)
 
     with pytest.raises(IntegrityError, match="unrelated integrity failure"):
         await log_api_usage(
@@ -89,6 +76,43 @@ async def test_log_api_usage_re_raises_unrelated_integrity_error(
 
     await db_session.rollback()
     assert await _count_usage_logs(db_session, session_id) == 0
+
+
+async def test_log_api_usage_rolls_back_savepoint_on_flush_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    session = Mock(id=7, deleted_at=None, ended_at=None)
+    result = Mock()
+    result.scalar_one_or_none.return_value = session
+
+    savepoint = AsyncMock()
+    savepoint.rollback = AsyncMock()
+    savepoint.commit = AsyncMock()
+
+    db = AsyncMock()
+    db.add = Mock()
+    db.execute = AsyncMock(return_value=result)
+    db.begin_nested = AsyncMock(return_value=savepoint)
+    db.flush = AsyncMock(side_effect=RuntimeError("flush failed"))
+
+    with caplog.at_level(logging.ERROR, logger="src.services.session_usage"):
+        await log_api_usage(
+            db=db,
+            session_id=7,
+            bot_type="student",
+            model="gpt-5",
+            usage_dict={
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150,
+            },
+        )
+
+    savepoint.rollback.assert_awaited_once()
+    savepoint.commit.assert_not_awaited()
+    assert (
+        "Failed to log API usage for student bot: flush failed" in caplog.text
+    )
 
 
 async def test_log_api_usage_re_raises_stale_session_error(

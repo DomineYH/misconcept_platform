@@ -34,8 +34,6 @@ async def ensure_session_writable(
     session = result.scalar_one_or_none()
     if session is None:
         raise StaleSessionError(session_id=session_id, reason="missing")
-    if not isinstance(session, Session):
-        return session
     if session.deleted_at is not None:
         raise StaleSessionError(session_id=session_id, reason="deleted")
     if session.ended_at is not None:

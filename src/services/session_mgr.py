@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class SessionManager:
     """Orchestrates teacher-student-tutor dialogue interactions."""
 
-    CONTEXT_WINDOW_TURNS: int = 20  # Max messages in conversation history
+    CONTEXT_WINDOW_TURNS: int = config.CONTEXT_WINDOW_TURNS
 
     def __init__(self, db_session: AsyncSession, session_id: int):
         """Initialize SessionManager for specific session.
@@ -277,7 +277,7 @@ class SessionManager:
             .order_by(Message.created_at)
         )
         messages = result.scalars().all()
-        window = config.CONTEXT_WINDOW_TURNS
+        window = self.CONTEXT_WINDOW_TURNS
         recent = messages[-window:]
         return [{"role": msg.role, "content": msg.content} for msg in recent]
 
@@ -307,18 +307,3 @@ class SessionManager:
 
         session.ended_at = datetime.now(timezone.utc)
         # Dependency auto-commits
-
-
-# TODO: Task 3.1.2/3.1.3 - API Usage Logging Tests
-# TODO: test_api_usage_logging_student_message
-#       - Verify StudentBot API call generates usage log entry
-#       - Check prompt_tokens, completion_tokens, total_tokens accuracy
-#       - Validate estimated_cost_usd calculation
-# TODO: test_api_usage_logging_tutor_intervention
-#       - Verify TutorBot API call generates usage log entry (when intervening)
-#       - Check bot_type='tutor' correctly logged
-#       - Validate model name matches tutor configuration
-# TODO: test_api_usage_logging_failure_handling
-#       - Verify logging failure doesn't break dialogue flow
-#       - Check warning logs when usage info unavailable
-#       - Ensure DB rollback doesn't affect message persistence

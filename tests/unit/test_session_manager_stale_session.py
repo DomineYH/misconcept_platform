@@ -168,7 +168,7 @@ async def _message_roles(db: AsyncSession, session_id: int) -> list[str]:
     return list(result.scalars())
 
 
-async def _raises_stale_session_when_deleted_before_student_flush(
+async def test_process_teacher_message_stale_after_session_delete(
     db_session: AsyncSession,
 ) -> None:
     session_id = await _seed_dialogue_session(db_session)
@@ -280,9 +280,3 @@ async def test_log_api_usage_re_raises_stale_session_error(
     _assert_stale_session_error(exc_info.value, session_id)
     assert "deleted" in str(exc_info.value)
     assert await _count_usage_logs(db_session, session_id) == 0
-
-
-globals()[
-    "test_process_teacher_message_raises_stale_session_when_session_deleted_"
-    "before_student_flush"
-] = _raises_stale_session_when_deleted_before_student_flush

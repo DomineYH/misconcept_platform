@@ -78,6 +78,77 @@ async def test_post_message_returns_409_html_when_session_goes_stale(
     rollback_mock.assert_awaited_once()
 
 
+async def test_post_message_returns_same_409_html_for_already_ended_session(
+    test_client: TestClient,
+    db_session: AsyncSession,
+    route_test_session: Session,
+    teacher_user: User,
+) -> None:
+    route_test_session.ended_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    cookies = _login_teacher(test_client, teacher_user)
+
+    response = test_client.post(
+        f"/sessions/{route_test_session.id}/messages",
+        data={"content": "분수 덧셈을 설명해볼래?"},
+        cookies=cookies,
+    )
+
+    assert response.status_code == 409
+    assert "text/html" in response.headers["content-type"]
+    assert response.text == STALE_SESSION_MESSAGE
+    assert response.headers.get("HX-Trigger") is None
+
+
+async def test_post_message_returns_500_when_any_new_message_fails_to_render(
+    test_client: TestClient,
+    route_test_session: Session,
+    teacher_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_at = datetime(2026, 1, 1, 9, 30, tzinfo=timezone.utc)
+    teacher_message = Message(
+        id=101,
+        session_id=route_test_session.id,
+        role="teacher",
+        content="분수 덧셈을 설명해볼래?",
+        created_at=created_at,
+    )
+    broken_message = Mock()
+    broken_message.id = 102
+    broken_message.role = "student"
+    broken_message.content = "분모끼리 더하면 된다고 생각해요."
+    manager = AsyncMock()
+    manager.process_teacher_message.return_value = [
+        teacher_message,
+        broken_message,
+    ]
+    monkeypatch.setattr(
+        "src.api.routes.session_messages.SessionManager",
+        Mock(return_value=manager),
+    )
+
+    def fake_validate(message, request, templates, student_name=None):
+        if message is broken_message:
+            return None
+        return '<div class="message message-teacher"></div>'
+
+    monkeypatch.setattr(
+        "src.api.routes.session_messages._validate_and_render_message",
+        fake_validate,
+    )
+    cookies = _login_teacher(test_client, teacher_user)
+
+    response = test_client.post(
+        f"/sessions/{route_test_session.id}/messages",
+        data={"content": "분수 덧셈을 설명해볼래?"},
+        cookies=cookies,
+    )
+
+    assert response.status_code == 500
+    assert response.headers.get("HX-Trigger") is None
+
+
 async def test_post_message_normal_path_keeps_html_and_hx_trigger(
     test_client: TestClient,
     route_test_session: Session,
