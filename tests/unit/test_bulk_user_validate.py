@@ -15,7 +15,12 @@ async def test_valid_rows_pass(db_session: AsyncSession):
     await db_session.flush()
 
     rows = [
-        {"username": "kim_01", "nickname": "김민준", "role": "teacher", "group": "1학년"},
+        {
+            "username": "kim_01",
+            "nickname": "김민준",
+            "role": "teacher",
+            "group": "1학년",
+        },
         {"username": "lee_02", "nickname": "이소연", "role": "", "group": ""},
     ]
     result = await validate_bulk_users(rows, db_session)
@@ -37,7 +42,14 @@ async def test_duplicate_username_in_db(db_session: AsyncSession):
     db_session.add(existing)
     await db_session.flush()
 
-    rows = [{"username": "existing_user", "nickname": "중복", "role": "", "group": ""}]
+    rows = [
+        {
+            "username": "existing_user",
+            "nickname": "중복",
+            "role": "",
+            "group": "",
+        }
+    ]
     result = await validate_bulk_users(rows, db_session)
 
     assert result.summary["error"] == 1
@@ -60,7 +72,12 @@ async def test_duplicate_username_within_csv(db_session: AsyncSession):
 async def test_invalid_username_format(db_session: AsyncSession):
     rows = [
         {"username": "ab", "nickname": "짧은", "role": "", "group": ""},
-        {"username": "bad user!", "nickname": "특수문자", "role": "", "group": ""},
+        {
+            "username": "bad user!",
+            "nickname": "특수문자",
+            "role": "",
+            "group": "",
+        },
     ]
     result = await validate_bulk_users(rows, db_session)
 
@@ -78,15 +95,53 @@ async def test_invalid_nickname(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_invalid_role(db_session: AsyncSession):
-    rows = [{"username": "user_01", "nickname": "닉네임", "role": "superadmin", "group": ""}]
+    rows = [
+        {
+            "username": "user_01",
+            "nickname": "닉네임",
+            "role": "superadmin",
+            "group": "",
+        }
+    ]
     result = await validate_bulk_users(rows, db_session)
 
     assert any("유효하지 않은 역할" in e for e in result.rows[0].errors)
 
 
 @pytest.mark.asyncio
+async def test_korean_role_labels_accepted(db_session: AsyncSession):
+    rows = [
+        {
+            "username": "kim_01",
+            "nickname": "김교사",
+            "role": "교사",
+            "group": "",
+        },
+        {
+            "username": "lee_02",
+            "nickname": "이관리",
+            "role": "관리자",
+            "group": "",
+        },
+    ]
+    result = await validate_bulk_users(rows, db_session)
+
+    assert result.summary["valid"] == 2
+    assert result.summary["error"] == 0
+    assert result.rows[0].role == "teacher"
+    assert result.rows[1].role == "admin"
+
+
+@pytest.mark.asyncio
 async def test_invalid_group_name(db_session: AsyncSession):
-    rows = [{"username": "user_01", "nickname": "닉네임", "role": "", "group": "존재하지않는그룹"}]
+    rows = [
+        {
+            "username": "user_01",
+            "nickname": "닉네임",
+            "role": "",
+            "group": "존재하지않는그룹",
+        }
+    ]
     result = await validate_bulk_users(rows, db_session)
 
     assert any("존재하지 않는 그룹" in e for e in result.rows[0].errors)
@@ -99,7 +154,9 @@ async def test_groups_list_returned(db_session: AsyncSession):
     db_session.add_all([g1, g2])
     await db_session.flush()
 
-    rows = [{"username": "user_01", "nickname": "닉네임", "role": "", "group": ""}]
+    rows = [
+        {"username": "user_01", "nickname": "닉네임", "role": "", "group": ""}
+    ]
     result = await validate_bulk_users(rows, db_session)
 
     group_names = {g["name"] for g in result.groups}

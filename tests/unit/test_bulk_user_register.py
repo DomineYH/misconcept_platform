@@ -17,8 +17,18 @@ async def test_register_creates_users(db_session: AsyncSession):
     await db_session.flush()
 
     users = [
-        BulkUserEntry(username="new_user_1", nickname="새유저1", role="teacher", group_id=group.id),
-        BulkUserEntry(username="new_user_2", nickname="새유저2", role="admin", group_id=None),
+        BulkUserEntry(
+            username="new_user_1",
+            nickname="새유저1",
+            role="teacher",
+            group_id=group.id,
+        ),
+        BulkUserEntry(
+            username="new_user_2",
+            nickname="새유저2",
+            role="admin",
+            group_id=None,
+        ),
     ]
     result = await register_bulk_users(users, db_session)
 
@@ -26,9 +36,17 @@ async def test_register_creates_users(db_session: AsyncSession):
     assert result.fail_count == 0
     assert result.failures == []
 
-    created = (await db_session.execute(
-        select(User).where(User.username.in_(["new_user_1", "new_user_2"]))
-    )).scalars().all()
+    created = (
+        (
+            await db_session.execute(
+                select(User).where(
+                    User.username.in_(["new_user_1", "new_user_2"])
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     created_map = {u.username: u for u in created}
 
     assert created_map["new_user_1"].nickname == "새유저1"
@@ -55,6 +73,33 @@ async def test_register_skips_duplicate_username(db_session: AsyncSession):
     assert result.fail_count == 1
     assert result.failures[0].username == "taken_user"
     assert "이미 존재" in result.failures[0].reason
+
+
+@pytest.mark.asyncio
+async def test_register_accepts_korean_role_labels(db_session: AsyncSession):
+    users = [
+        BulkUserEntry(username="kor_teacher", nickname="한글교사", role="교사"),
+        BulkUserEntry(username="kor_admin", nickname="한글관리", role="관리자"),
+    ]
+    result = await register_bulk_users(users, db_session)
+
+    assert result.success_count == 2
+    assert result.fail_count == 0
+
+    created = (
+        (
+            await db_session.execute(
+                select(User).where(
+                    User.username.in_(["kor_teacher", "kor_admin"])
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    created_map = {u.username: u for u in created}
+    assert created_map["kor_teacher"].role == "teacher"
+    assert created_map["kor_admin"].role == "admin"
 
 
 @pytest.mark.asyncio

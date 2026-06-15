@@ -31,6 +31,24 @@ COLUMN_ALIASES: dict[str, str] = {
     "역할": "role",
     "그룹": "group",
 }
+ROLE_ALIASES: dict[str, str] = {
+    "교사": "teacher",
+    "관리자": "admin",
+    "teacher": "teacher",
+    "admin": "admin",
+}
+
+
+def normalize_role(role: str) -> str:
+    """Map a role value (Korean label or English) to its canonical form.
+
+    Empty values default to "teacher". Unknown values are returned
+    as-is so downstream validation can flag them.
+    """
+    cleaned = (role or "").strip()
+    if not cleaned:
+        return "teacher"
+    return ROLE_ALIASES.get(cleaned.lower(), cleaned)
 
 
 def parse_csv(file_content: bytes) -> list[dict]:
@@ -138,11 +156,8 @@ async def validate_bulk_users(
         errors: list[str] = []
         username = row.get("username", "")
         nickname = row.get("nickname", "")
-        role = row.get("role", "").strip()
+        role = normalize_role(row.get("role", ""))
         group_name = row.get("group", "").strip()
-
-        if not role:
-            role = "teacher"
 
         if len(username) < 3 or len(username) > 50:
             errors.append("사용자 ID는 3자 이상 50자 이하여야 합니다.")
@@ -262,7 +277,8 @@ async def register_bulk_users(
             )
             continue
 
-        if entry.role not in ("teacher", "admin"):
+        role = normalize_role(entry.role)
+        if role not in ("teacher", "admin"):
             failures.append(
                 BulkFailure(
                     username=entry.username,
@@ -275,7 +291,7 @@ async def register_bulk_users(
         new_user = User(
             username=entry.username,
             nickname=entry.nickname,
-            role=entry.role,
+            role=role,
             group_id=entry.group_id,
         )
         new_user.set_password(DEFAULT_PASSWORD)
