@@ -207,6 +207,9 @@ async def test_ensure_default_admin_reconciles_mismatched_password(
     across branch switches even when the admin row was created earlier
     with a different password.
     """
+    # Pin a non-production env so this test is isolated from an exported
+    # ENV=production (conftest only sets TESTING).
+    monkeypatch.setattr(config, "ENV", "development")
     monkeypatch.setattr(config, "ADMIN_DEFAULT_PASSWORD", "admin123")
 
     admin = User(
