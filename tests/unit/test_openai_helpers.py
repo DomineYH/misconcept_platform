@@ -139,6 +139,37 @@ def test_extract_response_text_incomplete_without_text_raises_typed_error():
     assert "max_output_tokens" in str(exc.value)
 
 
+def test_extract_response_text_incomplete_missing_output_raises_typed_error():
+    response = Mock(
+        spec=["status", "incomplete_details", "output", "output_text"]
+    )
+    response.status = "incomplete"
+    response.incomplete_details = {"reason": "max_output_tokens"}
+    response.output = None
+    response.output_text = None
+
+    with pytest.raises(IncompleteResponseError) as exc:
+        extract_response_text(response)
+
+    assert exc.value.reason == "max_output_tokens"
+
+
+def test_extract_response_text_incomplete_empty_content_raises_typed_error():
+    output_mock = Mock()
+    output_mock.content = "   "
+
+    response = Mock()
+    response.status = "incomplete"
+    response.incomplete_details = {"reason": "max_output_tokens"}
+    response.output = output_mock
+    response.output_text = None
+
+    with pytest.raises(IncompleteResponseError) as exc:
+        extract_response_text(response)
+
+    assert exc.value.reason == "max_output_tokens"
+
+
 def test_extract_usage_dict_includes_reasoning_tokens_from_object_details():
     """Responses usage details should preserve reasoning token count."""
     details = Mock()

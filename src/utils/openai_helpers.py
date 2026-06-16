@@ -223,6 +223,8 @@ def extract_response_text(response: Any) -> str:
                 text = resp_dict["output_text"]
                 if isinstance(text, str) and text.strip():
                     return _return(text.strip())
+        if is_incomplete:
+            raise IncompleteResponseError(incomplete_reason)
         raise ValueError("Response missing output content")
 
     # 4. Some mocks expose response.output.content directly as string
@@ -230,6 +232,8 @@ def extract_response_text(response: Any) -> str:
     if isinstance(direct_content, str):
         stripped = direct_content.strip()
         if not stripped:
+            if is_incomplete:
+                raise IncompleteResponseError(incomplete_reason)
             raise ValueError("Empty response content")
         logger.debug(f"Extracted via output.content: {stripped[:50]}...")
         return _return(stripped)
