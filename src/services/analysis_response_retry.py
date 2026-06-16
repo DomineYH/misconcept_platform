@@ -36,19 +36,12 @@ def _merge_usage_dicts(
     *usages: dict[str, int] | None,
 ) -> dict[str, int] | None:
     merged: dict[str, int] = {}
-    retry_completion_tokens = 0
     for usage in usages:
         if usage is None:
             continue
-        if merged:
-            retry_completion_tokens += usage.get("completion_tokens", 0)
         for key, value in usage.items():
             if isinstance(value, int):
                 merged[key] = merged.get(key, 0) + value
-    if retry_completion_tokens:
-        merged["total_tokens"] = (
-            merged.get("total_tokens", 0) + retry_completion_tokens
-        )
     return merged or None
 
 

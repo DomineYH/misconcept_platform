@@ -558,7 +558,7 @@ async def test_classify_question_retries_incomplete_without_text(
     assert result["_api_usage"] == {
         "prompt_tokens": 110,
         "completion_tokens": 1505,
-        "total_tokens": 1620,
+        "total_tokens": 1615,
         "reasoning_tokens": 1500,
     }
 
@@ -581,7 +581,9 @@ async def test_detect_greetings_uses_structured_object_response(analyzer):
     kwargs = analyzer.client.responses.create.call_args.kwargs
     assert kwargs["max_output_tokens"] == analyzer.greeting_max_tokens
     assert kwargs["reasoning"] == {"effort": analyzer.greeting_reasoning_effort}
+    assert kwargs["text"]["format"]["type"] == "json_schema"
     assert kwargs["text"]["format"]["name"] == "greeting_detection"
+    assert kwargs["text"]["format"]["strict"] is True
     assert results[0]["is_greeting"] is True
     assert results[1]["is_greeting"] is False
 
@@ -620,6 +622,6 @@ async def test_detect_greetings_retries_incomplete_then_returns_result(
     assert analyzer.last_greeting_usage == {
         "prompt_tokens": 110,
         "completion_tokens": 505,
-        "total_tokens": 620,
+        "total_tokens": 615,
         "reasoning_tokens": 500,
     }
