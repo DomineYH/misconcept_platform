@@ -165,11 +165,12 @@ Expected: all tests PASS.
 Run:
 
 ```bash
-rg -n "놓친 순간" src/templates
+! rg -n "놓친 순간" src/templates
 ```
 
-Expected: no matches in active templates. Regression tests may still mention
-`놓친 순간` in negative assertions.
+Expected: exit code 0 from the negated command because there are no matches in
+active templates. Regression tests may still mention `놓친 순간` in negative
+assertions.
 
 ## Acceptance Criteria
 
@@ -186,5 +187,5 @@ Run:
 ```bash
 PYTHONPATH=. uv run pytest tests/integration/test_analysis_modal_tabs.py -v
 PYTHONPATH=. uv run pytest tests/templates/test_analysis_modal_states.py -v
-rg -n "놓친 순간" src/templates
+! rg -n "놓친 순간" src/templates
 ```
