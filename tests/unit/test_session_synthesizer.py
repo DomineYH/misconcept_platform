@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from src.config import config
 from src.services.session_synthesizer import (
     FALLBACK_FEEDBACK,
     SessionSynthesizer,
@@ -72,6 +73,22 @@ def _make_mock_response(payload: dict) -> Mock:
     return resp
 
 
+def _make_incomplete_response(reasoning_tokens: int = 2000) -> Mock:
+    """Create an incomplete Responses API mock with no visible text."""
+    resp = Mock()
+    resp.status = "incomplete"
+    resp.incomplete_details = {"reason": "max_output_tokens"}
+    resp.output = []
+    resp.output_text = None
+    resp.usage = {
+        "input_tokens": 100,
+        "output_tokens": reasoning_tokens,
+        "total_tokens": 100 + reasoning_tokens,
+        "output_tokens_details": {"reasoning_tokens": reasoning_tokens},
+    }
+    return resp
+
+
 @pytest.fixture
 def mock_framework():
     """Create a mock framework."""
@@ -124,6 +141,41 @@ class TestSessionSynthesizer:
         assert len(payload["improvements"]) == 1
         assert len(payload["brief_feedback"]) == 2
         assert payload["version"] == 1
+
+    @pytest.mark.asyncio
+    async def test_synthesize_retries_on_incomplete_then_succeeds(
+        self, synthesizer, mock_framework
+    ):
+        """An incomplete (max_output_tokens) response retries once and
+        succeeds with the larger retry budget."""
+        incomplete = _make_incomplete_response()
+        valid = _make_mock_response(MOCK_VALID_PAYLOAD)
+        synthesizer.client.responses.create = AsyncMock(
+            side_effect=[incomplete, valid]
+        )
+
+        payload, status = await synthesizer.synthesize(
+            messages=MOCK_MESSAGES,
+            scenario="분수 덧셈 탐색",
+            misconception="분모 통분 불가",
+            framework=mock_framework,
+        )
+
+        assert status == "ok"
+        assert payload["version"] == 1
+
+        create = synthesizer.client.responses.create
+        assert create.call_count == 2
+        first_kwargs = create.call_args_list[0].kwargs
+        second_kwargs = create.call_args_list[1].kwargs
+        assert (
+            first_kwargs["max_output_tokens"]
+            == config.ANALYSIS_SYNTHESIS_MAX_TOKENS
+        )
+        assert (
+            second_kwargs["max_output_tokens"]
+            == config.ANALYSIS_SYNTHESIS_RETRY_MAX_TOKENS
+        )
 
     @pytest.mark.asyncio
     async def test_bad_json_returns_failed(self, synthesizer, mock_framework):

@@ -62,3 +62,9 @@ GREETING_TEXT_FORMAT: Final[TextFormat] = {
         },
     }
 }
+
+SYNTHESIS_TEXT_FORMAT: Final[TextFormat] = {
+    "format": {
+        "type": "json_object",
+    }
+}
