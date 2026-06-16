@@ -13,9 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.connection import AsyncSessionLocal
+from src.version import get_app_version
 
 # Shared Jinja2Templates instance
 templates = Jinja2Templates(directory="src/templates")
+# Expose the running app version to every template (footer, etc.).
+# Computed once at import; reflects the commit the server is running.
+templates.env.globals["app_version"] = get_app_version()
 
 
 # Allowlist-based neutralization of dangerous URL schemes in

@@ -23,6 +23,7 @@ from src.api.dependencies import AuthenticationRequired
 from src.config import config
 from src.db.connection import close_db, init_db
 from src.db.seed import ensure_default_admin_account
+from src.version import read_base_version
 
 # Configure structured JSON logging
 logger = logging.getLogger()
@@ -212,7 +213,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Misconception Dialogue Simulator",
     description=("Three-party dialogue simulator for teacher training"),
-    version="0.1.0",
+    version=read_base_version(),
     lifespan=lifespan,
 )
 

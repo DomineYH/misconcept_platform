@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 화면 푸터에 실행 중인 앱 버전 동적 표시 (`VERSION` 파일 + git 커밋
+  해시·날짜). 기존 하드코딩된 `v0.1.0` 제거.
+  - `src/version.py` 신규: `VERSION` 읽기 + `git rev-parse`/`git show`로
+    짧은 커밋 해시·날짜 조회 (앱 시작 시 1회, git 없으면 버전만 표시)
+  - `templates.env.globals["app_version"]`로 전역 주입 → 모든 페이지 푸터
+  - FastAPI OpenAPI `version`도 `VERSION` 파일과 동기화
+
 ## [0.4.1.0] - 2026-04-28
 
 ### Fixed
