@@ -503,3 +503,76 @@ async def test_duplicate_state_fallback_uses_framework_labels(
         )
     ).scalar_one()
     assert summary.distribution == result["distribution"]
+
+
+@pytest.mark.anyio
+async def test_pipeline_persists_degraded_question_analysis_on_classify_failure(
+    async_db_session,
+    test_scenario,
+    test_teacher,
+    test_framework,
+    greeting_mock,
+    synthesis_mock,
+    monkeypatch,
+):
+    async def classify_question(self, **kwargs):
+        question = kwargs["question"]
+        if question.startswith("Why did"):
+            raise ValueError(
+                "Response incomplete and contained no extractable text "
+                "(reason: max_output_tokens)."
+            )
+        return {
+            "label": "Pressing",
+            "confidence": 0.9,
+            "reasoning": {"summary": "Test reasoning"},
+        }
+
+    monkeypatch.setattr(
+        "src.services.analyzer.Analyzer.classify_question",
+        classify_question,
+    )
+
+    session = await _seed_session(async_db_session, test_scenario, test_teacher)
+
+    result = await analyze_session(
+        session.id, session, test_scenario, test_framework, async_db_session
+    )
+
+    qa_rows = (
+        (
+            await async_db_session.execute(
+                select(QuestionAnalysis).order_by(QuestionAnalysis.message_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(qa_rows) == 2
+    assert result["distribution"]["Pressing"] == 1
+    assert result["distribution"]["분류 실패"] == 1
+
+    degraded = next(row for row in qa_rows if row.label == "분류 실패")
+    assert degraded.confidence == 0.0
+    assert degraded.grade is None
+    meta = json.loads(degraded.meta_json)
+    assert meta == {
+        "status": "degraded",
+        "summary": "분류에 실패해 이 교사 메시지는 자동 분류되지 않았습니다.",
+        "improved_sentence": None,
+        "error_type": "ValueError",
+        "error": (
+            "Response incomplete and contained no extractable text "
+            "(reason: max_output_tokens)."
+        ),
+    }
+
+    synth_kwargs = synthesis_mock.call_args.kwargs
+    qa_for_synthesis = synth_kwargs["question_analyses"]
+    assert len(qa_for_synthesis) == 2
+    assert any(
+        qa["message_id"] == degraded.message_id
+        and qa["label"] == "분류 실패"
+        and '"status": "degraded"' in qa["reasoning"]
+        for qa in qa_for_synthesis
+    )
