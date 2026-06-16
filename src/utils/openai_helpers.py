@@ -8,6 +8,19 @@ from typing import Any, Iterable
 logger = logging.getLogger(__name__)
 
 
+class IncompleteResponseError(ValueError):
+    """Raised when a Responses API result is incomplete and has no text."""
+
+    def __init__(self, reason: str | None) -> None:
+        self.reason = reason
+        detail = reason or "unknown"
+        super().__init__(
+            "Response incomplete and contained no extractable text "
+            f"(reason: {detail}). Increase max_output_tokens for "
+            "GPT-5 reasoning."
+        )
+
+
 def _coerce_text(candidate: Any) -> str | None:
     """Return stripped text from various structures."""
     if candidate is None:
@@ -72,6 +85,17 @@ def _debug_response_structure(response: Any, prefix: str = "") -> None:
         logger.debug(f"{prefix}Debug failed: {e}")
 
 
+def _extract_int(candidate: Any, key: str) -> int | None:
+    """Extract an integer field from dict-like or object-like structures."""
+    if candidate is None:
+        return None
+    if isinstance(candidate, dict):
+        value = candidate.get(key)
+    else:
+        value = getattr(candidate, key, None)
+    return value if isinstance(value, int) else None
+
+
 def extract_usage_dict(response: Any) -> dict | None:
     """Extract usage info from OpenAI response.
 
@@ -103,11 +127,22 @@ def extract_usage_dict(response: Any) -> dict | None:
     ):
         return None
 
-    return {
+    result = {
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "total_tokens": total_tokens,
     }
+
+    details = (
+        usage.get("output_tokens_details")
+        if isinstance(usage, dict)
+        else getattr(usage, "output_tokens_details", None)
+    )
+    reasoning_tokens = _extract_int(details, "reasoning_tokens")
+    if reasoning_tokens is not None:
+        result["reasoning_tokens"] = reasoning_tokens
+
+    return result
 
 
 def extract_response_text(response: Any) -> str:
@@ -259,9 +294,6 @@ def extract_response_text(response: Any) -> str:
         logger.error(f"Response dump: {response.model_dump()}")
 
     if is_incomplete:
-        raise ValueError(
-            "Response incomplete and contained no extractable text. "
-            "Increase max_output_tokens for GPT-5 reasoning."
-        )
+        raise IncompleteResponseError(incomplete_reason)
 
     raise ValueError("Unable to extract text from Responses API output")

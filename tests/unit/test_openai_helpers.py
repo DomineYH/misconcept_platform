@@ -6,7 +6,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.utils.openai_helpers import extract_response_text, extract_usage_dict
+from src.utils.openai_helpers import (
+    IncompleteResponseError,
+    extract_response_text,
+    extract_usage_dict,
+)
 
 
 def create_nested_response(content: str) -> Mock:
@@ -117,4 +121,61 @@ def test_extract_usage_dict_supports_dicts():
         "prompt_tokens": 5,
         "completion_tokens": 3,
         "total_tokens": 8,
+    }
+
+
+def test_extract_response_text_incomplete_without_text_raises_typed_error():
+    """Incomplete responses without visible text should expose the reason."""
+    response = Mock()
+    response.status = "incomplete"
+    response.incomplete_details = {"reason": "max_output_tokens"}
+    response.output = []
+    response.output_text = None
+
+    with pytest.raises(IncompleteResponseError) as exc:
+        extract_response_text(response)
+
+    assert exc.value.reason == "max_output_tokens"
+    assert "max_output_tokens" in str(exc.value)
+
+
+def test_extract_usage_dict_includes_reasoning_tokens_from_object_details():
+    """Responses usage details should preserve reasoning token count."""
+    details = Mock()
+    details.reasoning_tokens = 64
+    usage = Mock()
+    usage.input_tokens = 100
+    usage.output_tokens = 80
+    usage.total_tokens = 180
+    usage.output_tokens_details = details
+    response = Mock()
+    response.usage = usage
+
+    result = extract_usage_dict(response)
+
+    assert result == {
+        "prompt_tokens": 100,
+        "completion_tokens": 80,
+        "total_tokens": 180,
+        "reasoning_tokens": 64,
+    }
+
+
+def test_extract_usage_dict_includes_reasoning_tokens_from_dict_details():
+    """Serialized usage details should preserve reasoning token count."""
+    response = Mock()
+    response.usage = {
+        "input_tokens": 20,
+        "output_tokens": 12,
+        "total_tokens": 32,
+        "output_tokens_details": {"reasoning_tokens": 9},
+    }
+
+    result = extract_usage_dict(response)
+
+    assert result == {
+        "prompt_tokens": 20,
+        "completion_tokens": 12,
+        "total_tokens": 32,
+        "reasoning_tokens": 9,
     }
