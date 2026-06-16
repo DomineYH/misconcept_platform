@@ -211,6 +211,27 @@ async def test_analysis_modal_renders_three_tabs(
     assert 'id="panel-improve"' in html
 
 
+async def test_analysis_modal_uses_requested_dialogue_coaching_badges(
+    test_client: TestClient,
+    seeded_analyzed_session: Session,
+):
+    """대화코칭 배지는 잘 한 대화/개선 필요 문구를 사용한다."""
+    cookies = _login(test_client)
+    paths = [
+        f"/sessions/{seeded_analyzed_session.id}/analysis_modal",
+        f"/sessions/{seeded_analyzed_session.id}/analysis_page",
+    ]
+
+    for path in paths:
+        resp = test_client.get(path, cookies=cookies)
+        assert resp.status_code == 200
+        html = resp.text
+
+        assert "잘 한 대화" in html
+        assert "개선 필요" in html
+        assert "놓친 순간" not in html
+
+
 async def test_analysis_modal_no_per_domain_boxes(
     test_client: TestClient,
     seeded_analyzed_session: Session,
