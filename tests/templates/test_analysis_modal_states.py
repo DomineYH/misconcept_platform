@@ -181,6 +181,27 @@ class TestOkState:
             or "analysis-detail-toggle" in html
         )
 
+    def test_dialogue_coaching_badges_use_requested_labels(self, env):
+        template = env.get_template("partials/analysis_modal.html")
+        ctx = _ok_context()
+        ctx["messages"] = [
+            {
+                "role": "teacher",
+                "content": "왜 그렇게 생각하니?",
+                "level": "high",
+            },
+            {
+                "role": "teacher",
+                "content": "정답이 뭐였더라?",
+                "level": "low",
+            },
+        ]
+        html = template.render(**ctx)
+
+        assert "잘 한 대화" in html
+        assert "개선 필요" in html
+        assert "놓친 순간" not in html
+
 
 # ── degraded state ──
 
