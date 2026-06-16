@@ -28,6 +28,10 @@ from src.models import (
     SessionSummary,
     calculate_cost,
 )
+from src.services.analysis_degraded import (
+    DEGRADED_CLASSIFICATION_LABEL,
+    build_degraded_question_analysis,
+)
 from src.services.analyzer import Analyzer
 from src.services.session_synthesizer import FAILED_PAYLOAD, SessionSynthesizer
 from src.utils.session_feedback import derive_plain_feedback
@@ -188,6 +192,12 @@ async def run_llm_pipeline(
     for msg, result in zip(teacher_messages, classification_results):
         if isinstance(result, Exception):
             logger.warning(f"Failed to analyze message {msg.id}: {result}")
+            question_analyses.append(
+                build_degraded_question_analysis(msg, result)
+            )
+            distribution[DEGRADED_CLASSIFICATION_LABEL] = (
+                distribution.get(DEGRADED_CLASSIFICATION_LABEL, 0) + 1
+            )
             continue
         api_usage = result.pop("_api_usage", None)
         log_entry = _build_api_usage_log(
@@ -213,7 +223,7 @@ async def run_llm_pipeline(
                 grade=framework.labels_grade_map.get(result["label"]),
             )
         )
-        distribution[result["label"]] += 1
+        distribution[result["label"]] = distribution.get(result["label"], 0) + 1
 
     # Step 3: Synthesize session feedback
     messages_for_synthesis = [
