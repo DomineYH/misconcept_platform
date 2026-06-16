@@ -149,22 +149,30 @@ All chatbot parameters are managed via environment variables (.env file). Server
 **All services use OpenAI Responses API** (Phase 1 & 1.5 complete)
 
 ### Model Configuration
-- `CHAT_MODEL` - StudentBot/TutorBot LLM model (default: gpt-5)
+- `CHAT_MODEL` - StudentBot/TutorBot LLM model (default: gpt-5-mini)
   - **Primary Models** (권장): gpt-5, gpt-5.1, gpt-5.1-chat-latest
   - **Fallback Models** (지원): gpt-4-turbo
   - **NOT supported**: gpt-3.5 (Responses API limitation)
-- `ANALYSIS_MODEL` - MisconceptionAnalyzer LLM model (default: gpt-5)
+- `ANALYSIS_MODEL` - Analyzer/Synthesizer LLM model (default: gpt-5.2)
   - Same model support as CHAT_MODEL
+- `DIALOGUE_ANALYSIS_MODEL` - Dialogue similarity analysis model (default: gpt-5.2)
 
 ### GPT-5 Reasoning Configuration
-- `CHAT_REASONING_EFFORT` - Reasoning intensity (default: medium)
-  - Valid values: minimal, low, medium, high
-- `ANALYSIS_REASONING_EFFORT` - Analysis reasoning (default: medium)
+- `ANALYSIS_REASONING` - Legacy misconception-analysis reasoning (default: high)
+- `ANALYSIS_CLASSIFICATION_REASONING` - Teacher question classification reasoning (default: low)
+- `ANALYSIS_GREETING_REASONING` - Greeting detection reasoning (default: low)
+- `ANALYSIS_SYNTHESIS_REASONING` - Session feedback synthesis reasoning (default: high)
+- `STUDENT_REASONING` - StudentBot reasoning (default: medium)
+- `TUTOR_REASONING` - TutorBot reasoning (default: low)
+  - Valid values: none, minimal, low, medium, high
 
 ### Output Length Configuration
-- `STUDENT_MAX_OUTPUT_TOKENS` - StudentBot response length (default: 150)
-- `TUTOR_MAX_OUTPUT_TOKENS` - TutorBot feedback length (default: 100)
-- `ANALYSIS_MAX_OUTPUT_TOKENS` - Analyzer output length (default: 300)
+- `STUDENT_MAX_TOKENS` - StudentBot response budget (default: 1500)
+- `TUTOR_MAX_TOKENS` - TutorBot feedback budget (default: 1500)
+- `ANALYSIS_CLASSIFICATION_MAX_TOKENS` - Classification first-attempt budget (default: 2500)
+- `ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS` - Classification retry budget after `max_output_tokens` exhaustion (default: 4000)
+- `ANALYSIS_GREETING_MAX_TOKENS` - Greeting detection first-attempt budget (default: 1000)
+- `ANALYSIS_GREETING_RETRY_MAX_TOKENS` - Greeting detection retry budget after `max_output_tokens` exhaustion (default: 1500)
 
 ### TutorBot Intervention
 - `TUTOR_INTERVENTION_THRESHOLD` - Intervention frequency per 10 questions, 1-10 (default: 3)
