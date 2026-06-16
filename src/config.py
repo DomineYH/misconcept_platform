@@ -27,8 +27,13 @@ class Config(BaseSettings):
     DIALOGUE_ANALYSIS_MODEL: str = "gpt-5.2"
 
     # ===== GPT-5 Reasoning Effort Configuration =====
-    # Valid values: minimal, low, medium, high
+    # Valid values: none, minimal, low, medium, high
+    # ANALYSIS_REASONING is kept for legacy callers that have not moved to
+    # operation-specific analysis settings.
     ANALYSIS_REASONING: str = "high"
+    ANALYSIS_CLASSIFICATION_REASONING: str = "low"
+    ANALYSIS_GREETING_REASONING: str = "low"
+    ANALYSIS_SYNTHESIS_REASONING: str = "high"
     STUDENT_REASONING: str = "medium"
     TUTOR_REASONING: str = "low"
 
@@ -38,6 +43,10 @@ class Config(BaseSettings):
     # Minimum recommended: 500 (reasoning) + 500 (text) = 1000
     STUDENT_MAX_TOKENS: int = 1500
     TUTOR_MAX_TOKENS: int = 1500
+    ANALYSIS_CLASSIFICATION_MAX_TOKENS: int = 2500
+    ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS: int = 4000
+    ANALYSIS_GREETING_MAX_TOKENS: int = 1000
+    ANALYSIS_GREETING_RETRY_MAX_TOKENS: int = 1500
     TUTOR_INTERVENTION_THRESHOLD: int = 3
 
     # Context Window
@@ -129,7 +138,12 @@ class Config(BaseSettings):
         return v
 
     @field_validator(
-        "ANALYSIS_REASONING", "STUDENT_REASONING", "TUTOR_REASONING"
+        "ANALYSIS_REASONING",
+        "ANALYSIS_CLASSIFICATION_REASONING",
+        "ANALYSIS_GREETING_REASONING",
+        "ANALYSIS_SYNTHESIS_REASONING",
+        "STUDENT_REASONING",
+        "TUTOR_REASONING",
     )
     @classmethod
     def validate_reasoning(cls, v, info):
@@ -144,7 +158,14 @@ class Config(BaseSettings):
             )
         return v
 
-    @field_validator("STUDENT_MAX_TOKENS", "TUTOR_MAX_TOKENS")
+    @field_validator(
+        "STUDENT_MAX_TOKENS",
+        "TUTOR_MAX_TOKENS",
+        "ANALYSIS_CLASSIFICATION_MAX_TOKENS",
+        "ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS",
+        "ANALYSIS_GREETING_MAX_TOKENS",
+        "ANALYSIS_GREETING_RETRY_MAX_TOKENS",
+    )
     @classmethod
     def validate_positive_tokens(cls, v, info):
         """Validate token limits are positive."""

@@ -65,7 +65,7 @@ class SessionSynthesizer:
     def __init__(self) -> None:
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.model = config.ANALYSIS_MODEL or "gpt-5"
-        self.reasoning_effort = config.ANALYSIS_REASONING
+        self.reasoning_effort = config.ANALYSIS_SYNTHESIS_REASONING
         self._template = load_prompt_template("session_synthesis_prompt.txt")
         self._hash = prompt_hash(self._template)
         self.last_usage: dict[str, int] | None = None
