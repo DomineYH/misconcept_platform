@@ -22,8 +22,11 @@ from tenacity import (
 )
 
 from src.config import config
+from src.services.analysis_response_retry import (
+    create_response_text_with_incomplete_retry,
+)
+from src.services.analysis_response_schemas import SYNTHESIS_TEXT_FORMAT
 from src.utils.cache import load_prompt_template
-from src.utils.openai_helpers import extract_response_text, extract_usage_dict
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +69,8 @@ class SessionSynthesizer:
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.model = config.ANALYSIS_MODEL or "gpt-5"
         self.reasoning_effort = config.ANALYSIS_SYNTHESIS_REASONING
+        self.max_tokens = config.ANALYSIS_SYNTHESIS_MAX_TOKENS
+        self.retry_max_tokens = config.ANALYSIS_SYNTHESIS_RETRY_MAX_TOKENS
         self._template = load_prompt_template("session_synthesis_prompt.txt")
         self._hash = prompt_hash(self._template)
         self.last_usage: dict[str, int] | None = None
@@ -120,14 +125,17 @@ class SessionSynthesizer:
         )
 
         try:
-            response = await self.client.responses.create(
+            content, usage = await create_response_text_with_incomplete_retry(
+                responses=self.client.responses,
                 model=self.model,
-                input=[{"role": "user", "content": prompt}],
-                max_output_tokens=2500,
-                reasoning={"effort": self.reasoning_effort},
+                input_messages=[{"role": "user", "content": prompt}],
+                text_format=SYNTHESIS_TEXT_FORMAT,
+                operation="synthesis",
+                max_output_tokens=self.max_tokens,
+                retry_max_output_tokens=self.retry_max_tokens,
+                reasoning_effort=self.reasoning_effort,
             )
-            self.last_usage = extract_usage_dict(response)
-            content = extract_response_text(response)
+            self.last_usage = usage
             payload = json.loads(content)
         except (json.JSONDecodeError, ValueError) as e:
             self.last_usage = None
