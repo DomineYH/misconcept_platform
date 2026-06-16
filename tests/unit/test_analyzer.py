@@ -48,6 +48,35 @@ def analyzer():
         return analyzer
 
 
+def response_with_content(content: str) -> Mock:
+    """Create a simple Responses API mock with text content."""
+    response = Mock()
+    response.output = Mock(content=content)
+    response.output_text = None
+    response.usage = {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15,
+    }
+    return response
+
+
+def incomplete_response(reasoning_tokens: int = 1500) -> Mock:
+    """Create an incomplete Responses API mock with no visible text."""
+    response = Mock()
+    response.status = "incomplete"
+    response.incomplete_details = {"reason": "max_output_tokens"}
+    response.output = []
+    response.output_text = None
+    response.usage = {
+        "input_tokens": 100,
+        "output_tokens": reasoning_tokens,
+        "total_tokens": 100 + reasoning_tokens,
+        "output_tokens_details": {"reasoning_tokens": reasoning_tokens},
+    }
+    return response
+
+
 @pytest.mark.asyncio
 async def test_classify_question_valid_response(analyzer, mock_framework):
     """Test successful classification with valid response."""
@@ -471,3 +500,126 @@ def test_normalize_reasoning_strips_legacy_domain_keys(analyzer):
     assert "pedagogical" not in result
     assert "cognitive" not in result
     assert "contextual" not in result
+
+
+@pytest.mark.asyncio
+async def test_classify_question_uses_split_budget_and_structured_output(
+    analyzer, mock_framework
+):
+    """Classification should use operation-specific config and JSON schema."""
+    mock_response = response_with_content(
+        '{"label": "Pressing", "confidence": 0.92, '
+        '"reasoning": {"summary": "탐색 질문", "improved_sentence": null}}'
+    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
+
+    await analyzer.classify_question("왜 그렇게 생각했니?", mock_framework)
+
+    kwargs = analyzer.client.responses.create.call_args.kwargs
+    assert kwargs["max_output_tokens"] == analyzer.classification_max_tokens
+    assert kwargs["reasoning"] == {
+        "effort": analyzer.classification_reasoning_effort
+    }
+    assert kwargs["text"]["format"]["type"] == "json_schema"
+    assert kwargs["text"]["format"]["name"] == "question_classification"
+    assert kwargs["text"]["format"]["strict"] is True
+
+
+@pytest.mark.asyncio
+async def test_classify_question_retries_incomplete_without_text(
+    analyzer, mock_framework
+):
+    """A max-output incomplete response should retry once with retry budget."""
+    first_response = incomplete_response(reasoning_tokens=1500)
+    second_response = response_with_content(
+        '{"label": "Pressing", "confidence": 0.88, '
+        '"reasoning": {"summary": "재시도 성공", "improved_sentence": null}}'
+    )
+    analyzer.client.responses.create = AsyncMock(
+        side_effect=[first_response, second_response]
+    )
+
+    result = await analyzer.classify_question(
+        "왜 분모끼리 더해도 된다고 생각했니?",
+        mock_framework,
+    )
+
+    assert result["label"] == "Pressing"
+    assert result["confidence"] == 0.88
+    assert analyzer.client.responses.create.call_count == 2
+    first_kwargs = analyzer.client.responses.create.call_args_list[0].kwargs
+    second_kwargs = analyzer.client.responses.create.call_args_list[1].kwargs
+    assert first_kwargs["max_output_tokens"] == (
+        analyzer.classification_max_tokens
+    )
+    assert second_kwargs["max_output_tokens"] == (
+        analyzer.classification_retry_max_tokens
+    )
+    assert result["_api_usage"] == {
+        "prompt_tokens": 110,
+        "completion_tokens": 1505,
+        "total_tokens": 1620,
+        "reasoning_tokens": 1500,
+    }
+
+
+@pytest.mark.asyncio
+async def test_detect_greetings_uses_structured_object_response(analyzer):
+    """Greeting detection should parse the schema object shape."""
+    mock_response = response_with_content(
+        '{"results": ['
+        '{"index": 0, "is_greeting": true, "reason": "Opening greeting"},'
+        '{"index": 1, "is_greeting": false, "reason": "Concept question"}'
+        "]}"
+    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
+
+    results = await analyzer.detect_greetings(
+        ["안녕하세요!", "분모가 다르면 어떻게 해야 할까요?"]
+    )
+
+    kwargs = analyzer.client.responses.create.call_args.kwargs
+    assert kwargs["max_output_tokens"] == analyzer.greeting_max_tokens
+    assert kwargs["reasoning"] == {"effort": analyzer.greeting_reasoning_effort}
+    assert kwargs["text"]["format"]["name"] == "greeting_detection"
+    assert results[0]["is_greeting"] is True
+    assert results[1]["is_greeting"] is False
+
+
+@pytest.mark.asyncio
+async def test_detect_greetings_retries_incomplete_then_returns_result(
+    analyzer,
+):
+    """Greeting detection should retry an incomplete no-text response once."""
+    first_response = incomplete_response(reasoning_tokens=500)
+    second_response = response_with_content(
+        '{"results": ['
+        '{"index": 0, "is_greeting": false, "reason": "Concept question"}'
+        "]}"
+    )
+    analyzer.client.responses.create = AsyncMock(
+        side_effect=[first_response, second_response]
+    )
+
+    results = await analyzer.detect_greetings(["왜 그렇게 생각했나요?"])
+
+    assert analyzer.client.responses.create.call_count == 2
+    first_kwargs = analyzer.client.responses.create.call_args_list[0].kwargs
+    second_kwargs = analyzer.client.responses.create.call_args_list[1].kwargs
+    assert first_kwargs["max_output_tokens"] == analyzer.greeting_max_tokens
+    assert second_kwargs["max_output_tokens"] == (
+        analyzer.greeting_retry_max_tokens
+    )
+    assert results == [
+        {
+            "index": 0,
+            "is_greeting": False,
+            "reason": "Concept question",
+        }
+    ]
+    assert analyzer.last_greeting_usage == {
+        "prompt_tokens": 110,
+        "completion_tokens": 505,
+        "total_tokens": 620,
+        "reasoning_tokens": 500,
+    }

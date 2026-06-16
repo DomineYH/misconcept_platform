@@ -20,8 +20,14 @@ from tenacity import (
 from src.config import config
 from src.models.analysis_framework import AnalysisFramework
 from src.prompts.example_templates import generate_examples
+from src.services.analysis_response_retry import (
+    create_response_text_with_incomplete_retry,
+)
+from src.services.analysis_response_schemas import (
+    CLASSIFICATION_TEXT_FORMAT,
+    GREETING_TEXT_FORMAT,
+)
 from src.utils.cache import load_prompt_template
-from src.utils.openai_helpers import extract_response_text, extract_usage_dict
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +48,21 @@ class Analyzer:
         """Initialize analyzer with OpenAI client."""
         self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.model = config.ANALYSIS_MODEL or "gpt-5"
-        self.reasoning_effort = config.ANALYSIS_REASONING
+        self.classification_reasoning_effort = (
+            config.ANALYSIS_CLASSIFICATION_REASONING
+        )
+        self.greeting_reasoning_effort = config.ANALYSIS_GREETING_REASONING
+        self.classification_max_tokens = (
+            config.ANALYSIS_CLASSIFICATION_MAX_TOKENS
+        )
+        self.classification_retry_max_tokens = (
+            config.ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS
+        )
+        self.greeting_max_tokens = config.ANALYSIS_GREETING_MAX_TOKENS
+        self.greeting_retry_max_tokens = (
+            config.ANALYSIS_GREETING_RETRY_MAX_TOKENS
+        )
+        self.reasoning_effort = self.classification_reasoning_effort
         # Load cached prompt templates (T111 optimization)
         self.prompt_template = load_prompt_template("analysis_prompt.txt")
         self.greeting_template = load_prompt_template("greeting_detection.txt")
@@ -158,16 +178,19 @@ class Analyzer:
             # Build input (user role)
             input_messages = [{"role": "user", "content": prompt}]
 
-            response = await self.client.responses.create(
+            (
+                content,
+                api_usage,
+            ) = await create_response_text_with_incomplete_retry(
+                responses=self.client.responses,
                 model=self.model,
-                input=input_messages,
-                max_output_tokens=1500,  # Increased for structured reasoning
-                reasoning={"effort": self.reasoning_effort},
+                input_messages=input_messages,
+                text_format=CLASSIFICATION_TEXT_FORMAT,
+                operation="classification",
+                max_output_tokens=self.classification_max_tokens,
+                retry_max_output_tokens=(self.classification_retry_max_tokens),
+                reasoning_effort=self.classification_reasoning_effort,
             )
-            api_usage = extract_usage_dict(response)
-
-            # Parse JSON response (GPT-5 structure)
-            content = extract_response_text(response)
             result = json.loads(content)
 
             # Validate response structure
@@ -298,16 +321,23 @@ class Analyzer:
         prompt = self.greeting_template.format(messages=formatted_messages)
 
         try:
-            response = await self.client.responses.create(
+            (
+                content,
+                self.last_greeting_usage,
+            ) = await create_response_text_with_incomplete_retry(
+                responses=self.client.responses,
                 model=self.model,
-                input=[{"role": "user", "content": prompt}],
-                max_output_tokens=500,
-                reasoning={"effort": self.reasoning_effort},
+                input_messages=[{"role": "user", "content": prompt}],
+                text_format=GREETING_TEXT_FORMAT,
+                operation="greeting",
+                max_output_tokens=self.greeting_max_tokens,
+                retry_max_output_tokens=self.greeting_retry_max_tokens,
+                reasoning_effort=self.greeting_reasoning_effort,
             )
-            self.last_greeting_usage = extract_usage_dict(response)
-
-            content = extract_response_text(response)
-            results = json.loads(content)
+            payload = json.loads(content)
+            results = (
+                payload.get("results") if isinstance(payload, dict) else payload
+            )
 
             # Validate response structure
             if not isinstance(results, list):
