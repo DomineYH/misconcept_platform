@@ -33,6 +33,16 @@ class TestReadBaseVersion:
         assert version.read_base_version() == "unknown"
 
 
+class TestRunGit:
+    """The git subprocess wrapper degrades gracefully."""
+
+    def test_run_git_returns_none_on_non_repo(self, monkeypatch, tmp_path):
+        # tmp_path is not a git repo, so git exits non-zero ->
+        # _run_git must return None (never raise).
+        monkeypatch.setattr(version, "_VERSION_FILE", tmp_path / "VERSION")
+        assert version._run_git(["rev-parse", "--short", "HEAD"]) is None
+
+
 class TestGetAppVersion:
     """End-to-end assembly with git mocked out."""
 
