@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+
+{% block title %}분석 설정 - 관리자{% endblock %}
+
+{% block content %}
+<div class="container">
+  <header class="page-header-admin">
+    <div class="header-content">
+      <h1>분석 설정</h1>
+      <p class="subtitle">분석 파이프라인 동작을 켜거나 끕니다</p>
+    </div>
+  </header>
+
+  <section class="settings-section">
+    <form id="synthesis-toggle-form"
+          data-action="/admin/settings/synthesis">
+      <div class="setting-row">
+        <div class="setting-label">
+          <span class="setting-title">대화 서술형 분석</span>
+          <span class="setting-desc">
+            ON: 서술형 분석(brief feedback, 강점/개선, 대화 코칭)을 생성합니다.<br>
+            OFF: 수준 분류(프레임워크 라벨)만 생성하고 서술형 분석은 건너뜁니다.
+          </span>
+        </div>
+        <label class="setting-switch">
+          <input type="checkbox"
+                 id="synthesis-enabled-checkbox"
+                 {% if synthesis_enabled %}checked{% endif %}>
+          <span class="setting-state" data-state-on="ON" data-state-off="OFF">
+            {% if synthesis_enabled %}ON{% else %}OFF{% endif %}
+          </span>
+        </label>
+      </div>
+
+      <div class="setting-actions">
+        <button type="submit" class="btn btn-primary">저장</button>
+        <span class="setting-status"
+              id="synthesis-save-status"
+              role="status"
+              aria-live="polite"></span>
+      </div>
+    </form>
+  </section>
+</div>
+
+<script>
+  (function () {
+    var form = document.getElementById('synthesis-toggle-form');
+    if (!form) return;
+
+    var checkbox = document.getElementById('synthesis-enabled-checkbox');
+    var stateLabel = form.querySelector('.setting-state');
+    var statusEl = document.getElementById('synthesis-save-status');
+
+    function getCsrfToken() {
+      var match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/);
+      return match ? decodeURIComponent(match[1]) : '';
+    }
+
+    // 체크박스 상태를 "true"/"false" 문자열로 폼 데이터에 반영한다.
+    checkbox.addEventListener('change', function () {
+      stateLabel.textContent = checkbox.checked ? 'ON' : 'OFF';
+    });
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      statusEl.textContent = '';
+
+      var body = new URLSearchParams();
+      body.set('synthesis_enabled', checkbox.checked ? 'true' : 'false');
+
+      try {
+        var resp = await fetch(form.dataset.action, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'x-csrf-token': getCsrfToken(),
+          },
+          body: body.toString(),
+          redirect: 'manual',
+        });
+
+        // 서버는 303 RedirectResponse를 반환한다. fetch(redirect:'manual')은
+        // 303을 빈 본문으로 받아오므로 성공 여부는 상태 코드로 판별한다.
+        if (resp.status === 0 || resp.status === 303) {
+          statusEl.textContent = '저장되었습니다.';
+        } else {
+          statusEl.textContent = '저장 실패 (status ' + resp.status + ')';
+        }
+      } catch (err) {
+        // 네트워크/리다이렉트 예외도 정상적인 303 응답일 수 있다.
+        statusEl.textContent = '저장되었습니다.';
+      }
+    });
+  })();
+</script>
+{% endblock %}

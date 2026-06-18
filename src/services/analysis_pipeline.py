@@ -49,12 +49,14 @@ async def analyze_session(
     scenario: Scenario,
     framework: AnalysisFramework,
     db: AsyncSession,
+    synthesis_enabled: bool = True,
 ) -> dict[str, Any]:
     """Perform session analysis and create summary.
 
     LLM-first / DB-second: all LLM calls (greeting, classify, synthesize)
     complete before any DB writes. On synthesis failure, rows are still
-    persisted with status='failed'.
+    persisted with status='failed'. When ``synthesis_enabled`` is False,
+    the synthesis LLM call is skipped entirely (status='skipped').
 
     Args:
         session_id: Session ID
@@ -62,6 +64,7 @@ async def analyze_session(
         scenario: Scenario object
         framework: Analysis framework
         db: Database session
+        synthesis_enabled: When False, skip the synthesis LLM call.
 
     Returns:
         Dict with distribution and feedback
@@ -84,15 +87,23 @@ async def analyze_session(
         synth_hash,
         api_usage_logs,
     ) = await run_llm_pipeline(
-        session_id, all_messages, teacher_messages, scenario, framework
+        session_id,
+        all_messages,
+        teacher_messages,
+        scenario,
+        framework,
+        synthesis_enabled=synthesis_enabled,
     )
 
-    # Derive plain feedback sentence
-    feedback = (
-        derive_plain_feedback(payload)
-        if synthesis_status != "failed"
-        else FALLBACK_FEEDBACK
-    )
+    # Derive plain feedback sentence.
+    # - skipped: no feedback box (None)
+    # - failed: fallback message so admin/CSV still shows something
+    if synthesis_status == "skipped":
+        feedback = None
+    elif synthesis_status == "failed":
+        feedback = FALLBACK_FEEDBACK
+    else:
+        feedback = derive_plain_feedback(payload)
 
     # ATOMIC TRANSACTION — add all rows in memory, then one commit
     for qa in question_analyses:
@@ -130,6 +141,7 @@ async def run_llm_pipeline(
     teacher_messages: list[Message],
     scenario: Scenario,
     framework: AnalysisFramework,
+    synthesis_enabled: bool = True,
 ) -> tuple[
     dict,
     list[QuestionAnalysis],
@@ -140,6 +152,9 @@ async def run_llm_pipeline(
     list[ApiUsageLog],
 ]:
     """Run all LLM calls (greeting, classify, synthesize) without DB writes.
+
+    When ``synthesis_enabled`` is False, the synthesis step is skipped
+    (status='skipped', no ApiUsageLog, no LLM call).
 
     Returns:
         Tuple of (distribution, question_analyses, payload,
@@ -225,51 +240,69 @@ async def run_llm_pipeline(
         )
         distribution[result["label"]] = distribution.get(result["label"], 0) + 1
 
-    # Step 3: Synthesize session feedback
-    messages_for_synthesis = [
-        {"id": m.id, "role": m.role, "content": m.content} for m in all_messages
-    ]
-    qa_for_synthesis = [
-        {
-            "message_id": qa.message_id,
-            "label": qa.label,
-            "confidence": qa.confidence,
-            "reasoning": qa.meta_json,
+    # Step 3: Synthesize session feedback (skippable via toggle)
+    if not synthesis_enabled:
+        payload = {
+            "version": 1,
+            "brief_feedback": [],
+            "strengths": [],
+            "improvements": [],
+            "dialogue_coaching": [],
         }
-        for qa in question_analyses
-    ]
+        synthesis_status = "skipped"
+        synth_model = "skipped"
+        synth_hash = "skipped"
+        # No ApiUsageLog appended for the skipped step.
+    else:
+        messages_for_synthesis = [
+            {
+                "id": m.id,
+                "role": m.role,
+                "content": m.content,
+            }
+            for m in all_messages
+        ]
+        qa_for_synthesis = [
+            {
+                "message_id": qa.message_id,
+                "label": qa.label,
+                "confidence": qa.confidence,
+                "reasoning": qa.meta_json,
+            }
+            for qa in question_analyses
+        ]
 
-    try:
-        synthesizer = SessionSynthesizer()
-        payload, synthesis_status = await synthesizer.synthesize(
-            messages=messages_for_synthesis,
-            question_analyses=qa_for_synthesis,
-            scenario=scenario.title,
-            misconception=scenario.prompt,
-            student_profile=scenario.student_profile or "Grade 5 student",
-            framework=framework,
-        )
-        synth_model = synthesizer.model
-        synth_hash = synthesizer._hash
-        log_entry = _build_api_usage_log(
-            session_id=session_id,
-            model=synth_model,
-            usage_dict=synthesizer.last_usage,
-            operation="synthesis",
-        )
-        if log_entry is not None:
-            api_usage_logs.append(log_entry)
-    except Exception as e:
-        logger.error(
-            "Session %d: synthesis failed: %s",
-            session_id,
-            e,
-            exc_info=True,
-        )
-        payload = dict(FAILED_PAYLOAD)
-        synthesis_status = "failed"
-        synth_model = "unknown"
-        synth_hash = "unknown"
+        try:
+            synthesizer = SessionSynthesizer()
+            payload, synthesis_status = await synthesizer.synthesize(
+                messages=messages_for_synthesis,
+                question_analyses=qa_for_synthesis,
+                scenario=scenario.title,
+                misconception=scenario.prompt,
+                student_profile=scenario.student_profile or "Grade 5 student",
+                framework=framework,
+            )
+            synth_model = synthesizer.model
+            synth_hash = synthesizer._hash
+            log_entry = _build_api_usage_log(
+                session_id=session_id,
+                model=synth_model,
+                usage_dict=synthesizer.last_usage,
+                operation="synthesis",
+            )
+            if log_entry is not None:
+                api_usage_logs.append(log_entry)
+        except Exception as e:
+            logger.error(
+                "Session %d: synthesis failed: %s",
+                session_id,
+                e,
+                exc_info=True,
+            )
+            payload = dict(FAILED_PAYLOAD)
+            synthesis_status = "failed"
+            synth_model = "unknown"
+            synth_hash = "unknown"
 
     return (
         distribution,

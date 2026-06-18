@@ -39,6 +39,10 @@ class TestRunGit:
     def test_run_git_returns_none_on_non_repo(self, monkeypatch, tmp_path):
         # tmp_path is not a git repo, so git exits non-zero ->
         # _run_git must return None (never raise).
+        # Clear inherited git env (set when pytest runs inside a git hook),
+        # otherwise git resolves the real repo via $GIT_DIR regardless of cwd.
+        monkeypatch.delenv("GIT_DIR", raising=False)
+        monkeypatch.delenv("GIT_INDEX_FILE", raising=False)
         monkeypatch.setattr(version, "_VERSION_FILE", tmp_path / "VERSION")
         assert version._run_git(["rev-parse", "--short", "HEAD"]) is None
 

@@ -28,6 +28,7 @@ from src.services.analysis_pipeline import (
     handle_analysis_failure,
     handle_duplicate_session_state,
 )
+from src.services.app_settings import is_synthesis_enabled
 from src.services.export import CSVExporter
 from src.utils.analysis_helpers import parse_reasoning
 from src.utils.session_feedback import load_feedback_sections
@@ -108,8 +109,14 @@ async def analyze_session_endpoint(
         raise HTTPException(status_code=404, detail="Framework not found")
 
     try:
+        synthesis_enabled = await is_synthesis_enabled(db)
         return await analyze_session(
-            session_id, session, scenario, framework, db
+            session_id,
+            session,
+            scenario,
+            framework,
+            db,
+            synthesis_enabled=synthesis_enabled,
         )
     except IntegrityError as e:
         return await handle_duplicate_session_state(

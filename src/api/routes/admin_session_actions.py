@@ -32,6 +32,7 @@ from src.models.scenario import Scenario
 from src.models.session import Session
 from src.models.user import User
 from src.services.analysis_pipeline import analyze_session, run_llm_pipeline
+from src.services.app_settings import is_synthesis_enabled
 from src.utils.analysis_helpers import parse_reasoning
 from src.utils.session_feedback import (
     derive_plain_feedback,
@@ -255,12 +256,14 @@ async def end_session(
             )
             framework = framework_result.scalar_one_or_none()
             if framework:
+                synthesis_enabled = await is_synthesis_enabled(db)
                 await analyze_session(
                     session_id,
                     session,
                     scenario,
                     framework,
                     db,
+                    synthesis_enabled=synthesis_enabled,
                 )
     except Exception as e:
         logger.warning(f"Analysis failed for session {session_id}: {e}")
