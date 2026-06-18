@@ -73,6 +73,8 @@ uv pip install -e ".[dev]"
 
 # 4. Configure environment
 cp .env.example .env
+# `.env.example` is the canonical tracked template.
+# `.env copy.example` is kept in sync as a compatibility copy.
 
 # Edit .env and configure:
 # - OPENAI_API_KEY=sk-your-key-here
@@ -144,21 +146,22 @@ Visit http://localhost:8000
 
 ## ⚙️ Chatbot Configuration
 
-All chatbot parameters are managed via environment variables (.env file). Server restart required after configuration changes.
+All chatbot parameters are managed via environment variables in `.env`. Copy from `.env.example`; `.env copy.example` is a synchronized compatibility copy. Server restart required after configuration changes.
 
 **All services use OpenAI Responses API** (Phase 1 & 1.5 complete)
 
 ### Model Configuration
-- `CHAT_MODEL` - StudentBot/TutorBot LLM model (default: gpt-5-mini)
+- `CHAT_MODEL` - Default StudentBot/TutorBot model (default: gpt-5-mini)
   - **Primary Models** (권장): gpt-5, gpt-5.1, gpt-5.1-chat-latest
   - **Fallback Models** (지원): gpt-4-turbo
   - **NOT supported**: gpt-3.5 (Responses API limitation)
-- `ANALYSIS_MODEL` - Analyzer/Synthesizer LLM model (default: gpt-5.2)
-  - Same model support as CHAT_MODEL
+- `ANALYSIS_MODEL` - Analyzer and synthesis model (default: gpt-5.2)
+  - Same model support as `CHAT_MODEL`
 - `DIALOGUE_ANALYSIS_MODEL` - Dialogue similarity analysis model (default: gpt-5.2)
 
 ### GPT-5 Reasoning Configuration
-- `ANALYSIS_REASONING` - Legacy misconception-analysis reasoning (default: high)
+- `ANALYSIS_REASONING` - Legacy shared analysis default kept for back-compat (default: high)
+- `ANALYSIS_MISCONCEPTION_REASONING` - Real-time misconception-analysis reasoning (default: low)
 - `ANALYSIS_CLASSIFICATION_REASONING` - Teacher question classification reasoning (default: low)
 - `ANALYSIS_GREETING_REASONING` - Greeting detection reasoning (default: low)
 - `ANALYSIS_SYNTHESIS_REASONING` - Session feedback synthesis reasoning (default: high)
@@ -169,10 +172,15 @@ All chatbot parameters are managed via environment variables (.env file). Server
 ### Output Length Configuration
 - `STUDENT_MAX_TOKENS` - StudentBot response budget (default: 1500)
 - `TUTOR_MAX_TOKENS` - TutorBot feedback budget (default: 1500)
+- `ANALYSIS_MISCONCEPTION_MAX_TOKENS` - Real-time misconception-analysis budget (default: 500)
 - `ANALYSIS_CLASSIFICATION_MAX_TOKENS` - Classification first-attempt budget (default: 2500)
 - `ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS` - Classification retry budget after `max_output_tokens` exhaustion (default: 4000)
 - `ANALYSIS_GREETING_MAX_TOKENS` - Greeting detection first-attempt budget (default: 1000)
 - `ANALYSIS_GREETING_RETRY_MAX_TOKENS` - Greeting detection retry budget after `max_output_tokens` exhaustion (default: 1500)
+- `ANALYSIS_SYNTHESIS_MAX_TOKENS` - Session feedback synthesis first-attempt budget (default: 8000)
+- `ANALYSIS_SYNTHESIS_RETRY_MAX_TOKENS` - Session feedback synthesis retry budget after `max_output_tokens` exhaustion (default: 12000)
+- `DIALOGUE_ANALYSIS_MAX_TOKENS` - Dialogue similarity analysis budget (default: 200)
+- `CONTEXT_WINDOW_TURNS` - Dialogue turns retained in prompt context (default: 20)
 
 ### TutorBot Intervention
 - `TUTOR_INTERVENTION_THRESHOLD` - Intervention frequency per 10 questions, 1-10 (default: 3)
@@ -184,7 +192,7 @@ All chatbot parameters are managed via environment variables (.env file). Server
 
 **Note**:
 - Temperature is NOT configurable (fixed at 1.0 for Responses API)
-- Scenario-specific model overrides available in admin panel
+- Scenario-specific `chat_model` overrides remain available in admin panel
 
 ## 🏗️ Technology Stack
 

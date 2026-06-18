@@ -42,18 +42,40 @@ uv pip install -e "."
 
 ### 3. Configure Environment Variables
 
-Create `.env` file in project root:
+Create `.env` file in project root from the canonical template:
 
 ```bash
+cp .env.example .env
+# `.env copy.example` is kept synchronized as a compatibility copy.
+
 # OpenAI API Configuration (Responses API only)
 OPENAI_API_KEY=sk-your-openai-api-key-here
-CHAT_MODEL=gpt-5
-ANALYSIS_MODEL=gpt-5
+CHAT_MODEL=gpt-5-mini
+ANALYSIS_MODEL=gpt-5.2
+DIALOGUE_ANALYSIS_MODEL=gpt-5.2
 
-# Note: Supported models (Responses API only)
-# Primary (권장): gpt-5, gpt-5.1, gpt-5.1-chat-latest
-# Fallback: gpt-4-turbo
-# NOT supported: gpt-3.5 (incompatible with Responses API)
+# Reasoning controls
+ANALYSIS_REASONING=high
+ANALYSIS_MISCONCEPTION_REASONING=low
+ANALYSIS_CLASSIFICATION_REASONING=low
+ANALYSIS_GREETING_REASONING=low
+ANALYSIS_SYNTHESIS_REASONING=high
+STUDENT_REASONING=medium
+TUTOR_REASONING=low
+
+# Token budgets
+STUDENT_MAX_TOKENS=1500
+TUTOR_MAX_TOKENS=1500
+ANALYSIS_MISCONCEPTION_MAX_TOKENS=500
+ANALYSIS_CLASSIFICATION_MAX_TOKENS=2500
+ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS=4000
+ANALYSIS_GREETING_MAX_TOKENS=1000
+ANALYSIS_GREETING_RETRY_MAX_TOKENS=1500
+ANALYSIS_SYNTHESIS_MAX_TOKENS=8000
+ANALYSIS_SYNTHESIS_RETRY_MAX_TOKENS=12000
+DIALOGUE_ANALYSIS_MAX_TOKENS=200
+TUTOR_INTERVENTION_THRESHOLD=3
+CONTEXT_WINDOW_TURNS=20
 
 # Session Security (CHANGE THIS!)
 SESSION_SECRET=your-secure-random-secret-key-here

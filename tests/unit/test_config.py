@@ -177,10 +177,14 @@ class TestAnalysisLLMConfig:
             assert c.ANALYSIS_CLASSIFICATION_REASONING == "low"
             assert c.ANALYSIS_GREETING_REASONING == "low"
             assert c.ANALYSIS_SYNTHESIS_REASONING == "high"
+            assert c.ANALYSIS_MISCONCEPTION_REASONING == "low"
             assert c.ANALYSIS_CLASSIFICATION_MAX_TOKENS == 2500
             assert c.ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS == 4000
             assert c.ANALYSIS_GREETING_MAX_TOKENS == 1000
             assert c.ANALYSIS_GREETING_RETRY_MAX_TOKENS == 1500
+            assert c.ANALYSIS_MISCONCEPTION_MAX_TOKENS == 500
+            assert c.DIALOGUE_ANALYSIS_MAX_TOKENS == 200
+            assert not hasattr(c, "DIALOGUE_ANALYSIS_REASONING")
 
     def test_analysis_llm_settings_can_be_overridden(self):
         """New env vars should override only their matching operation."""
@@ -194,10 +198,13 @@ class TestAnalysisLLMConfig:
                 "ANALYSIS_CLASSIFICATION_REASONING": "minimal",
                 "ANALYSIS_GREETING_REASONING": "none",
                 "ANALYSIS_SYNTHESIS_REASONING": "medium",
+                "ANALYSIS_MISCONCEPTION_REASONING": "minimal",
                 "ANALYSIS_CLASSIFICATION_MAX_TOKENS": "3000",
                 "ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS": "5000",
                 "ANALYSIS_GREETING_MAX_TOKENS": "900",
                 "ANALYSIS_GREETING_RETRY_MAX_TOKENS": "1800",
+                "ANALYSIS_MISCONCEPTION_MAX_TOKENS": "650",
+                "DIALOGUE_ANALYSIS_MAX_TOKENS": "320",
             },
             clear=True,
         ):
@@ -212,10 +219,13 @@ class TestAnalysisLLMConfig:
             assert c.ANALYSIS_CLASSIFICATION_REASONING == "minimal"
             assert c.ANALYSIS_GREETING_REASONING == "none"
             assert c.ANALYSIS_SYNTHESIS_REASONING == "medium"
+            assert c.ANALYSIS_MISCONCEPTION_REASONING == "minimal"
             assert c.ANALYSIS_CLASSIFICATION_MAX_TOKENS == 3000
             assert c.ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS == 5000
             assert c.ANALYSIS_GREETING_MAX_TOKENS == 900
             assert c.ANALYSIS_GREETING_RETRY_MAX_TOKENS == 1800
+            assert c.ANALYSIS_MISCONCEPTION_MAX_TOKENS == 650
+            assert c.DIALOGUE_ANALYSIS_MAX_TOKENS == 320
 
     def test_analysis_token_limits_must_be_positive(self):
         """New analysis token budgets should reject zero and negative values."""
@@ -229,9 +239,48 @@ class TestAnalysisLLMConfig:
                 "TESTING": "true",
                 "OPENAI_API_KEY": "sk-test-key-123",
                 "SESSION_SECRET": "test-secret-value-for-unit-tests-32x",
-                "ANALYSIS_CLASSIFICATION_MAX_TOKENS": "0",
+                "ANALYSIS_MISCONCEPTION_MAX_TOKENS": "0",
             },
             clear=True,
         ):
             with pytest.raises(Exception):
                 reload(src.config)
+
+        with patch.dict(
+            "os.environ",
+            {
+                "TESTING": "true",
+                "OPENAI_API_KEY": "sk-test-key-123",
+                "SESSION_SECRET": "test-secret-value-for-unit-tests-32x",
+                "DIALOGUE_ANALYSIS_MAX_TOKENS": "-1",
+            },
+            clear=True,
+        ):
+            with pytest.raises(Exception):
+                reload(src.config)
+
+
+class TestTestingEnvIsolation:
+    """Tests that TESTING=true ignores local .env files."""
+
+    def test_testing_mode_ignores_dotenv(self, tmp_path, monkeypatch):
+        """TESTING=true should isolate config from .env side effects."""
+        from importlib import reload
+
+        import src.config
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".env").write_text(
+            "CHAT_MODEL=gpt-4-turbo\n"
+            "ANALYSIS_MISCONCEPTION_REASONING=high\n"
+            "DIALOGUE_ANALYSIS_MAX_TOKENS=999\n",
+            encoding="utf-8",
+        )
+
+        with patch.dict("os.environ", {"TESTING": "true"}, clear=True):
+            reload(src.config)
+            c = src.config.Config()
+
+        assert c.CHAT_MODEL == "gpt-5-mini"
+        assert c.ANALYSIS_MISCONCEPTION_REASONING == "low"
+        assert c.DIALOGUE_ANALYSIS_MAX_TOKENS == 200

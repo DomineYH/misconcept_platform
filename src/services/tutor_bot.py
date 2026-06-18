@@ -132,7 +132,7 @@ JSON 형식으로만 응답하세요 (다른 텍스트 없이):
             response = await self.client.responses.create(
                 model=config.DIALOGUE_ANALYSIS_MODEL,
                 input=[{"role": "user", "content": analysis_prompt}],
-                max_output_tokens=200,
+                max_output_tokens=config.DIALOGUE_ANALYSIS_MAX_TOKENS,
             )
 
             content = extract_response_text(response)
