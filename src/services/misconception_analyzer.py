@@ -22,6 +22,7 @@ class MisconceptionAnalyzer(OpenAIBaseService):
         db_session: AsyncSession,
         model: Optional[str] = None,
         reasoning_effort: Optional[str] = None,
+        max_tokens: Optional[int] = None,
     ):
         """Initialize MisconceptionAnalyzer.
 
@@ -30,13 +31,15 @@ class MisconceptionAnalyzer(OpenAIBaseService):
             model: Override default model (from config)
             reasoning_effort: Override reasoning effort (minimal, low,
                 medium, high)
+            max_tokens: Override response token budget
         """
         super().__init__()
         self.db_session = db_session
         self.model = model or config.ANALYSIS_MODEL
         self.reasoning_effort = (
-            reasoning_effort or config.ANALYSIS_REASONING
+            reasoning_effort or config.ANALYSIS_MISCONCEPTION_REASONING
         )
+        self.max_tokens = max_tokens or config.ANALYSIS_MISCONCEPTION_MAX_TOKENS
 
     @openai_retry
     async def analyze_student_response(
@@ -82,12 +85,10 @@ class MisconceptionAnalyzer(OpenAIBaseService):
             ]
 
             # OpenAI Responses API 호출 (GPT-5 with reasoning)
-            # Note: GPT-5 reasoning consumes tokens from max_output_tokens
-            # 500 = ~200 reasoning + ~300 actual output
             response = await self.client.responses.create(
                 model=self.model,
                 input=input_messages,
-                max_output_tokens=500,
+                max_output_tokens=self.max_tokens,
                 reasoning={"effort": self.reasoning_effort},
             )
 
@@ -104,7 +105,9 @@ class MisconceptionAnalyzer(OpenAIBaseService):
 
         except (APIConnectionError, RateLimitError, APIError) as e:
             logger.error(
-                "MisconceptionAnalyzer API error: %s: %s", type(e).__name__, str(e)
+                "MisconceptionAnalyzer API error: %s: %s",
+                type(e).__name__,
+                str(e),
             )
             raise
         except Exception as e:

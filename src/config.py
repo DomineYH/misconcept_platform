@@ -3,19 +3,45 @@
 import os
 
 from pydantic import computed_field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
-IS_TEST_ENV = os.getenv("TESTING", "").lower() == "true"
+
+def _testing_env_enabled() -> bool:
+    """Return whether test mode is enabled for config loading."""
+    return os.getenv("TESTING", "").strip().lower() == "true"
 
 
 class Config(BaseSettings):
     """Application configuration from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=None if IS_TEST_ENV else ".env",
+        env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Skip .env loading when TESTING=true is exported."""
+        if _testing_env_enabled():
+            return init_settings, env_settings, file_secret_settings
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )
 
     # OpenAI API Configuration
     OPENAI_API_KEY: str = ""
@@ -34,6 +60,7 @@ class Config(BaseSettings):
     ANALYSIS_CLASSIFICATION_REASONING: str = "low"
     ANALYSIS_GREETING_REASONING: str = "low"
     ANALYSIS_SYNTHESIS_REASONING: str = "high"
+    ANALYSIS_MISCONCEPTION_REASONING: str = "low"
     STUDENT_REASONING: str = "medium"
     TUTOR_REASONING: str = "low"
 
@@ -49,6 +76,8 @@ class Config(BaseSettings):
     ANALYSIS_GREETING_RETRY_MAX_TOKENS: int = 1500
     ANALYSIS_SYNTHESIS_MAX_TOKENS: int = 8000
     ANALYSIS_SYNTHESIS_RETRY_MAX_TOKENS: int = 12000
+    ANALYSIS_MISCONCEPTION_MAX_TOKENS: int = 500
+    DIALOGUE_ANALYSIS_MAX_TOKENS: int = 200
     TUTOR_INTERVENTION_THRESHOLD: int = 3
 
     # Context Window
@@ -103,7 +132,7 @@ class Config(BaseSettings):
     @classmethod
     def validate_openai_key(cls, v):
         """Validate OpenAI API key is set."""
-        if IS_TEST_ENV:
+        if _testing_env_enabled():
             return v
         if not v or v.startswith("sk-your"):
             raise ValueError("OPENAI_API_KEY must be set in .env file")
@@ -113,7 +142,7 @@ class Config(BaseSettings):
     @classmethod
     def validate_session_secret(cls, v):
         """Validate session secret strength."""
-        if IS_TEST_ENV:
+        if _testing_env_enabled():
             return v
         blocked = [
             "change-this",
@@ -144,6 +173,7 @@ class Config(BaseSettings):
         "ANALYSIS_CLASSIFICATION_REASONING",
         "ANALYSIS_GREETING_REASONING",
         "ANALYSIS_SYNTHESIS_REASONING",
+        "ANALYSIS_MISCONCEPTION_REASONING",
         "STUDENT_REASONING",
         "TUTOR_REASONING",
     )
@@ -169,6 +199,8 @@ class Config(BaseSettings):
         "ANALYSIS_GREETING_RETRY_MAX_TOKENS",
         "ANALYSIS_SYNTHESIS_MAX_TOKENS",
         "ANALYSIS_SYNTHESIS_RETRY_MAX_TOKENS",
+        "ANALYSIS_MISCONCEPTION_MAX_TOKENS",
+        "DIALOGUE_ANALYSIS_MAX_TOKENS",
     )
     @classmethod
     def validate_positive_tokens(cls, v, info):

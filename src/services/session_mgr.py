@@ -93,8 +93,7 @@ class SessionManager:
         # Initialize MisconceptionAnalyzer for tracking student responses
         self.misconception_analyzer = MisconceptionAnalyzer(
             db_session=self.db,
-            model=config.ANALYSIS_MODEL,  # Use analysis model
-            reasoning_effort="low",  # Low effort for consistent analysis
+            model=config.ANALYSIS_MODEL,
         )
 
     async def process_teacher_message(
