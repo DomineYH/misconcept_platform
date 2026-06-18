@@ -3,9 +3,11 @@ Unit tests for MisconceptionAnalyzer service.
 
 Tests misconception analysis with mocked OpenAI responses.
 """
+
 import json
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from src.services.misconception_analyzer import MisconceptionAnalyzer
 
@@ -41,22 +43,55 @@ async def analyzer(db_session):
         return analyzer
 
 
+def test_constructor_uses_misconception_specific_config(db_session):
+    """Constructor should use the misconception-specific config fields."""
+    with patch("src.services.misconception_analyzer.config") as mock_config:
+        mock_config.ANALYSIS_MODEL = "gpt-5.2"
+        mock_config.ANALYSIS_MISCONCEPTION_REASONING = "low"
+        mock_config.ANALYSIS_MISCONCEPTION_MAX_TOKENS = 500
+
+        analyzer = MisconceptionAnalyzer(db_session=db_session)
+
+    assert analyzer.model == "gpt-5.2"
+    assert analyzer.reasoning_effort == "low"
+    assert analyzer.max_tokens == 500
+
+
+def test_constructor_explicit_overrides_take_priority(db_session):
+    """Explicit constructor overrides should win over config defaults."""
+    with patch("src.services.misconception_analyzer.config") as mock_config:
+        mock_config.ANALYSIS_MODEL = "gpt-5.2"
+        mock_config.ANALYSIS_MISCONCEPTION_REASONING = "low"
+        mock_config.ANALYSIS_MISCONCEPTION_MAX_TOKENS = 500
+
+        analyzer = MisconceptionAnalyzer(
+            db_session=db_session,
+            model="gpt-5-mini",
+            reasoning_effort="minimal",
+            max_tokens=640,
+        )
+
+    assert analyzer.model == "gpt-5-mini"
+    assert analyzer.reasoning_effort == "minimal"
+    assert analyzer.max_tokens == 640
+
+
 @pytest.mark.asyncio
 async def test_analyze_student_response_valid_json(analyzer):
     """Test successful analysis with valid JSON response."""
     # Mock OpenAI Responses API response
-    json_content = json.dumps({
-        "maintains_misconception": True,
-        "misconception_strength": 0.85,
-        "evidence": "Student clearly states moon makes its own light",
-        "drift_detected": False,
-        "analysis_notes": "Strong adherence to misconception"
-    })
+    json_content = json.dumps(
+        {
+            "maintains_misconception": True,
+            "misconception_strength": 0.85,
+            "evidence": "Student clearly states moon makes its own light",
+            "drift_detected": False,
+            "analysis_notes": "Strong adherence to misconception",
+        }
+    )
 
     mock_response = create_responses_api_mock(json_content)
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Analyze student response
     result = await analyzer.analyze_student_response(
@@ -78,16 +113,16 @@ async def test_analyze_student_response_valid_json(analyzer):
 async def test_analyze_student_response_json_in_code_block(analyzer):
     """Test parsing JSON wrapped in markdown code block."""
     # Mock response with JSON in code block
-    content = ('```json\n{\n  "maintains_misconception": false,\n  '
-               '"misconception_strength": 0.2,\n  '
-               '"evidence": "Student corrected understanding",\n  '
-               '"drift_detected": true,\n  '
-               '"analysis_notes": "Student showing signs of correction"\n}\n```')
+    content = (
+        '```json\n{\n  "maintains_misconception": false,\n  '
+        '"misconception_strength": 0.2,\n  '
+        '"evidence": "Student corrected understanding",\n  '
+        '"drift_detected": true,\n  '
+        '"analysis_notes": "Student showing signs of correction"\n}\n```'
+    )
 
     mock_response = create_responses_api_mock(content)
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Analyze student response
     result = await analyzer.analyze_student_response(
@@ -107,18 +142,18 @@ async def test_analyze_student_response_json_in_code_block(analyzer):
 async def test_analyze_student_response_strength_range(analyzer):
     """Test misconception strength is within valid range."""
     # Mock response
-    json_content = json.dumps({
-        "maintains_misconception": True,
-        "misconception_strength": 0.75,
-        "evidence": "Test evidence",
-        "drift_detected": False,
-        "analysis_notes": "Test notes"
-    })
+    json_content = json.dumps(
+        {
+            "maintains_misconception": True,
+            "misconception_strength": 0.75,
+            "evidence": "Test evidence",
+            "drift_detected": False,
+            "analysis_notes": "Test notes",
+        }
+    )
 
     mock_response = create_responses_api_mock(json_content)
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Analyze
     result = await analyzer.analyze_student_response(
@@ -137,9 +172,7 @@ async def test_analyze_student_response_invalid_json(analyzer):
     """Test handling of invalid JSON response with fallback."""
     # Mock response with invalid JSON
     mock_response = create_responses_api_mock("This is not valid JSON at all")
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Analyze - should not raise, should return default values
     result = await analyzer.analyze_student_response(
@@ -160,17 +193,17 @@ async def test_analyze_student_response_invalid_json(analyzer):
 async def test_analyze_student_response_missing_fields(analyzer):
     """Test handling of response missing some fields."""
     # Mock response missing drift_detected field
-    json_content = json.dumps({
-        "maintains_misconception": True,
-        "misconception_strength": 0.6,
-        "evidence": "Test evidence"
-        # Missing drift_detected and analysis_notes
-    })
+    json_content = json.dumps(
+        {
+            "maintains_misconception": True,
+            "misconception_strength": 0.6,
+            "evidence": "Test evidence",
+            # Missing drift_detected and analysis_notes
+        }
+    )
 
     mock_response = create_responses_api_mock(json_content)
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Analyze
     result = await analyzer.analyze_student_response(
@@ -192,13 +225,15 @@ async def test_analyze_student_response_missing_fields(analyzer):
 async def test_analyze_student_response_builds_correct_prompt(analyzer):
     """Test that analysis prompt includes all scenario context."""
     # Mock response
-    json_content = json.dumps({
-        "maintains_misconception": True,
-        "misconception_strength": 0.8,
-        "evidence": "Test",
-        "drift_detected": False,
-        "analysis_notes": "Test"
-    })
+    json_content = json.dumps(
+        {
+            "maintains_misconception": True,
+            "misconception_strength": 0.8,
+            "evidence": "Test",
+            "drift_detected": False,
+            "analysis_notes": "Test",
+        }
+    )
 
     mock_response = create_responses_api_mock(json_content)
 
@@ -233,13 +268,15 @@ async def test_analyze_student_response_builds_correct_prompt(analyzer):
 async def test_analyze_student_response_low_temperature(analyzer):
     """Test that analyzer uses Responses API with reasoning effort."""
     # Mock response
-    json_content = json.dumps({
-        "maintains_misconception": False,
-        "misconception_strength": 0.3,
-        "evidence": "Test",
-        "drift_detected": True,
-        "analysis_notes": "Test"
-    })
+    json_content = json.dumps(
+        {
+            "maintains_misconception": False,
+            "misconception_strength": 0.3,
+            "evidence": "Test",
+            "drift_detected": True,
+            "analysis_notes": "Test",
+        }
+    )
 
     mock_response = create_responses_api_mock(json_content)
 
@@ -257,29 +294,28 @@ async def test_analyze_student_response_low_temperature(analyzer):
     # Verify Responses API parameters (uses reasoning, not temperature)
     call_args = create_mock.call_args
     assert "reasoning" in call_args.kwargs
-    assert "effort" in call_args.kwargs["reasoning"]
+    assert call_args.kwargs["reasoning"]["effort"] == analyzer.reasoning_effort
     # Should use max_output_tokens not max_completion_tokens
-    # 500 = ~200 reasoning + ~300 actual output
     assert "max_output_tokens" in call_args.kwargs
-    assert call_args.kwargs["max_output_tokens"] == 500
+    assert call_args.kwargs["max_output_tokens"] == analyzer.max_tokens
 
 
 @pytest.mark.asyncio
 async def test_analyze_student_response_type_conversions(analyzer):
     """Test that string values are properly converted to types."""
     # Mock response with string values
-    json_content = json.dumps({
-        "maintains_misconception": "true",  # String instead of bool
-        "misconception_strength": "0.95",   # String instead of float
-        "evidence": "Strong evidence",
-        "drift_detected": "false",
-        "analysis_notes": "Notes"
-    })
+    json_content = json.dumps(
+        {
+            "maintains_misconception": "true",  # String instead of bool
+            "misconception_strength": "0.95",  # String instead of float
+            "evidence": "Strong evidence",
+            "drift_detected": "false",
+            "analysis_notes": "Notes",
+        }
+    )
 
     mock_response = create_responses_api_mock(json_content)
-    analyzer.client.responses.create = AsyncMock(
-        return_value=mock_response
-    )
+    analyzer.client.responses.create = AsyncMock(return_value=mock_response)
 
     # Analyze
     result = await analyzer.analyze_student_response(

@@ -716,6 +716,67 @@ class TestSessionManagerInitialize:
         mock_sbot_cls.assert_called_once()
         assert mgr.scenario == mock_scenario
 
+    async def test_initializes_runtime_kwargs_and_keeps_chat_override_priority(
+        self,
+    ):
+        """Initialize should wire bot kwargs without losing scenario overrides."""
+        db = _mock_db_session()
+        mgr = SessionManager(db_session=db, session_id=1)
+
+        mock_session = _mock_session()
+        mock_scenario = _mock_scenario(
+            chat_model="gpt-4-turbo",
+            tutor_template_id=2,
+            tutor_intervention_threshold=5,
+            student_template_id=1,
+        )
+
+        call_count = 0
+
+        async def mock_execute(query):
+            nonlocal call_count
+            call_count += 1
+            result = _mock_scalar_result(
+                mock_session if call_count == 1 else mock_scenario
+            )
+            return result
+
+        db.execute = mock_execute
+
+        with (
+            patch("src.services.session_mgr.config") as mock_config,
+            patch("src.services.session_mgr.StudentBot") as mock_sbot_cls,
+            patch("src.services.session_mgr.TutorBot") as mock_tbot_cls,
+            patch(
+                "src.services.session_mgr.MisconceptionAnalyzer"
+            ) as mock_analyzer_cls,
+        ):
+            mock_config.CHAT_MODEL = "gpt-5"
+            mock_config.STUDENT_REASONING = "medium"
+            mock_config.STUDENT_MAX_TOKENS = 750
+            mock_config.ANALYSIS_MODEL = "gpt-5.2"
+            mock_config.TUTOR_REASONING = "minimal"
+            mock_config.TUTOR_MAX_TOKENS = 1125
+            mock_config.TUTOR_INTERVENTION_THRESHOLD = 3
+
+            await mgr.initialize()
+
+        student_kwargs = mock_sbot_cls.call_args.kwargs
+        tutor_kwargs = mock_tbot_cls.call_args.kwargs
+        analyzer_kwargs = mock_analyzer_cls.call_args.kwargs
+
+        assert student_kwargs["model"] == "gpt-4-turbo"
+        assert student_kwargs["reasoning_effort"] == "medium"
+        assert student_kwargs["max_tokens"] == 750
+        assert tutor_kwargs["model"] == "gpt-5.2"
+        assert tutor_kwargs["reasoning_effort"] == "minimal"
+        assert tutor_kwargs["max_tokens"] == 1125
+        assert tutor_kwargs["intervention_threshold"] == 5
+        assert analyzer_kwargs == {
+            "db_session": db,
+            "model": "gpt-5.2",
+        }
+
     async def test_initializes_tutor_when_enabled(self):
         """Should create TutorBot when scenario has tutor template."""
         db = _mock_db_session()

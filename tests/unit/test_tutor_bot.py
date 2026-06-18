@@ -567,6 +567,48 @@ class TestTutorBotAnalyzeConversationWithLLM:
             assert result["reason"] == "Test reason"
 
     @pytest.mark.asyncio
+    async def test_llm_uses_dialogue_analysis_token_budget(
+        self, mock_db_session
+    ):
+        """Dialogue analysis should use the dedicated token budget only."""
+        bot = TutorBot(mock_db_session, template_id=1)
+        mock_response = MagicMock()
+        mock_response.output = [
+            MagicMock(
+                type="message",
+                content=[
+                    MagicMock(
+                        type="output_text",
+                        text=(
+                            '{"is_repetitive": false, '
+                            '"is_inappropriate": false, '
+                            '"reason": "ok"}'
+                        ),
+                    )
+                ],
+            )
+        ]
+
+        with (
+            patch("src.services.tutor_bot.config") as mock_config,
+            patch.object(
+                bot.client.responses, "create", new_callable=AsyncMock
+            ) as mock_create,
+        ):
+            mock_config.DIALOGUE_ANALYSIS_MODEL = "gpt-5.2"
+            mock_config.DIALOGUE_ANALYSIS_MAX_TOKENS = 320
+            mock_create.return_value = mock_response
+
+            await bot.analyze_conversation_with_llm(
+                [("Q1", "A1"), ("Q2", "A2")]
+            )
+
+        call_args = mock_create.call_args
+        assert call_args.kwargs["model"] == "gpt-5.2"
+        assert call_args.kwargs["max_output_tokens"] == 320
+        assert "reasoning" not in call_args.kwargs
+
+    @pytest.mark.asyncio
     async def test_llm_fallback_on_error(self, mock_db_session):
         """Should fall back to Jaccard on LLM error."""
         bot = TutorBot(mock_db_session, template_id=1)
