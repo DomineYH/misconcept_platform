@@ -1,4 +1,5 @@
-"""MisconceptionAnalyzer service for tracking student misconception adherence."""
+"""MisconceptionAnalyzer service for tracking student misconception
+adherence."""
 
 import json
 import logging
@@ -97,8 +98,9 @@ class MisconceptionAnalyzer(OpenAIBaseService):
             analysis_result = self._parse_analysis_response(content)
 
             logger.info(
-                f"Misconception analysis: maintains={analysis_result['maintains_misconception']}, "
-                f"strength={analysis_result['misconception_strength']:.2f}"
+                "Misconception analysis: maintains=%s, strength=%.2f",
+                analysis_result["maintains_misconception"],
+                analysis_result["misconception_strength"],
             )
 
             return analysis_result
@@ -117,33 +119,37 @@ class MisconceptionAnalyzer(OpenAIBaseService):
             raise Exception(f"Misconception analysis failed: {str(e)}")
 
     def _build_analysis_prompt(
-        self, scenario_prompt: str, student_profile: str, scenario_title: str
+        self,
+        scenario_prompt: str,
+        student_profile: str,
+        scenario_title: str,
     ) -> str:
         """오개념 분석을 위한 시스템 프롬프트 구성."""
-        return f"""You are an expert educator analyzing whether a student's response maintains their misconception.
-
-SCENARIO CONTEXT:
-- Title: {scenario_title}
-- Student Misconception: {scenario_prompt}
-- Student Profile: {student_profile}
-
-ANALYSIS TASK:
-Analyze the student's response to determine:
-1. Does the response maintain the misconception defined above?
-2. How strongly is the misconception expressed (0.0 = completely abandoned, 1.0 = fully maintained)?
-3. What evidence supports your assessment?
-4. Has the student drifted away from their assigned misconception?
-
-RESPONSE FORMAT (JSON):
-{{
-  "maintains_misconception": true/false,
-  "misconception_strength": 0.0-1.0,
-  "evidence": "brief explanation of your assessment",
-  "drift_detected": true/false,
-  "analysis_notes": "additional observations"
-}}
-
-Respond ONLY with valid JSON matching the format above."""
+        return (
+            "You are an expert educator analyzing whether a student's response "
+            "maintains their misconception.\n\n"
+            f"SCENARIO CONTEXT:\n"
+            f"- Title: {scenario_title}\n"
+            f"- Student Misconception: {scenario_prompt}\n"
+            f"- Student Profile: {student_profile}\n\n"
+            "ANALYSIS TASK:\n"
+            "Analyze the student's response to determine:\n"
+            "1. Does the response maintain the misconception defined above?\n"
+            "2. How strongly is the misconception expressed "
+            "(0.0 = completely abandoned, 1.0 = fully maintained)?\n"
+            "3. What evidence supports your assessment?\n"
+            "4. Has the student drifted away from their assigned "
+            "misconception?\n\n"
+            "RESPONSE FORMAT (JSON):\n"
+            "{{\n"
+            '  "maintains_misconception": true/false,\n'
+            '  "misconception_strength": 0.0-1.0,\n'
+            '  "evidence": "brief explanation of your assessment",\n'
+            '  "drift_detected": true/false,\n'
+            '  "analysis_notes": "additional observations"\n'
+            "}}\n\n"
+            "Respond ONLY with valid JSON matching the format above."
+        )
 
     def _parse_analysis_response(self, content: str) -> dict:
         """LLM 응답을 파싱하여 구조화된 분석 결과 반환."""

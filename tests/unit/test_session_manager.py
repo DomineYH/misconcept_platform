@@ -719,7 +719,7 @@ class TestSessionManagerInitialize:
     async def test_initializes_runtime_kwargs_and_keeps_chat_override_priority(
         self,
     ):
-        """Initialize should wire bot kwargs without losing scenario overrides."""
+        """Initialize should preserve scenario model override priority."""
         db = _mock_db_session()
         mgr = SessionManager(db_session=db, session_id=1)
 
