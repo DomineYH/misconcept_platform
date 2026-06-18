@@ -259,7 +259,8 @@ CREATE TABLE IF NOT EXISTS session_feedback_report (
   version INTEGER NOT NULL DEFAULT 1,
   model VARCHAR(64) NOT NULL,
   prompt_hash VARCHAR(64) NOT NULL,
-  status VARCHAR(16) NOT NULL CHECK (status IN ('ok', 'degraded', 'failed')),
+  status VARCHAR(16) NOT NULL
+    CHECK (status IN ('ok', 'degraded', 'failed', 'skipped')),
   payload_json TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -284,6 +285,13 @@ CREATE INDEX IF NOT EXISTS ix_ui_event_session
 
 CREATE INDEX IF NOT EXISTS ix_ui_event_event_type
   ON ui_event(event_type);
+
+-- App Setting table (Issue #55) - global key/value store for settings
+CREATE TABLE IF NOT EXISTS app_setting (
+  key VARCHAR(100) PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 

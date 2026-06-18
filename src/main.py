@@ -354,6 +354,7 @@ from src.api.routes import (  # noqa: E402
     admin_session_actions,
     admin_session_export,
     admin_session_stats,
+    admin_settings,
     auth,
     health,
     scenarios,
@@ -372,3 +373,4 @@ app.include_router(admin_prompts.router)
 app.include_router(admin_session_export.router)
 app.include_router(admin_session_actions.router)
 app.include_router(admin_session_stats.router)
+app.include_router(admin_settings.router)

@@ -69,7 +69,7 @@ class SessionFeedbackReport(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('ok', 'degraded', 'failed')",
+            "status IN ('ok', 'degraded', 'failed', 'skipped')",
             name="ck_session_feedback_report_status",
         ),
         Index(

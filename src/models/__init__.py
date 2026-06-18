@@ -2,6 +2,7 @@
 
 from src.models.analysis_framework import AnalysisFramework
 from src.models.api_usage import ApiUsageLog, calculate_cost
+from src.models.app_setting import AppSetting
 from src.models.contributor import Contributor
 from src.models.message import Message
 from src.models.prompt_template import PromptTemplate
@@ -30,5 +31,6 @@ __all__ = [
     "ApiUsageLog",
     "PromptTemplate",
     "Contributor",
+    "AppSetting",
     "calculate_cost",
 ]

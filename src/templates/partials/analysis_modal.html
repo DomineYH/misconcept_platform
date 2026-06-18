@@ -12,7 +12,9 @@
     {# ── Wedge: feedback hero + stat grid + toggle ── #}
     <div class="analysis-wedge" data-session-id="{{ session_id }}">
         {# Brief feedback box #}
-        {% if feedback_status in ('ok', 'degraded') %}
+        {% if feedback_status == 'skipped' %}
+        {# 서술형 분석이 건너뛴 상태: brief-feedback 박스를 렌더링하지 않는다 #}
+        {% elif feedback_status in ('ok', 'degraded') %}
         {% if feedback_sections and feedback_sections.brief_feedback %}
         <div class="analysis-brief-feedback">
             {% for paragraph in feedback_sections.brief_feedback %}
