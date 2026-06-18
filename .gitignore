@@ -17,6 +17,8 @@ env/
 !.env.example
 
 # Database files
+*.db-wal
+*.db-shm
 
 # IDE and editor files
 .vscode/
@@ -46,6 +48,9 @@ htmlcov/
 .codex
 .codex/
 .gstack/
+.gjc/
+.omo/
+.omc/
 
 # Local agent / session artifacts
 .claude/CLAUDE.md.backup.*
@@ -59,6 +64,7 @@ fix_error.md
 team_agents.md
 
 # Local backup/data artifacts - not for version control
+/backups/
 /misconcept_platform.zip
 /2026-05-03 181544.jpg
 /책봇사이트_분석수정.pdf
