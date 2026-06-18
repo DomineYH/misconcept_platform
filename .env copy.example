@@ -32,32 +32,32 @@ DIALOGUE_ANALYSIS_MODEL=gpt-5.2  # Model for dialogue similarity analysis
 # Recommendations by model:
 # - gpt-5.1 with fast responses: use "none" or "low"
 # - gpt-5 with fast responses: use "minimal" or "low"
-# - Complex analysis: use "high" for both models
-
-ANALYSIS_REASONING=high                 # Legacy: real-time misconception analysis
-ANALYSIS_CLASSIFICATION_REASONING=low   # End-session teacher question classification
-ANALYSIS_GREETING_REASONING=low         # End-session greeting/non-educational filtering
-ANALYSIS_SYNTHESIS_REASONING=high       # End-session coaching feedback synthesis
-STUDENT_REASONING=medium                # Student chat responses
-TUTOR_REASONING=low                     # Tutor feedback
+# - Complex analysis: use "high" for batch analysis tasks
+#
+ANALYSIS_REASONING=high                        # Legacy shared analysis default
+ANALYSIS_MISCONCEPTION_REASONING=low          # Real-time misconception analysis
+ANALYSIS_CLASSIFICATION_REASONING=low         # End-session teacher question classification
+ANALYSIS_GREETING_REASONING=low               # End-session greeting/non-educational filtering
+ANALYSIS_SYNTHESIS_REASONING=high             # End-session coaching feedback synthesis
+STUDENT_REASONING=medium                      # Student chat responses
+TUTOR_REASONING=low                           # Tutor feedback
 
 # ===== Bot Token Limits =====
 # CRITICAL: GPT-5 with reasoning effort uses tokens for both reasoning AND output.
-# For reasoning="medium", ~128 tokens are used for reasoning alone.
 # Set max_output_tokens high enough to accommodate reasoning + actual response.
 #
-# Recommended values:
-# - STUDENT_MAX_TOKENS=500 (ensures complete responses even with medium reasoning)
-# - TUTOR_MAX_TOKENS=300 (sufficient for feedback with reasoning)
-#
-# If responses appear truncated or empty, increase these values.
-STUDENT_MAX_TOKENS=500                  # 최대 응답 길이 (minimum 300 for reasoning="medium")
-TUTOR_MAX_TOKENS=300                    # 최대 피드백 길이 (minimum 200 for reasoning="low")
-ANALYSIS_CLASSIFICATION_MAX_TOKENS=2500 # Classification first attempt
+STUDENT_MAX_TOKENS=1500                       # Student response budget
+TUTOR_MAX_TOKENS=1500                         # Tutor feedback budget
+ANALYSIS_MISCONCEPTION_MAX_TOKENS=500        # Real-time misconception analysis
+ANALYSIS_CLASSIFICATION_MAX_TOKENS=2500      # Classification first attempt
 ANALYSIS_CLASSIFICATION_RETRY_MAX_TOKENS=4000
-ANALYSIS_GREETING_MAX_TOKENS=1000       # Greeting detection first attempt
+ANALYSIS_GREETING_MAX_TOKENS=1000            # Greeting detection first attempt
 ANALYSIS_GREETING_RETRY_MAX_TOKENS=1500
-TUTOR_INTERVENTION_THRESHOLD=3          # 질문 10개당 개입 횟수 (1-10)
+ANALYSIS_SYNTHESIS_MAX_TOKENS=8000           # Session feedback synthesis first attempt
+ANALYSIS_SYNTHESIS_RETRY_MAX_TOKENS=12000
+DIALOGUE_ANALYSIS_MAX_TOKENS=200             # Dialogue similarity analysis
+TUTOR_INTERVENTION_THRESHOLD=3               # Questions per 10 before tutor intervention
+CONTEXT_WINDOW_TURNS=20                      # Dialogue turns retained in prompt context
 
 # Session Security
 SESSION_SECRET=change-this-to-random-64-char-string
